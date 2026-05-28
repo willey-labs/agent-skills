@@ -1,0 +1,42 @@
+# Example .coding-standards-ignore — copy to your project root as
+# `.coding-standards-ignore` and edit to taste. Patterns are gitignore-style.
+#
+# Syntax:
+#   *      matches any chars except /
+#   **     matches zero or more path segments
+#   ?      matches one char except /
+#   [..]   character class
+#   #      comment
+#   blank lines ignored
+#
+# Your patterns ADD to the built-in defaults (shadcn/ui, generated, vendored,
+# migrations, build output, lock files). They don't replace them.
+#
+# When does a file need to go here?
+# - It's owned by a code generator the skill doesn't auto-detect.
+# - It's vendored from upstream and you don't want to enforce your rules.
+# - It's a one-off exception the team has agreed to keep as-is.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Examples — uncomment / adapt as needed
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Whole monorepo packages owned by a generator
+# packages/design-system/src/**
+# packages/api-types/**
+
+# A specific vendored library
+# src/third-party/**
+# server/lib/legacy/**
+
+# A specific file you've intentionally kept non-conformant
+# src/special-case.ts
+# app/Http/Controllers/LegacyController.php
+
+# Custom codegen output not covered by defaults
+# server/graphql/__generated__/**
+# src/openapi-client/**
+
+# Tooling output that defaults missed
+# .turbo/**
+# .terraform/**

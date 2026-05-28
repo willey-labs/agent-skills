@@ -19,6 +19,9 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
+sys.path.insert(0, str(Path(__file__).parent))
+from _exclusions import is_excluded_path, has_generation_marker  # noqa: E402
+
 JVM_EXTENSIONS = {".java", ".kt", ".kts"}
 
 # Star imports — bring entire package into scope, hide where a type came from.
@@ -148,8 +151,15 @@ def main() -> int:
         return 0
     is_kotlin = ext in {".kt", ".kts"}
 
+    excluded, _pattern = is_excluded_path(file_path)
+    if excluded:
+        return 0
+
     new_content = extract_new_content(tool_name, tool_input)
     if not new_content.strip():
+        return 0
+
+    if has_generation_marker(new_content):
         return 0
 
     clean = strip_strings_and_comments(new_content)

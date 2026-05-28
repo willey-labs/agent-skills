@@ -35,28 +35,83 @@ All paths in this document are **relative to this SKILL.md file**. `references/c
 
 ---
 
-## Step 0 — Bootstrap the enforcement hooks (run once per skill install)
+## Step 0 — Bootstrap the enforcement hooks + readiness check (run once per skill install)
 
-**Run this exactly once the first time the skill activates in any new session, scope, or after a skill update.** It wires the PreToolUse hooks in `hooks/` into the correct `settings.json` (project vs global is auto-detected from the SKILL.md install path).
+**Run this exactly once the first time the skill activates in any new session, scope, or after a skill update.** It does:
+
+1. **Readiness check** — Python version (3.9+), Python command (`python` vs `python3`), pip availability, virtualenv detection, platform (Windows / macOS / Linux), tree-sitter package availability.
+2. **Auto-install missing tree-sitter packages** — when invoked with `--auto-install` (recommended for agent contexts; the bootstrap can't prompt the user from a non-TTY).
+3. **Wire PreToolUse hooks** into the correct `settings.json` (project vs global is auto-detected from the SKILL.md install path).
+4. **Symlink `/coding-standards` slash command** into `.claude/commands/`.
+
+### How to invoke from the agent (non-TTY context)
 
 ```bash
-python3 "$(dirname "$(readlink -f .claude/skills/coding-standards/SKILL.md 2>/dev/null || echo ".claude/skills/coding-standards/SKILL.md")")/bootstrap.py"
+python3 <skill-dir>/bootstrap.py --auto-install
 ```
 
-If that command fails to resolve (e.g. you can see this SKILL.md from another path), just call the bootstrap directly via the same dirname that this SKILL.md lives in:
+or, if `python3` isn't on PATH (some Windows installs):
+
+```bash
+python <skill-dir>/bootstrap.py --auto-install
+```
+
+The bootstrap detects the right Python command at runtime and writes it into `settings.json`, so hook commands work cross-platform.
+
+### How to invoke interactively (user shell)
 
 ```bash
 python3 <skill-dir>/bootstrap.py
 ```
 
-The script is **idempotent**:
-- First run: creates/edits `settings.json`, adds 7 PreToolUse hook entries, prints `Wired …`.
-- Re-run with no changes: prints `hooks already wired … No changes` and exits 0.
-- Re-run after a skill upgrade: replaces our previous hook entry with the new one; unrelated `PreToolUse` entries are preserved.
+Without flags, the bootstrap prompts the user for tree-sitter install confirmation when stdin is a TTY.
 
-After the first successful run the user **must restart the agent session** for the hooks to start firing. Tell the user so explicitly when bootstrap reports `Wired` or `Updated`.
+### Flags
 
-If bootstrap exits with `cannot determine install scope`, the skill was invoked from somewhere outside a `.claude/skills/` tree — point the user at the install command in `README.md` and skip Step 0; the rest of the skill still applies (rules will be enforced softly via the agent reading these references, just not blocked at write time).
+| Flag | Purpose |
+|---|---|
+| `--check` | Only report readiness; do not install or wire anything. |
+| `--auto-install` | Install missing tree-sitter without prompting. Use from agent context. |
+| `--skip-install` | Skip the tree-sitter install offer entirely. |
+
+### Idempotency
+
+- First run: prints readiness, installs missing deps, wires hooks, links command, prints `Wired …`.
+- Re-run with no changes: prints `already installed … No changes`.
+- Re-run after skill upgrade: replaces previous hook entry; unrelated `PreToolUse` entries are preserved.
+
+### What to tell the user after Step 0
+
+If bootstrap reports `Wired` or `Updated`, tell the user: **restart the agent session** so the hooks activate.
+
+If bootstrap reports `Install OK` for tree-sitter packages, also restart so the TS/JS AST checks load.
+
+If bootstrap exits with `Blocking issues:` (Python too old, etc.), surface the issue verbatim and ask the user to resolve before proceeding.
+
+If bootstrap exits with `cannot determine install scope`, the skill is invoked from outside a `.claude/skills/` tree — point at `README.md` install command and skip Step 0; the rest of the skill still applies (rules enforced softly, no write-time blocking).
+
+---
+
+## Step 0.4 — Exclusion check (always)
+
+Before applying any rule to a file, check whether it's **excluded**. Excluded files are owned by third-party tooling, not by the user — modifying them defeats the upgrade path or churns generated code. Skip them silently.
+
+A file is excluded if **any** of:
+
+1. **Its path matches a built-in default pattern.** Common cases:
+   - `**/node_modules/**`, `**/vendor/**`, `**/bower_components/**` — installed deps
+   - `**/components/ui/**` (and monorepo variants like `packages/components/ui/**`, `apps/web/src/components/ui/**`) — shadcn/ui generated components, owned by the shadcn CLI
+   - `**/prisma/migrations/**`, `**/drizzle/migrations/**`, `**/alembic/versions/**`, `**/migrations/[0-9][0-9][0-9][0-9]_*.py` (Django) — ORM-generated migrations
+   - `**/generated/**`, `**/__generated__/**`, `**/*.gen.ts`, `**/*.generated.tsx`, `**/zz_generated.*`, `**/*_pb.go`, `**/*_grpc.pb.go` — codegen output
+   - `**/dist/**`, `**/build/**`, `**/.next/**`, `**/.nuxt/**`, `**/.svelte-kit/**`, `**/target/**`, `**/bin/**`, `**/obj/**` — build outputs
+   - `**/package-lock.json`, `**/yarn.lock`, `**/pnpm-lock.yaml`, `**/composer.lock`, `**/Cargo.lock`, `**/go.sum`, `**/poetry.lock`, `**/uv.lock` — lock files
+   - Full list in `hooks/_exclusions.py` → `DEFAULT_EXCLUSIONS`
+2. **The file content has a generation marker** in the first 10 lines: `@generated`, `DO NOT EDIT`, `automatically generated`, `Code generated by`, `@autogenerated`, `@codegen`, `@nocheck`.
+3. **The project has a `.coding-standards-ignore` file** at its root with a matching gitignore-style pattern.
+
+The hooks already check this — they exit 0 silently on excluded files. **You** (the agent/orchestrator/workers) must do the same: when asked to write or review code, check the target path against `hooks/_exclusions.py`'s `is_excluded_path()` (or apply the same rules) and refuse to modify excluded files. If the user explicitly asks to modify an excluded file, **ask once for confirmation** — explain that the file is normally owned by the tool that generated it, and modification will be lost on re-generation. Proceed only after explicit consent.
+
+For the orchestrator pipeline: filter the target file list through `is_excluded_path()` BEFORE dispatching to Worker 1. Excluded files never reach the workers.
 
 ---
 
@@ -133,6 +188,132 @@ Look at the file you're about to write/edit/review. Determine which framework fo
 **Generic libraries with no framework signals** (a utility npm package, a CLI tool, a small Python script not tied to any web framework) default to the corresponding "no-framework" entry: `vanilla-js` for JS/TS, or — if Python — the closest fit (`flask`/`fastapi`/`django`) doesn't apply, so fall back to the universal rules in `common/` only. The Python framework files do **not** cover plain library code.
 
 **If you cannot tell**, ask the user once — don't guess across frameworks.
+
+---
+
+## Step 1.5 — Pick execution shape: orchestrator pipeline vs inline
+
+You have two execution shapes for Write and Review modes. Pick deterministically:
+
+| Trigger | Execution shape |
+|---|---|
+| Task scope = single file edit (≤30 lines change), OR single function refactor, OR Q&A about a rule | **Inline.** You (the main agent) do the work yourself. Skip Step 2.X and continue with Step 2 (load all references) → Step 3 (apply rules). |
+| Task scope = 2+ files, OR a new feature/use case, OR a diff/PR review, OR explicit `--thorough` flag, OR explicit `/coding-standards` slash command | **Orchestrator pipeline.** You become the orchestrator and dispatch to workers. Continue with Step 2.O (orchestrator). |
+| `Agent` tool is NOT available in this host | Fall back to **inline** regardless of scope. |
+
+**Default to inline when uncertain.** The pipeline is for non-trivial work where the latency cost is justified by the comprehensiveness gain.
+
+---
+
+## Step 2.O — Orchestrator pipeline (when picked above)
+
+You (the main agent) are now the **orchestrator**. You do not apply rules yourself; you coordinate three sequential workers. Workers never write to disk — you do the final Write at the end. This guarantees hooks fire exactly once on the final code.
+
+### Worker roster
+
+| Worker | Owns | Brief file |
+|---|---|---|
+| **Worker 1 — Structure & Architecture** | ST-*, OD-001, OD-002, OD-004, OD-005, DP-001 to DP-005, `<framework>/structure.md` | `workers/worker-1-structure.md` |
+| **Worker 2 — Code Quality (line level)** | FN-001 to FN-009, NM-*, OD-003, FMT-* | `workers/worker-2-quality.md` |
+| **Worker 3 — Failure Handling** | EH-*, FN-010 | `workers/worker-3-failure.md` |
+
+Cross-cutting principles (DP-006 KISS, DP-007 DRY, FN-011) are applied **per-domain** by each worker as a lens — no single worker owns them.
+
+### Pipeline shape
+
+**Write mode:**
+```
+User task
+  → Worker 1 outputs file skeletons (paths, imports, signatures, placeholder bodies)
+  → Worker 2 outputs files with function bodies, names, formatting, Demeter fixes
+  → Worker 3 outputs final files with error boundaries, async safety, idiomatic failure
+  → Orchestrator writes files (one Write call per file; hooks fire here on final code)
+```
+
+**Review mode:**
+```
+User task (diff/PR/file)
+  → Worker 1 outputs findings JSON (no code changes)
+  → Worker 2 outputs findings JSON
+  → Worker 3 outputs findings JSON
+  → Orchestrator concatenates, sorts by severity, presents unified report
+```
+
+### How to dispatch a worker
+
+For each worker N in {1, 2, 3}:
+
+1. **Read the brief**: `workers/worker-N-<name>.md`. The frontmatter tells you `owns_rules`, `applies_as_lens`, `must_not_touch`. The body is the prompt template.
+2. **Construct the dispatch prompt** by combining:
+   - The full body of the worker's brief file
+   - A trailing block:
+     ```
+     === INPUT ===
+     TASK: <user's original task verbatim>
+     FRAMEWORK: <detected framework key from Step 1>
+     MODE: write | review
+     WORKER_<N-1>_OUTPUT: <previous worker's JSON, omit for Worker 1>
+     ```
+3. **Call the `Agent` tool** with:
+   - `subagent_type: "general-purpose"`
+   - `description: "coding-standards worker <N>"`
+   - `prompt`: the constructed prompt
+4. **Parse the worker's JSON output.** If parsing fails:
+   - Retry once with a clarifying message: "Your previous response was not valid JSON. Return ONLY the JSON object specified in the brief."
+   - If still failing, fall back to inline (load all references yourself, do the work, write files).
+5. **Validate the output**:
+   - Worker only modified files it had authority over (check `must_not_touch`).
+   - Worker's `changes_made` / `decisions` / `error_handling_added` cite a rule code it owns.
+   - Worker did not introduce abstractions outside its rule list (no new Strategy patterns from Worker 2; no new layers from Worker 3).
+6. **If validation fails**, redispatch the worker with the specific violation noted. After one retry, fall back to inline.
+
+### After all workers complete (Write mode)
+
+7. **Take Worker 3's `files` object.** For each `path → content`:
+   - If file does not exist: call `Write` with the content.
+   - If file exists: read it, compute the minimal edit, call `Edit`. (For new code, Write is almost always the right call.)
+8. **The hooks fire here**, on the final content, exactly once per file. If a hook blocks, the orchestrator must:
+   - Read the hook's stderr message.
+   - Identify which worker should have caught the violation.
+   - Redispatch that worker with the hook's feedback included.
+   - Retry the Write.
+   - If retry fails twice, surface the error to the user with the hook's diagnostic.
+
+### After all workers complete (Review mode)
+
+9. **Concatenate findings** from Worker 1 + Worker 2 + Worker 3.
+10. **Sort by severity** (must-fix → should-fix → consider) and group by file.
+11. **Present** to the user as a structured PASS/FAIL table. Cite rule codes. Do not editorialize.
+
+### Tell the user what happened
+
+After the pipeline completes, summarize:
+
+```
+Worker 1 (Structure):
+  - Placed 2 files per ST-001 capability layout
+  - Designed Order as data structure (OD-002)
+  - Wired DI per DP-005 — OrderService depends on PaymentGateway interface
+
+Worker 2 (Quality):
+  - Renamed 4 placeholders to intent-revealing names (NM-001)
+  - Extracted 30-line function into 3 helpers (FN-001)
+  - Fixed 1 Demeter chain (OD-003)
+
+Worker 3 (Failure):
+  - Added EH-002 boundary translation around stripe.charges.create
+  - Awaited 1 floating Promise (EH-004)
+
+Files written: <list>. Hooks passed.
+```
+
+### Pipeline invariants
+
+- **Workers never call `Write`/`Edit`.** They emit code as JSON values. Only you (the orchestrator) write to disk.
+- **Hooks fire exactly once** per file, on the final code, after Worker 3.
+- **No worker can modify rules outside its `owns_rules` list.** Validate before accepting output.
+- **No retries past 2.** If a worker fails twice, fall back to inline.
+- **Sequential, not parallel.** Worker N's output is Worker N+1's input. Do not dispatch Worker 2 before Worker 1 completes.
 
 ---
 

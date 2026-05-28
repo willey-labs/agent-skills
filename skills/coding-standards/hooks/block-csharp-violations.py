@@ -21,6 +21,9 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
+sys.path.insert(0, str(Path(__file__).parent))
+from _exclusions import is_excluded_path, has_generation_marker  # noqa: E402
+
 CS_EXTENSIONS = {".cs"}
 
 # C#'s "any" escape hatch — `dynamic` bypasses static typing entirely.
@@ -160,8 +163,15 @@ def main() -> int:
     if Path(file_path).suffix not in CS_EXTENSIONS:
         return 0
 
+    excluded, _pattern = is_excluded_path(file_path)
+    if excluded:
+        return 0
+
     new_content = extract_new_content(tool_name, tool_input)
     if not new_content.strip():
+        return 0
+
+    if has_generation_marker(new_content):
         return 0
 
     clean = strip_strings_and_comments(new_content)

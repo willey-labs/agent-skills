@@ -46,9 +46,9 @@ options:
 ```
 
 After the user picks:
-- **Write code…** → go to SKILL.md Step 1 (framework detection) → Step 2 (load refs). Write mode.
-- **Check existing code…** → ask the user *what* to check (file path, folder, diff command, or PR number); go to Step 1 (per-file framework detection) → Step 2 → Review mode (the strict PASS/FAIL walkthrough).
-- **Show me the rules** → go to Step 1 (detect framework once for the project) → Step 2 (load all refs) → present a one-screen index of rule codes, then wait for follow-up questions.
+- **Write code…** → Step 1 (framework detection) → Step 1.5 (orchestrator pipeline because `/coding-standards` was used explicitly — pipeline is the default for this command) → Step 2.O (workers).
+- **Check existing code…** → ask the user *what* to check (file path, folder, diff command, or PR number) → Step 1 (per-file framework detection) → Step 1.5 (orchestrator pipeline) → Step 2.O (workers in review mode).
+- **Show me the rules** → Step 1 (detect framework once) → Step 2 (load all refs inline; no workers) → present a one-screen index of rule codes, then wait for follow-up questions.
 
 **If `$ARGUMENTS` is non-empty** (the user typed `/coding-standards <something>`):
 → Treat `$ARGUMENTS` as the task. Skip the picker entirely. Examples:
@@ -61,7 +61,7 @@ After the user picks:
 | `show me the naming rules` / `what's FN-005?` | Show me the rules / Q&A |
 | `refactor src/cart.ts` | Write (targeted at the path) |
 
-Apply Step 1 + Step 2 from the SKILL.md based on inferred mode, then proceed.
+Apply Step 1 (framework detect) → Step 1.5 (orchestrator pipeline default when `/coding-standards` was invoked) → Step 2.O (workers) → integration → final Write.
 
 ## Do not
 
