@@ -10,6 +10,12 @@ The chosen pattern for NestJS projects: **package by feature** — top-level fol
 
 ---
 
+## Builds on `common/structure.md`
+
+This file specializes the universal structural rules in `references/common/structure.md`. NestJS adds module declarations as the framework-enforced public surface, controller/service/repository layering, and DTO-vs-entity separation. Read `common/structure.md` first; the rules below add the Nest-specific bits.
+
+---
+
 ## Mandatory shape
 
 ```
@@ -198,6 +204,8 @@ Nest's layer separation is conventional but worth enforcing:
 ---
 
 ## NST-008 — DTOs at the controller boundary; entities inside
+
+**Framework-boundary carve-out (see `common/objects-and-data.md` OD-005).** NestJS DTOs with `class-validator` decorators and TypeORM/Mikro-ORM entities with persistence decorators are intentionally "hybrid" classes by the framework's design — they carry data plus framework-required behavior (validation, ORM mapping). That's allowed; it's not the OD-004 anti-pattern. The line is still firm: *business rules* (charging payment, dispatching events, coordinating across aggregates) belong in services or domain objects, not on the DTO or entity.
 
 DTOs are the wire shape. Entities are the domain shape. They are not the same and should not be conflated.
 

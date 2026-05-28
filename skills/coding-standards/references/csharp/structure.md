@@ -14,6 +14,12 @@ This moves *away* from the common .NET layered template (separate `Domain`, `App
 
 ---
 
+## Builds on `common/structure.md`
+
+This file specializes the universal structural rules in `references/common/structure.md`. C# adds its own concerns: namespace-as-folder, vertical-slice (one-file-per-use-case) as an alternative grouping, async + nullability + cancellation hygiene, and the when-to-graduate-to-multi-project decision. Read `common/structure.md` first; the rules below add the C#-specific bits.
+
+---
+
 ## Mandatory shape (solution layout)
 
 ```
@@ -170,7 +176,9 @@ Pick one approach per project and stay consistent. Don't mix styles within the s
 
 ## CS-003 — Behavior on entities when it's about the entity's data; in services when it's about orchestration
 
-Same rule as the Laravel doc — see `references/laravel/structure.md` LRV-003. In C#, the language helps you enforce it: use **private setters** and **factory methods** on entities to keep invariants intact.
+**Framework-boundary carve-out (see `common/objects-and-data.md` OD-005).** EF Core entities with persistence attributes (`[Key]`, `[ForeignKey]`, fluent-API configuration) and minimal-API request DTOs with validation attributes are intentionally hybrid by the framework's design. The line is still firm: business rules that *cross* the entity (charging payments, dispatching events, coordinating with other capabilities) belong in services, not on the entity.
+
+Same placement rule as the Laravel doc — see `references/laravel/structure.md` LRV-003. In C#, the language helps you enforce it: use **private setters** and **factory methods** on entities to keep invariants intact.
 
 ```csharp
 // ✅ Good — Order owns its own state transitions

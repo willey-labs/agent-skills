@@ -10,6 +10,12 @@ The chosen pattern for NativeScript (JavaScript/TypeScript native mobile) projec
 
 ---
 
+## Builds on `common/structure.md`
+
+This file specializes the universal structural rules in `references/common/structure.md`. The NativeScript-specific additions below cover the MVVM page-and-view-model trio, the page-vs-view-model business-logic split, and platform-suffix files. Read `common/structure.md` first.
+
+---
+
 ## Mandatory shape
 
 ```

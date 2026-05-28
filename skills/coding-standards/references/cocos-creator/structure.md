@@ -12,6 +12,12 @@ The chosen pattern for Cocos Creator (2.x and 3.x, TypeScript) projects: **flat 
 
 ---
 
+## Builds on `common/structure.md`
+
+This file specializes the universal structural rules in `references/common/structure.md`. Cocos Creator adds its own constraints on top: Asset Bundles for lazy loading, runtime isolation between bundles, the typed event bus for cross-bundle communication, and editor-coupled `@property` decorators. Read `common/structure.md` first; the rules below add the engine-specific concerns.
+
+---
+
 ## The universal pattern
 
 Every Cocos Creator project — regardless of size — follows this shape:
@@ -461,6 +467,8 @@ Component names must be **feature-qualified**, not generic. `MenuButton` (not `B
 ---
 
 ## CC-011 — Editor-exposed properties stay narrow
+
+**Framework-boundary carve-out (see `common/objects-and-data.md` OD-005).** Cocos components with `@property`-decorated fields look like the data-exposing "hybrid" class OD-001 forbids. They aren't — the editor needs the decorators to render the inspector, and that's the framework contract. The rule below narrows the public surface so the carve-out doesn't grow into the OD-004 anti-pattern.
 
 The `@property` decorator publishes a field to the editor inspector. Each property is a **public surface** of the component — published properties are harder to change later because designers wire them up in scenes/prefabs.
 

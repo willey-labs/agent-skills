@@ -71,6 +71,27 @@ Every class is a bet on what kind of change comes next. The two extremes have op
 
 Not everything needs to be an object.
 
+**The sum-type escape hatch.** Languages with discriminated unions / sum types (Rust enums, TypeScript discriminated unions, Kotlin sealed classes, Swift enums-with-associated-values, OCaml/F# variants, Scala ADTs) partially escape this tradeoff: pattern matching on a closed type union lets you add *both* new types *and* new operations cheaply, because the compiler tells you everywhere a missing case lives.
+
+```ts
+type Shape =
+  | { kind: 'circle'; radius: number }
+  | { kind: 'rectangle'; width: number; height: number }
+  | { kind: 'triangle'; base: number; height: number }
+
+function area(shape: Shape): number {
+  switch (shape.kind) {
+    case 'circle':    return Math.PI * shape.radius ** 2
+    case 'rectangle': return shape.width * shape.height
+    case 'triangle':  return 0.5 * shape.base * shape.height
+  }
+}
+```
+
+Adding `Pentagon` adds one entry to the union; the compiler then flags every `switch` that doesn't handle it. Adding `perimeter` adds one function that pattern-matches the same closed set. **Both axes become the small change**, provided the type set stays *closed* (sum types do not extend across module boundaries the way subclass hierarchies do).
+
+The classic Martin tradeoff (objects vs data structures) holds when the type set is *open* (new types arrive from third-party plugins, separately deployed services, external integrations). Sum types only help inside one closed domain.
+
 ---
 
 ## OD-003 — Law of Demeter: talk to friends, not strangers
@@ -117,3 +138,30 @@ Adding a new operation is hard (must touch the class), and adding a new type is 
 **The fix for a hybrid:** don't strip `save`/`delete` from your Active Record. Move the *business rules* (pricing, eligibility, validation) out into separate objects. The Active Record stays a clean data carrier; the business object owns the logic.
 
 **How to spot a hybrid:** the class has both `getX()/setX()` for most of its fields *and* methods that perform calculations or enforce rules. Split it — pricing logic into its own object, persistence stays in the record.
+
+---
+
+## OD-005 — Frameworks demand "hybrid" shapes at their boundary; that's allowed
+
+A real conflict you will hit in review: every web framework's idiomatic patterns produce classes that look like the "hybrids" OD-001 and OD-004 forbid.
+
+| Framework | The "hybrid" shape | Why it exists |
+|---|---|---|
+| **NestJS** | DTOs with `@IsEmail()`, `@Min(0)`, custom validators | The framework reads decorators on the class to validate the wire shape |
+| **Laravel** | Form Requests with `rules()` + `authorize()` methods on the request class | Same — request validation is part of the framework contract |
+| **NestJS / Laravel / Spring / EF Core** | Entities with persistence decorators (`@Entity`, `@Column`, `@Id`, `[Key]`) | The ORM reads the decorators to map to the database |
+| **Cocos Creator** | Components with `@property`-decorated fields exposed to the editor | The editor reads decorators to render the inspector |
+| **Spring** | Controllers with `@RestController`, request DTOs with `@RequestBody` + Jakarta validation | Same — Spring reads the annotations to bind |
+| **Django / FastAPI** | Pydantic models / Django models with validation methods | The framework's input/output contract |
+
+These look like hybrids because they expose data shape *and* attach behavior (validation, persistence, editor display) to the class. **They are not the smell OD-004 is about.** OD-004 warns against classes where *business rules* mix with data getters/setters — pricing logic on an Order entity that also exposes raw fields. The framework-boundary classes above don't do that: their "behavior" is *infrastructure* (validation, persistence, editor binding), not business rules.
+
+**The rule:**
+
+1. **Framework-boundary classes** (DTOs, Form Requests, EF/TypeORM/JPA entities, Pydantic models, Cocos components) are *allowed* to look like hybrids. They exist to bridge a framework contract; that's the framework's design.
+2. **Business rules still don't live on those classes.** An Order entity may carry `@Entity` decorators and `IsCancellable()` (about its own data). It must not carry `ChargeCustomer()` or `SendOrderConfirmation()` — those are orchestration, and they belong in services or domain objects.
+3. **The framework boundary is a *thin* layer.** When the boundary class starts to grow business methods, you've crossed the line — extract them out.
+
+**How to spot the real OD-004 violation inside a framework-boundary class:** business logic that goes beyond *what does this thing do with its own data?* If the method talks to other services, dispatches events, or coordinates across aggregates, it doesn't belong on the boundary class — push it into a service.
+
+Each framework's structure file (`nestjs/`, `laravel/`, `csharp/`, `cocos-creator/`, `spring-boot/`, …) carves the carve-out concretely for that stack.

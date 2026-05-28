@@ -11,6 +11,12 @@ Thumbs.db
 # Node (in case any tooling is added later)
 node_modules/
 
+# Python — bootstrap.py and hook scripts run via `python3` directly, not
+# imported, but a stray `py_compile` or test import will leave these behind.
+__pycache__/
+*.pyc
+*.pyo
+
 # Local config / secrets
 .env
 .env.local

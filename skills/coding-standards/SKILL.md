@@ -2,16 +2,18 @@
 name: coding-standards
 description: >
   Coding standards for writing, editing, and reviewing code. Routes to language/framework-specific
-  rules (Next.js, NestJS, Laravel, vanilla JS/TS, NativeScript, React Native/Expo, C#/.NET, Node Express/Fastify, Cocos Creator)
+  rules (Next.js, NestJS, Laravel, vanilla JS/TS, NativeScript, React Native/Expo, C#/.NET,
+  Node Express/Fastify, Cocos Creator, Vue/Nuxt, Spring Boot, Django, FastAPI, Flask, Go HTTP)
   PLUS universal clean-code rules (functions, naming, objects/data, formatting, error handling,
-  SOLID/KISS/DRY) that apply to every language. Consult before any code change. Use when the user
-  says "write a component", "add an endpoint", "refactor this", "review this diff/PR", or
-  "is this clean?". Make sure to consult this skill for ANY code authoring or review task, even
-  when the user does not explicitly ask for "standards" — every write/edit/review must comply.
+  SOLID/KISS/DRY, universal structural rules) that apply to every language. Consult before any
+  code change. Use when the user says "write a component", "add an endpoint", "refactor this",
+  "review this diff/PR", or "is this clean?". Make sure to consult this skill for ANY code
+  authoring or review task, even when the user does not explicitly ask for "standards" — every
+  write/edit/review must comply.
 license: MIT
 metadata:
   author: willey-lab
-  version: "3.0.0"
+  version: "4.0.0"
 ---
 
 # Coding Standards
@@ -33,6 +35,75 @@ All paths in this document are **relative to this SKILL.md file**. `references/c
 
 ---
 
+## Step 0 — Bootstrap the enforcement hooks (run once per skill install)
+
+**Run this exactly once the first time the skill activates in any new session, scope, or after a skill update.** It wires the PreToolUse hooks in `hooks/` into the correct `settings.json` (project vs global is auto-detected from the SKILL.md install path).
+
+```bash
+python3 "$(dirname "$(readlink -f .claude/skills/coding-standards/SKILL.md 2>/dev/null || echo ".claude/skills/coding-standards/SKILL.md")")/bootstrap.py"
+```
+
+If that command fails to resolve (e.g. you can see this SKILL.md from another path), just call the bootstrap directly via the same dirname that this SKILL.md lives in:
+
+```bash
+python3 <skill-dir>/bootstrap.py
+```
+
+The script is **idempotent**:
+- First run: creates/edits `settings.json`, adds 7 PreToolUse hook entries, prints `Wired …`.
+- Re-run with no changes: prints `hooks already wired … No changes` and exits 0.
+- Re-run after a skill upgrade: replaces our previous hook entry with the new one; unrelated `PreToolUse` entries are preserved.
+
+After the first successful run the user **must restart the agent session** for the hooks to start firing. Tell the user so explicitly when bootstrap reports `Wired` or `Updated`.
+
+If bootstrap exits with `cannot determine install scope`, the skill was invoked from somewhere outside a `.claude/skills/` tree — point the user at the install command in `README.md` and skip Step 0; the rest of the skill still applies (rules will be enforced softly via the agent reading these references, just not blocked at write time).
+
+---
+
+## Step 0.5 — Pick a mode if the user didn't (contextless activation only)
+
+**Skip this step** if the user's message already names a concrete task — "write X", "refactor Y", "review this PR/diff", "is this clean?", "audit Z", "what does FN-005 mean?". Those phrases ARE the mode; proceed to Step 1.
+
+**Trigger this step** only when the skill activated without a clear task in the same turn:
+- User typed `/coding-standards` with no arguments (see `commands/coding-standards.md`),
+- User said "what does this skill do?" / "tell me about coding standards",
+- User's message is too generic to infer mode ("help me with my code", "check my project").
+
+When triggered, invoke the `AskUserQuestion` tool with EXACTLY this payload (do not paraphrase the descriptions — they are the deterministic UX):
+
+```
+question:    "What do you want to do with the coding-standards skill?"
+header:      "Mode"
+multiSelect: false
+options:
+  - label:       "Write code that follows these rules"
+    description: "I'll detect the framework from your project, load the matching
+                  references, and apply the rules as I write. Hard violations get
+                  blocked at write time by the installed hooks."
+
+  - label:       "Check existing code against these rules"
+    description: "Point me at a file, folder, or diff and I'll report violations.
+                  PASS / FAIL / SKIPPED per applicable rule with file:line citations,
+                  grouped by must-fix / should-fix / consider."
+
+  - label:       "Show me the rules"
+    description: "Guided tour of the rule families (FN-*, NM-*, OD-*, ST-*, EH-*,
+                  FMT-*, DP-*) plus the detected framework. Cite rule codes with
+                  worked examples from the reference files."
+```
+
+After the answer:
+- **Write code…** → Step 1 → Step 2 → Write mode.
+- **Check existing code…** → ask the user *what* to check (file, folder, diff command, PR number) → Step 1 (per-file) → Step 2 → Review mode (use the strict PASS/FAIL walkthrough from this SKILL.md's Review section).
+- **Show me the rules** → Step 1 (detect framework once) → Step 2 (load all refs) → present a one-screen index of rule codes and wait for follow-up questions.
+
+**Invariants:**
+- Never invoke this step twice in a session — once mode is set, it stays set.
+- Never invoke it when the user has named a task — that's an annoying false ask.
+- The four exact words "Write code that follows these rules", "Check existing code against these rules", "Show me the rules" are part of the contract; the slash command and skill activation must produce identical option text.
+
+---
+
 ## Step 1 — Detect the framework
 
 Look at the file you're about to write/edit/review. Determine which framework folder applies using the signals below. **Stop at the first match.**
@@ -43,13 +114,23 @@ Look at the file you're about to write/edit/review. Determine which framework fo
 | `react-native` | `expo`, `react-native`, or `@expo/*` in `package.json` **or** `app.json` with `"expo"` key **or** `metro.config.js` |
 | `nativescript` | `nativescript.config.{js,ts}` or `nativescript` in `package.json` **or** a `.xml` file paired with a `.ts` page |
 | `cocos-creator` | `assets/` + `settings/` + (`library/` or `temp/` in `.gitignore`) at repo root **or** `cc` / `cocos-creator` import in a `.ts` file **or** `.scene` / `.prefab` files in the project |
+| `vue-nuxt` | `vue` or `nuxt` in `package.json` **or** `nuxt.config.{ts,js}` at repo root **or** `.vue` files in the project |
 | `nestjs` | `@nestjs/*` in `package.json` **or** the file matches `*.module.ts`, `*.controller.ts`, `*.service.ts` with NestJS decorator imports |
 | `node-express` | `express` or `fastify` in `package.json` **and** no NestJS — backend Node without a framework on top |
 | `laravel` | `composer.json` with `laravel/framework` **or** an `artisan` file at the repo root **or** the file is `.php` under `app/` |
 | `csharp` | `*.csproj`, `*.sln`, `*.cs` files |
+| `spring-boot` | `pom.xml` with `spring-boot-starter-*` **or** `build.gradle{,.kts}` with `org.springframework.boot` plugin **or** `@SpringBootApplication` in a `.java`/`.kt` file |
+| `django` | `manage.py` + `settings.py` at repo root **or** `django` in `pyproject.toml` / `requirements.txt` |
+| `fastapi` | `fastapi` in `pyproject.toml` / `requirements.txt` **or** `from fastapi import FastAPI` in a `.py` file |
+| `flask` | `flask` in `pyproject.toml` / `requirements.txt` **or** `from flask import Flask` **and** not Django/FastAPI |
+| `go-http` | `go.mod` at repo root **and** any of `gin-gonic/gin`, `labstack/echo`, `gofiber/fiber`, `go-chi/chi`, `gorilla/mux` in the module graph — or net/http with handler-based routing |
 | `vanilla-js` | Plain `.ts` / `.js` files that fit none of the above (libraries, CLIs, scripts, browser projects without a framework) |
 
-**If two could apply** (rare), pick the more specific one. A `.ts` file inside a NestJS project is `nestjs`, not `vanilla-js`. A `.tsx` file inside a Next.js project is `nextjs`, not `react-native`, even if the file imports React.
+**If two could apply** (rare), pick the more specific one. A `.ts` file inside a NestJS project is `nestjs`, not `vanilla-js`. A `.tsx` file inside a Next.js project is `nextjs`, not `react-native`, even if the file imports React. A `.vue` file inside a Nuxt project is `vue-nuxt`.
+
+**Monorepos with multiple frameworks** (frontend Next.js + backend NestJS + mobile React Native in one repo) are common and supported. **Pick the framework by the file you're editing, not the repo as a whole.** Editing `apps/web/src/checkout/...` → `nextjs`. Editing `apps/api/src/orders/...` in the same repo → `nestjs`. Editing a `.tsx` file under `apps/mobile/` → `react-native`. The detection signals above all apply per-file or per-subtree; walk up from the file until one matches.
+
+**Generic libraries with no framework signals** (a utility npm package, a CLI tool, a small Python script not tied to any web framework) default to the corresponding "no-framework" entry: `vanilla-js` for JS/TS, or — if Python — the closest fit (`flask`/`fastapi`/`django`) doesn't apply, so fall back to the universal rules in `common/` only. The Python framework files do **not** cover plain library code.
 
 **If you cannot tell**, ask the user once — don't guess across frameworks.
 
@@ -59,13 +140,14 @@ Look at the file you're about to write/edit/review. Determine which framework fo
 
 Before writing or reviewing **any** code, read these files in this order:
 
-1. **All six common files** (always):
+1. **All seven common files** (always):
    - `references/common/functions.md`
    - `references/common/naming.md`
    - `references/common/objects-and-data.md`
    - `references/common/formatting.md`
    - `references/common/error-handling.md`
    - `references/common/code-principles.md`
+   - `references/common/structure.md` — the universal structural rules (folder-as-module, no deep imports, Rule of Three, no junk-drawer files). Every framework file builds on this one.
 
 2. **The architecture file for the detected framework:**
    - `references/<framework>/structure.md`
@@ -102,7 +184,7 @@ When you're authoring or editing code, apply the rules **proactively** — write
 When you're reviewing a diff, a PR, or a file, walk through the rules systematically — don't freelance.
 
 1. **Scope.** List each file in the diff. For each, determine the framework using Step 1.
-2. **Load references.** For each framework that appears in the diff, read the corresponding `<framework>/structure.md`. Always read all six `common/` files (they apply to every file).
+2. **Load references.** For each framework that appears in the diff, read the corresponding `<framework>/structure.md`. Always read all seven `common/` files (they apply to every file).
 3. **Check each file against each applicable rule.** For each rule, either:
    - Report `PASS` (rule applies, no violations found), or
    - Report a finding as `file.tsx:42 — <which rule> — <what's wrong>`, or
@@ -134,7 +216,10 @@ The rules are organized by **what kind of question you're asking**, not by langu
 **SOLID, KISS, DRY, dependency inversion, single responsibility**
 → `references/common/code-principles.md`
 
-**Folder structure, where does this file go, what's a public API, cross-feature imports**
+**Folder-as-module, no deep imports, Rule of Three, no junk-drawer files (universal)**
+→ `references/common/structure.md`
+
+**Folder structure for the specific framework (Next.js routes, NestJS modules, Laravel skeleton, etc.)**
 → `references/<framework>/structure.md`
 
 ---
@@ -148,9 +233,9 @@ When two rules pull in different directions, **DP-006 (KISS)** is the tiebreaker
 ## What this skill explicitly does NOT cover
 
 - **Performance tuning.** Use a dedicated profiler/tool when needed. Clean code is faster *enough* by default; the rules above don't optimize hot paths.
-- **Security review.** Use a dedicated security skill or auditor. A clean-code review can catch some classes of bugs (injection from string-built SQL, unvalidated input) but it is not a security audit.
+- **Security review.** Use a dedicated security skill or auditor (e.g. the `security-review` skill, where available). A clean-code review can catch some classes of bugs (injection from string-built SQL, unvalidated input, broken authorization) but it is not a security audit.
 - **Test design.** Tests are subject to the same clean-code rules (small functions, intent-revealing names) — but specific testing strategies (TDD, BDD, mutation testing) are out of scope.
-- **UI/UX visual review.** That's a separate domain (typography, color, motion). The frameworks here cover *code* organization, not visual design.
+- **UI/UX visual review.** That's a separate domain (typography, color, motion). The frameworks here cover *code* organization, not visual design. The `web-design-guidelines` or `design-taste-frontend` skill covers visual review when available.
 
 If the user asks for any of the above, say so and point them at a more specific tool.
 

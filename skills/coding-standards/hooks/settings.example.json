@@ -1,0 +1,19 @@
+{
+  "_comment": "Paste the `hooks` block into ~/.claude/settings.json or .claude/settings.json. If you already have `hooks.PreToolUse`, merge entries. Replace ${CLAUDE_PROJECT_DIR}/.claude with the absolute path to the skill dir if installed elsewhere.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-junk-paths.py" },
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-ts-violations.py" },
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-py-violations.py" },
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-go-violations.py" },
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-csharp-violations.py" },
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-php-violations.py" },
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-jvm-violations.py" }
+        ]
+      }
+    ]
+  }
+}

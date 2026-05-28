@@ -12,6 +12,12 @@ The vanilla stack has no opinion of its own — these two principles supply the 
 
 ---
 
+## Builds on `common/structure.md`
+
+This file is the closest of all the framework files to the universal structural rules in `references/common/structure.md`, because vanilla JS/TS has no framework on top to constrain folder layout — the structural rules *are* the architecture. Read `common/structure.md` first; the rules below add specifics like the per-folder barrel, the no-mega-root-barrel rule for tree-shaking, and the default naming table.
+
+---
+
 ## Mandatory shape (browser/Node app)
 
 ```

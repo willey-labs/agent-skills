@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+"""PreToolUse hook — Python content checks.
+
+Hard-blocks Write/Edit/MultiEdit on `.py` files when the new content
+violates high-precision rules that regex can catch reliably:
+
+- `typing.Any` usage: `: Any`, `-> Any`, `List[Any]`, `Dict[..., Any]`, ...
+- Hungarian-style snake_case names: `str_name`, `arr_items`, `obj_user`, ...
+- Function signatures with 4+ positional arguments (FN-005)
+- Star imports: `from x import *`
+
+Stdlib only. Reads PreToolUse JSON from stdin, exits 2 with stderr on block.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Iterable
+
+PY_EXTENSIONS = {".py", ".pyi"}
+
+# `typing.Any` and its friends. `: Any`, `-> Any`, generic-arg Any.
+ANY_RULES: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r":\s*Any\b"), "type annotation `: Any`"),
+    (re.compile(r"->\s*Any\b"), "return annotation `-> Any`"),
+    (re.compile(r"\bList\s*\[\s*Any\s*\]"), "`List[Any]`"),
+    (re.compile(r"\bDict\s*\[[^\]]*,\s*Any\s*\]"), "`Dict[..., Any]`"),
+    (re.compile(r"\bOptional\s*\[\s*Any\s*\]"), "`Optional[Any]`"),
+    (re.compile(r"\bTuple\s*\[[^\]]*Any[^\]]*\]"), "`Tuple[..., Any, ...]`"),
+    (re.compile(r"\bUnion\s*\[[^\]]*\bAny\b[^\]]*\]"), "`Union[..., Any]`"),
+    (re.compile(r"\bcast\s*\(\s*Any\b"), "`cast(Any, ...)`"),
+]
+
+# NM-006 — Hungarian snake_case. Same multi-char prefixes as the TS hook,
+# adapted for Python conventions (snake_case with underscore separator).
+HUNGARIAN_PREFIXES = ("str", "arr", "obj", "fn", "lst", "dct", "tpl", "bln")
+_PREFIX_ALT = "|".join(sorted(HUNGARIAN_PREFIXES, key=len, reverse=True))
+
+# Matches: variable assignment, function/method parameter, walrus.
+# `str_name = ...`, `def foo(str_name: ...)`, `(str_name := ...)`
+HUNGARIAN_ASSIGN = re.compile(
+    rf"\b(?P<prefix>{_PREFIX_ALT})_(?P<rest>[a-z]\w*)\s*[:=]"
+)
+HUNGARIAN_PARAM = re.compile(
+    rf"(?P<bound>[(,]\s*)(?P<prefix>{_PREFIX_ALT})_(?P<rest>[a-z]\w*)\s*[:,=)]"
+)
+
+# FN-005 — function with 4+ positional params (excluding self/cls).
+# Catches `def foo(a, b, c, d):` and `def foo(a, b, c, d, *, e):`.
+# `self` / `cls` are stripped before counting so `def m(self, a, b, c)` is fine.
+FUNCTION_DEF = re.compile(r"\bdef\s+\w+\s*\(([^)]*)\)")
+
+STAR_IMPORT = re.compile(r"^\s*from\s+\S+\s+import\s+\*")
+
+
+def strip_strings_and_comments(source: str) -> str:
+    """Blank out string literals and `#` comments so detectors don't fire inside them."""
+
+    def blank(match: re.Match[str]) -> str:
+        return "".join(" " if ch != "\n" else "\n" for ch in match.group(0))
+
+    # Triple-quoted strings first, then `#` comments, then single-line strings.
+    source = re.sub(r'"""(?:\\.|[^"\\]|"(?!""))*"""', blank, source, flags=re.DOTALL)
+    source = re.sub(r"'''(?:\\.|[^'\\]|'(?!''))*'''", blank, source, flags=re.DOTALL)
+    source = re.sub(r"#[^\n]*", blank, source)
+    source = re.sub(r'"(?:\\.|[^"\\])*"', blank, source)
+    source = re.sub(r"'(?:\\.|[^'\\])*'", blank, source)
+    return source
+
+
+def iter_any_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
+    for idx, line in enumerate(clean_lines, start=1):
+        for pattern, label in ANY_RULES:
+            if pattern.search(line):
+                yield f"{file_path}:{idx} — `Any` is banned ({label})"
+                break
+
+
+def iter_hungarian_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
+    for idx, line in enumerate(clean_lines, start=1):
+        for match in HUNGARIAN_ASSIGN.finditer(line):
+            prefix = match.group("prefix")
+            rest = match.group("rest")
+            yield (
+                f"{file_path}:{idx} — NM-006: Hungarian-style name `{prefix}_{rest}`; "
+                f"drop the `{prefix}_` prefix"
+            )
+        for match in HUNGARIAN_PARAM.finditer(line):
+            prefix = match.group("prefix")
+            rest = match.group("rest")
+            yield (
+                f"{file_path}:{idx} — NM-006: Hungarian-style parameter `{prefix}_{rest}`; "
+                f"drop the `{prefix}_` prefix"
+            )
+
+
+def _count_py_params(param_list: str) -> int:
+    """Count Python positional parameters, ignoring self/cls and **kwargs marker.
+
+    `self, a, b, c` → 3
+    `a, b, c, d` → 4
+    `a, b, *, c, d` → 4 (everything before `*` is positional-capable)
+    `a: int = 1, b: str = ""` → 2 (default values don't reduce arg count)
+    """
+    s = param_list.strip()
+    if not s:
+        return 0
+    # Strip nested brackets so generic annotations don't break comma split.
+    depth = 0
+    flat = []
+    for ch in s:
+        if ch in "[(<":
+            depth += 1
+            flat.append(" ")
+            continue
+        if ch in "])>":
+            depth = max(0, depth - 1)
+            flat.append(" ")
+            continue
+        if depth > 0:
+            flat.append(" ")
+        else:
+            flat.append(ch)
+    s = "".join(flat)
+
+    parts = [p.strip() for p in s.split(",") if p.strip()]
+    # Drop self / cls and the bare `*` marker.
+    parts = [p for p in parts if p not in ("self", "cls", "*")]
+    # Drop **kwargs entries — they're a single bucket, not n positional args.
+    parts = [p for p in parts if not p.startswith("**")]
+    return len(parts)
+
+
+def iter_arg_count_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
+    for idx, line in enumerate(clean_lines, start=1):
+        match = FUNCTION_DEF.search(line)
+        if not match:
+            continue
+        count = _count_py_params(match.group(1))
+        if count >= 4:
+            yield (
+                f"{file_path}:{idx} — FN-005: function takes {count} parameters; "
+                f"group them into a dataclass / TypedDict / kwargs-only signature"
+            )
+
+
+def iter_star_import_violations(raw_lines: list[str], file_path: str) -> Iterable[str]:
+    for idx, line in enumerate(raw_lines, start=1):
+        if STAR_IMPORT.search(line):
+            yield (
+                f"{file_path}:{idx} — star import (`from x import *`) banned; "
+                f"name what you import"
+            )
+
+
+def extract_new_content(tool_name: str, tool_input: dict) -> str:
+    if tool_name == "Write":
+        return tool_input.get("content", "") or ""
+    if tool_name == "Edit":
+        return tool_input.get("new_string", "") or ""
+    if tool_name == "MultiEdit":
+        edits = tool_input.get("edits") or []
+        return "\n".join(
+            (edit.get("new_string", "") or "") for edit in edits if isinstance(edit, dict)
+        )
+    return ""
+
+
+def main() -> int:
+    raw = sys.stdin.read()
+    if not raw.strip():
+        return 0
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return 0
+
+    tool_name = payload.get("tool_name", "")
+    tool_input = payload.get("tool_input") or {}
+    if tool_name not in {"Write", "Edit", "MultiEdit"}:
+        return 0
+
+    file_path = tool_input.get("file_path", "")
+    if not file_path:
+        return 0
+
+    if Path(file_path).suffix not in PY_EXTENSIONS:
+        return 0
+
+    new_content = extract_new_content(tool_name, tool_input)
+    if not new_content.strip():
+        return 0
+
+    clean = strip_strings_and_comments(new_content)
+    clean_lines = clean.splitlines()
+    raw_lines = new_content.splitlines()
+
+    violations: list[str] = []
+    violations.extend(iter_any_violations(clean_lines, file_path))
+    violations.extend(iter_hungarian_violations(clean_lines, file_path))
+    violations.extend(iter_arg_count_violations(clean_lines, file_path))
+    violations.extend(iter_star_import_violations(raw_lines, file_path))
+
+    if not violations:
+        return 0
+
+    header = (
+        "coding-standards hook blocked this write — fix the violations and try again.\n"
+        "See skills/coding-standards/references/common/ for cited rules (FN-005, NM-006).\n"
+    )
+    sys.stderr.write(header + "\n".join(f"  - {v}" for v in violations) + "\n")
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

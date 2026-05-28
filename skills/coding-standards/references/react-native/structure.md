@@ -10,6 +10,12 @@ The chosen pattern for React Native and Expo projects: **flat business folders**
 
 ---
 
+## Builds on `common/structure.md`
+
+This file specializes the universal structural rules in `references/common/structure.md` (folder-as-module, no deep imports, Rule of Three, no junk-drawer files, generic names at the design-system layer). The React Native rules below add platform-suffix files, native-module wrapping, and the state-by-kind split that mobile work requires. Read `common/structure.md` first; treat the rules below as additions.
+
+---
+
 ## Mandatory shape
 
 ```

@@ -108,11 +108,13 @@ Narrow-scope identifiers (loop counters, parameters of a tiny lambda) are read r
 **Searchability is the other half of this rule.** Constants like `7` and `5` are impossible to find in a codebase — they collide with file names, version numbers, and unrelated literals. Single-letter variable `e` is the worst — most common letter in English, useless to grep. The fix is the same: give them descriptive names so a search for them returns only relevant matches.
 
 ```
-// Bad — what does 7 mean?
+// Bad — what do 24 and 7 mean?
 const totalHours = days * 24 * 7;
 
-// Good — searchable, self-explanatory
-const HOURS_PER_WEEK = 24 * 7;
+// Good — every value is named and searchable
+const HOURS_PER_DAY = 24;
+const DAYS_PER_WEEK = 7;
+const HOURS_PER_WEEK = HOURS_PER_DAY * DAYS_PER_WEEK;
 const totalHours = days * HOURS_PER_WEEK;
 ```
 
@@ -168,3 +170,51 @@ The professional understands that clarity is king. Stop making readers decode na
 - Spell things out. `manager` over `mgr`. `controller` over `ctrl`. `transaction` over `tx`. The IDE will auto-complete; the readers will thank you.
 - Two-letter math notation (`p, t, q` for "price, tax, quantity") is mental mapping. The formula is no shorter once you spell it out — `price + tax * quantity` reads identically to `p + t * q` — but only the spelled version is self-documenting.
 - Common, universal abbreviations (`url`, `id`, `db`, `http`) are fine because every reader already has the mapping. The line is whether the abbreviation is universal in the field, not whether it's universal in your team.
+
+---
+
+## NM-008 — One word per concept
+
+Pick one word for one abstract concept and stay with it. The smell is using `fetch`, `retrieve`, `get`, `load`, `read`, and `find` interchangeably across the codebase for what is *supposed to be* the same operation. The reader can't tell whether the variation is meaningful or arbitrary, and they reach for the wrong one when introducing a new method.
+
+```ts
+// Bad — same idea, three names
+class UserService    { getUser(id) { ... } }
+class OrderService   { fetchOrder(id) { ... } }
+class ProductService { retrieveProduct(id) { ... } }
+
+// Good — one verb for "load by ID"
+class UserService    { findById(id) { ... } }
+class OrderService   { findById(id) { ... } }
+class ProductService { findById(id) { ... } }
+```
+
+**Apply:** the team picks a short verb table — *one word per concept* — and the whole codebase uses it. Typical choices:
+
+| Concept | Pick one |
+|---|---|
+| Load by ID, may return null | `find` (returns `T \| null` / `Option<T>`) |
+| Load by ID, must exist (throw if missing) | `get` (or `getOrThrow`) |
+| List with filters / pagination | `list` or `query` |
+| Persist a new entity | `create` |
+| Persist an update | `update` or `save` (pick one) |
+| Remove | `delete` (not `remove`, not `destroy` — pick one) |
+
+**The corollary — one concept per word.** Don't reuse the same verb for genuinely different operations. If `add` means "append to a collection" everywhere, it must not silently also mean "create in the database" in one feature. Different operations get different verbs.
+
+---
+
+## NM-009 — Use solution-domain names *or* problem-domain names, deliberately
+
+A name lives on a spectrum:
+
+- **Problem-domain names** describe what the *business* sees: `Order`, `Customer`, `Invoice`, `Prescription`, `Appointment`.
+- **Solution-domain names** describe what *programmers* see: `Visitor`, `Strategy`, `Observer`, `Repository`, `Adapter`, `Decorator`.
+
+Both are legitimate when used *where they belong*.
+
+**Prefer problem-domain names for the things the product actually has** — entities, use cases, capability folders. A folder named `appointments/` is more useful than one named `entities/`.
+
+**Use solution-domain names only when you are genuinely using that pattern.** Calling a thing `OrderObserver` only makes sense if it actually implements the Observer pattern and a reader who knows the pattern will recognize the role from the name. A class named `OrderManager` claims a pattern (Manager) that doesn't exist — that's not a solution-domain name, that's a noise word (see NM-003).
+
+**Apply:** when naming a new class or module, ask *whose vocabulary is this in?* If it's something a business analyst would recognize, use that word. If it's a pattern a programmer would recognize, use the pattern's name — *and ensure the class genuinely implements that pattern*.

@@ -117,5 +117,7 @@ A pile of "style" decisions has no objectively correct answer:
 
 **Apply:**
 - When editing an existing file, **match the file's existing style** — brace placement, quotes, indentation, line endings.
-- When the project has a formatter (Prettier, gofmt, csharpier, php-cs-fixer, dotnet format), the formatter is the source of truth. Don't argue with it.
+- When the project has a formatter (Prettier, gofmt, csharpier, php-cs-fixer, dotnet format, ruff format, rustfmt), the formatter is the source of truth. Don't argue with it.
 - When the file has no clear convention, follow the most recent commits in the area; if still ambiguous, follow the language's community default.
+
+**Line length is a team convention with sensible defaults.** There is no universal right number, but every mainstream formatter lands inside the same window: Prettier 80, Black 88, gofmt has no hard limit but the community lives at ~100, rustfmt 100, dotnet format 120, csharpier 100. **If a project has no formatter and no documented stance, default to 100 columns.** That keeps two files comfortably side-by-side on a modern monitor while leaving room for descriptive names. Lines past ~120 are a smell regardless of preference — they almost always indicate a missing extraction or a name that's secretly two concerns.

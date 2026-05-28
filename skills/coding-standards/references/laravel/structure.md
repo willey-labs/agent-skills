@@ -14,6 +14,8 @@ Every other framework in this skill uses flat top-level business folders (`src/o
 
 Fighting that costs more than it gains. The rules below accept Laravel's package-by-layer skeleton and impose discipline *inside* it: thin controllers, services for orchestration, capability grouping via subfolders.
 
+**Builds on `common/structure.md` — with a named exception.** The universal rule ST-001 says "top-level folders inside `src/` name the business." Laravel is the deliberate framework-wide exception: stock skeleton at the top of `app/`, capability subfolders *inside* `Controllers/`, `Requests/`, `Resources/`, `Services/`. The other universal rules in `common/structure.md` (no junk-drawer files, Rule of Three for `shared/`, generic names at the design-system layer) still apply normally. Read `common/structure.md` first to understand the rule it's bending.
+
 ---
 
 ## Mandatory shape
@@ -157,6 +159,8 @@ Same rule applies to `Requests/`, `Resources/`, `Services/`, `Events/`, `Listene
 ---
 
 ## LRV-003 — Behavior on Eloquent models when it's about the model's data; in services when it's about orchestration
+
+**Framework-boundary carve-out (see `common/objects-and-data.md` OD-005).** Eloquent models, Form Requests with `rules()` / `authorize()` methods, and API Resources carry both data shape *and* framework behavior — that's by design and is allowed. Eloquent is an Active Record; OD-004 already names Active Record as the exception. The line stays firm: *cross-cutting workflows* (charging payment, sending email, dispatching jobs across capabilities) belong in services, not on the model.
 
 This is the most-debated rule in Laravel projects. The clean answer:
 

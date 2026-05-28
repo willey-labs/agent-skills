@@ -10,6 +10,12 @@ The chosen pattern for plain Node.js backends using Express or Fastify (not Nest
 
 ---
 
+## Builds on `common/structure.md`
+
+This file specializes the universal structural rules in `references/common/structure.md`. Plain Node/Express adds thin routes, boundary validation, centralized error handling, and async-first handlers. Read `common/structure.md` first; the rules below add the framework-specific bits.
+
+---
+
 ## Mandatory shape
 
 ```
