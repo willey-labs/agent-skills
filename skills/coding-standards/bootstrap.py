@@ -42,6 +42,7 @@ import platform
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 # Use absolute() not resolve() — the skill is symlinked from a canonical
@@ -54,6 +55,13 @@ SKILL_DIR = SCRIPT_PATH.parent
 # Hooks dir must resolve to the real location so the command paths in
 # settings.json work from any cwd.
 HOOKS_DIR = (SKILL_DIR / "hooks").resolve()
+
+# When the system Python is externally-managed (PEP 668) and a plain pip install
+# is refused, --auto-install creates a dedicated venv HERE — beside the hooks,
+# deliberately NOT under any cache dir a cleaner might purge — and pins the hook
+# commands to its interpreter. Co-located with the skill: if the skill is
+# reinstalled, re-running bootstrap recreates it.
+MANAGED_VENV_DIR = HOOKS_DIR.parent / ".venv"
 
 # Identification of our hooks block — every command we add starts with this
 # path prefix, so we can find (and replace) our previous entry on re-run
@@ -218,7 +226,13 @@ def print_readiness(report: dict) -> None:
     print("coding-standards readiness check:")
     py_mark = "OK" if report["python_version_ok"] else "FAIL"
     print(f"  Python {py}{venv}                 [{py_mark}]")
-    print(f"  Python command: {report['python_command']:<20} [used in settings.json]")
+    # Scope decides which interpreter lands in settings.json: project keeps the
+    # portable PATH name, global pins this absolute interpreter. State both —
+    # claiming a single "used in settings.json" value here was misleading.
+    print(
+        f"  Hook interpreter: project scope -> {report['python_command']}, "
+        f"global scope -> {sys.executable}"
+    )
     pip_mark = "OK" if report["pip_command"] else "MISSING"
     pip_str = report["pip_command"] or "(not found)"
     print(f"  pip: {pip_str:<37} [{pip_mark}]")
@@ -232,22 +246,30 @@ def print_readiness(report: dict) -> None:
             print(f"    - {pkg}")
 
 
-def install_tree_sitter(report: dict) -> tuple[bool, str]:
+@dataclass
+class InstallOutcome:
+    """Result of attempting to install the optional tree-sitter packages."""
+    ok: bool
+    message: str
+    externally_managed: bool = False
+
+
+def install_tree_sitter(report: dict) -> InstallOutcome:
     """Install missing tree-sitter packages via `python -m pip install`.
 
-    Uses `--user` outside virtualenvs to avoid touching the system Python.
-    Returns (success, message).
+    Uses `--user` outside virtualenvs to avoid touching the system Python. On a
+    PEP 668 externally-managed refusal, returns `externally_managed=True` so the
+    caller can fall back to a dedicated venv instead of giving up.
     """
     if not report["install_actions"]:
-        return True, "nothing to install"
+        return InstallOutcome(ok=True, message="nothing to install")
     if not report["pip_command"]:
-        return False, (
-            "pip is not available — cannot auto-install. "
-            "Install pip first, then re-run bootstrap."
+        return InstallOutcome(
+            ok=False,
+            message="pip is unavailable — install pip first, then re-run bootstrap.",
         )
 
-    py = sys.executable
-    cmd = [py, "-m", "pip", "install"]
+    cmd = [sys.executable, "-m", "pip", "install"]
     if not report["in_venv"]:
         cmd.append("--user")
     cmd.extend(report["install_actions"])
@@ -257,22 +279,135 @@ def install_tree_sitter(report: dict) -> tuple[bool, str]:
         proc = subprocess.run(
             cmd, check=True, capture_output=True, text=True, timeout=300
         )
-        return True, proc.stdout.strip().splitlines()[-1] if proc.stdout else "installed"
+        last_line = proc.stdout.strip().splitlines()[-1] if proc.stdout else "installed"
+        return InstallOutcome(ok=True, message=last_line)
     except subprocess.CalledProcessError as e:
         stderr = (e.stderr or "").strip()
-        tail = stderr[-500:]
-        if "externally-managed-environment" in stderr.lower() or "externally managed" in stderr.lower():
-            return False, (
-                "pip refused to install into an externally-managed Python (PEP 668 "
-                "— common on Debian/Ubuntu/Homebrew system interpreters). Do NOT "
-                "pass --break-system-packages on a system Python. Instead create a "
-                "venv (`python -m venv .venv && . .venv/bin/activate`) or use pipx, "
-                "then re-run bootstrap. The TS/JS AST checks are optional — the "
-                "hooks still work with regex fallback.\n" + tail
+        if "externally-managed" in stderr.lower() or "externally managed" in stderr.lower():
+            return InstallOutcome(
+                ok=False,
+                message="pip refused to install into an externally-managed Python (PEP 668).",
+                externally_managed=True,
             )
-        return False, f"pip install failed:\n{tail}"
+        return InstallOutcome(ok=False, message=f"pip install failed:\n{stderr[-500:]}")
     except subprocess.TimeoutExpired:
-        return False, "pip install timed out after 300s"
+        return InstallOutcome(ok=False, message="pip install timed out after 300s")
+
+
+def managed_venv_python() -> Path:
+    """Absolute path to the managed venv's interpreter (cross-platform)."""
+    if os.name == "nt":
+        return MANAGED_VENV_DIR / "Scripts" / "python.exe"
+    return MANAGED_VENV_DIR / "bin" / "python"
+
+
+def create_managed_venv() -> tuple[Path | None, str]:
+    """Create a dedicated venv beside the hooks and install tree-sitter into it.
+
+    The escape hatch when the running interpreter is externally-managed (PEP
+    668): it lets `--auto-install` finish in a single run instead of asking the
+    user to build a venv and re-bootstrap. Returns (venv_python, message);
+    venv_python is None on failure (callers then keep the regex fallback).
+    """
+    venv_python = managed_venv_python()
+    packages = [package for _module, package in OPTIONAL_TREE_SITTER]
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "venv", str(MANAGED_VENV_DIR)],
+            check=True, capture_output=True, text=True, timeout=120,
+        )
+        subprocess.run(
+            [str(venv_python), "-m", "pip", "install", *packages],
+            check=True, capture_output=True, text=True, timeout=300,
+        )
+        return venv_python, f"venv at {MANAGED_VENV_DIR} (tree-sitter installed)"
+    except subprocess.CalledProcessError as e:
+        detail = (e.stderr or e.stdout or "").strip()[-500:]
+        return None, f"venv setup failed:\n{detail}"
+    except subprocess.TimeoutExpired:
+        return None, "venv setup timed out after 300s"
+
+
+def _print_tree_sitter_python_floor(report: dict) -> None:
+    """Explain why the AST install is skipped on Python below the floor."""
+    ver = ".".join(str(x) for x in report["python_version"])
+    floor = f"{MIN_PYTHON_TREE_SITTER[0]}.{MIN_PYTHON_TREE_SITTER[1]}"
+    print(
+        f"  tree-sitter AST checks need Python {floor}+ (current wheels dropped "
+        f"3.9); you're on {ver}. Skipping the AST install — TS/JS hooks use the "
+        f"regex fallback. All stdlib hooks (Python AST, path/junk, Go/C#/PHP/JVM) "
+        f"work normally."
+    )
+
+
+def _print_install_skipped(report: dict) -> None:
+    """Print the post-skip hint, tailored to interactive vs agent context."""
+    packages = " ".join(report["missing_tree_sitter"])
+    if sys.stdin.isatty():
+        print(
+            f"  Skipped tree-sitter install. Re-run with --auto-install, or "
+            f"`pip install {packages}` manually."
+        )
+    else:
+        print(
+            f"  To install: {sys.executable} -m pip install {packages}\n"
+            f"  Or re-run bootstrap with --auto-install."
+        )
+
+
+def _install_into_managed_venv() -> Path | None:
+    """Create the dedicated venv and report it. Returns its interpreter path, or
+    None if creation failed (hooks then keep the regex fallback)."""
+    print(
+        "  System Python is externally-managed (PEP 668). Creating a dedicated "
+        "venv so the AST checks install in this one run…"
+    )
+    venv_python, message = create_managed_venv()
+    if venv_python is not None:
+        print(f"  Install OK: {message}\n  Hooks will use this venv's Python.\n")
+    else:
+        print(f"  {message}")
+        print("  Hooks wired anyway — TS/JS uses the regex fallback.")
+    return venv_python
+
+
+def _run_tree_sitter_install(report: dict) -> tuple[dict, Path | None]:
+    """Run the install; fall back to a managed venv on PEP 668. Returns the
+    (possibly refreshed) report and the venv interpreter path (None if unused)."""
+    outcome = install_tree_sitter(report)
+    if outcome.ok:
+        print(f"  Install OK: {outcome.message}\n")
+        return readiness_report(), None
+    if outcome.externally_managed:
+        return report, _install_into_managed_venv()
+    print(f"  Install failed: {outcome.message}")
+    print(
+        "  Hooks will still be wired — TS/JS will fall back to regex checks.\n"
+        f"  Install manually later with: {sys.executable} -m pip install "
+        + " ".join(report["missing_tree_sitter"])
+    )
+    return report, None
+
+
+def ensure_tree_sitter(report: dict, args: argparse.Namespace) -> tuple[dict, Path | None]:
+    """Install the optional tree-sitter AST grammars when they're missing.
+
+    The single entry point for Step 2: honours --skip-install, the Python floor,
+    and the interactive prompt, then installs — falling back to a managed venv
+    when the system Python is externally-managed so the agent never has to
+    re-run. Returns the (possibly refreshed) report and a managed-venv
+    interpreter path (None when no venv was created).
+    """
+    if not report["missing_tree_sitter"] or args.skip_install:
+        return report, None
+    if report["python_version"] < MIN_PYTHON_TREE_SITTER:
+        _print_tree_sitter_python_floor(report)
+        return report, None
+    should_install = args.auto_install or prompt_user_for_install(report["missing_tree_sitter"])
+    if not should_install:
+        _print_install_skipped(report)
+        return report, None
+    return _run_tree_sitter_install(report)
 
 
 def prompt_user_for_install(missing: list[str]) -> bool:
@@ -335,32 +470,36 @@ def detect_scope_and_targets() -> tuple[str, Path, Path]:
     )
 
 
-def build_hook_entry(scope: str, python_command: str) -> dict:
+def hook_interpreter(scope: str, python_command: str, venv_python: Path | None) -> str:
+    """The interpreter string written into each hook command.
+
+    A managed venv (created when the system Python is externally-managed) wins
+    for both scopes — it's the only interpreter with the tree-sitter grammars.
+    Otherwise project scope keeps the portable PATH name (`python3`) so the
+    committed settings.json works on any teammate's machine; global scope pins
+    the running interpreter's absolute path so the hooks can import the grammars
+    pip installed into it (avoids the PATH-`python3`-vs-`sys.executable` mismatch
+    that silently drops AST checks to regex).
+    """
+    if venv_python is not None:
+        return str(venv_python)
+    return python_command if scope == "project" else sys.executable
+
+
+def build_hook_entry(scope: str, hook_python: str) -> dict:
     """Build the PreToolUse entry that activates every hook in hooks/.
 
-    For project scope, use `${CLAUDE_PROJECT_DIR}/.claude/skills/...` so the
-    entry survives moving the project (Claude Code expands the variable), and
-    keep the portable `python_command` (e.g. "python3") so the committed
-    settings.json works on any teammate's machine.
-
-    For global scope, use the absolute resolved path AND the absolute current
-    interpreter (`sys.executable`) — global settings.json is per-machine, and
-    pinning the running interpreter guarantees the hooks can import the
-    tree-sitter grammars that pip installed into that same interpreter (avoids
-    the PATH-`python3`-vs-`sys.executable` mismatch that silently drops AST
-    checks to regex). The matcher includes `MultiEdit` for backward
-    compatibility with older Claude Code versions that still expose it; on
-    current versions it harmlessly never matches.
-
-    `python_command` is detected at bootstrap time so the project command works
-    on Windows (`python`) and Linux/macOS (`python3`).
+    Project scope uses `${CLAUDE_PROJECT_DIR}/...` so the entry survives moving
+    the project (Claude Code expands the variable); global scope uses the
+    absolute resolved hooks dir. The interpreter is resolved by
+    `hook_interpreter()` and passed in as `hook_python`. The matcher includes
+    `MultiEdit` for backward compatibility with older Claude Code versions that
+    still expose it; on current versions it harmlessly never matches.
     """
     if scope == "project":
         path_prefix = "${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks"
-        hook_python = python_command
     else:
         path_prefix = str(HOOKS_DIR)
-        hook_python = sys.executable
 
     return {
         "matcher": "Write|Edit|MultiEdit",
@@ -563,136 +702,125 @@ def ensure_skill_permissions(settings: dict) -> bool:
     return changed
 
 
+@dataclass
+class WiringResult:
+    """Everything the final summary needs to report what bootstrap wired."""
+    scope: str
+    settings_path: Path
+    commands_dir: Path
+    hooks_action: str
+    cmd_action: str
+    perms_changed: bool
+    hook_python: str
+    venv_python: Path | None
+
+
+def _interpreter_note(scope: str, venv_python: Path | None) -> str:
+    """One line explaining why the hook commands use this interpreter."""
+    if venv_python is not None:
+        return "dedicated venv — pinned to this machine; re-run bootstrap per machine"
+    if scope == "project":
+        return "PATH name — portable across teammates"
+    return "absolute path — pinned to this machine"
+
+
+def warn_project_interpreter_mismatch(
+    scope: str, report: dict, venv_python: Path | None
+) -> None:
+    """Warn when project-scope hooks may run under an interpreter lacking tree-sitter.
+
+    Project hook commands use the portable PATH name; if that resolves to a
+    different interpreter than the one tree-sitter was installed into, TS/JS AST
+    checks silently fall back to regex. A managed venv (venv_python) sidesteps
+    this, and global scope pins sys.executable — so neither needs the warning.
+    """
+    if scope != "project" or venv_python is not None or not report["tree_sitter_ok"]:
+        return
+    resolved = shutil.which(report["python_command"])
+    try:
+        same = resolved is not None and os.path.realpath(resolved) == os.path.realpath(sys.executable)
+    except OSError:
+        same = True
+    if same:
+        return
+    print(
+        f"  Note: project hook commands use '{report['python_command']}' "
+        f"(resolves to {resolved or '(not found)'}), but tree-sitter is installed "
+        f"in {sys.executable}. If these differ, TS/JS AST checks fall back to "
+        f"regex — install tree-sitter into the PATH interpreter or run bootstrap "
+        f"with it."
+    )
+
+
+def report_install_result(result: WiringResult) -> int:
+    """Print the post-wiring summary and return the process exit code."""
+    if result.hooks_action == "noop" and result.cmd_action == "noop" and not result.perms_changed:
+        print(
+            f"\ncoding-standards: already installed — {result.settings_path} "
+            f"({result.scope}). No changes."
+        )
+        return 0
+
+    verb = {"added": "Wired", "updated": "Updated", "noop": "Unchanged"}[result.hooks_action]
+    cmd_verb = {"created": "linked", "refreshed": "refreshed", "noop": "unchanged"}[result.cmd_action]
+    print(
+        f"\ncoding-standards: {verb} {len(HOOK_FILES)} PreToolUse hooks into "
+        f"{result.settings_path} ({result.scope});\n"
+        f"  /coding-standards command {cmd_verb} at "
+        f"{result.commands_dir / 'coding-standards.md'}.\n"
+        f"  Hook commands use: {result.hook_python}\n"
+        f"    ({_interpreter_note(result.scope, result.venv_python)}).\n"
+        f"  Hooks dir: {HOOKS_DIR}\n"
+        f"  Restart your agent if hooks or commands don't activate on the next tool call."
+    )
+    if result.perms_changed:
+        print(
+            "  Also pre-approved reading the skill's files + running its scripts "
+            "(no permission prompts when it loads references or runs review-files.py)."
+        )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
 
     # ── Step 1: Readiness check ────────────────────────────────────────────
     report = readiness_report()
     print_readiness(report)
-
-    # Blocking issues (Python too old, etc.) → abort.
     if report["blocking_issues"]:
         print("\n  Blocking issues:")
         for issue in report["blocking_issues"]:
             print(f"    - {issue}")
         print("\n  Resolve the blocking issues above and re-run bootstrap.")
         return 1
-
-    # Check-only mode: stop here.
     if args.check:
         return 0
 
-    # ── Step 2: Install missing tree-sitter (optional) ──────────────────────
-    py_ok_for_ts = report["python_version"] >= MIN_PYTHON_TREE_SITTER
-    if report["missing_tree_sitter"] and not args.skip_install and not py_ok_for_ts:
-        ver = ".".join(str(x) for x in report["python_version"])
-        print(
-            f"  tree-sitter AST checks need Python "
-            f"{MIN_PYTHON_TREE_SITTER[0]}.{MIN_PYTHON_TREE_SITTER[1]}+ "
-            f"(current tree-sitter / tree-sitter-javascript wheels dropped 3.9); "
-            f"you're on {ver}. Skipping the AST install — TS/JS hooks use the "
-            f"regex fallback. All stdlib hooks (Python AST, path/junk, "
-            f"Go/C#/PHP/JVM) work normally."
-        )
-    elif report["missing_tree_sitter"] and not args.skip_install:
-        if args.auto_install:
-            should_install = True
-        else:
-            should_install = prompt_user_for_install(report["missing_tree_sitter"])
-
-        if should_install:
-            ok, msg = install_tree_sitter(report)
-            if ok:
-                print(f"  Install OK: {msg}\n")
-                # Refresh report so the next sections see the new state.
-                report = readiness_report()
-            else:
-                print(f"  Install failed: {msg}")
-                print(
-                    "  Hooks will still be wired — TS/JS will fall back to "
-                    "regex checks. Install manually later with:\n"
-                    f"    {sys.executable} -m pip install "
-                    + " ".join(report["missing_tree_sitter"])
-                )
-        elif sys.stdin.isatty():
-            print(
-                "  Skipped tree-sitter install. Run with --auto-install to "
-                "install later, or `pip install "
-                + " ".join(report["missing_tree_sitter"])
-                + "` manually."
-            )
-        else:
-            # Non-TTY (agent) invocation without --auto-install. Print the
-            # install hint and continue.
-            print(
-                f"  To install: {sys.executable} -m pip install "
-                + " ".join(report["missing_tree_sitter"])
-                + "\n  Or re-run bootstrap with --auto-install."
-            )
+    # ── Step 2: Install missing tree-sitter (optional; may create a venv) ────
+    report, venv_python = ensure_tree_sitter(report, args)
 
     # ── Step 3: Wire hooks + slash command ──────────────────────────────────
     scope, settings_path, commands_dir = detect_scope_and_targets()
-
-    # Interpreter-consistency warning (project scope only). Project hook commands
-    # use the portable PATH name (e.g. "python3") for teammate portability, but
-    # tree-sitter was installed into THIS interpreter (sys.executable). If PATH's
-    # python3 resolves elsewhere, the hooks run under an interpreter that can't
-    # import tree-sitter, so TS/JS AST checks silently fall back to regex.
-    # (Global scope sidesteps this by pinning sys.executable in build_hook_entry.)
-    if scope == "project" and report["tree_sitter_ok"]:
-        resolved = shutil.which(report["python_command"])
-        try:
-            same = resolved is not None and os.path.realpath(resolved) == os.path.realpath(sys.executable)
-        except OSError:
-            same = True
-        if not same:
-            print(
-                f"  Note: project hook commands use '{report['python_command']}' "
-                f"(resolves to {resolved or '(not found)'}), but tree-sitter is "
-                f"installed in {sys.executable}. If these differ, TS/JS AST checks "
-                f"fall back to regex — install tree-sitter into the PATH interpreter "
-                f"or run bootstrap with that interpreter."
-            )
-
-    entry = build_hook_entry(scope, report["python_command"])
+    warn_project_interpreter_mismatch(scope, report, venv_python)
+    hook_python = hook_interpreter(scope, report["python_command"], venv_python)
+    entry = build_hook_entry(scope, hook_python)
     settings = load_settings(settings_path)
     updated, hooks_action = merge_hook_entry(settings, entry)
     perms_changed = ensure_skill_permissions(updated)
     if hooks_action != "noop" or perms_changed:
         write_settings(settings_path, updated)
-
     cmd_action = install_slash_command(commands_dir)
 
-    # ── Report ──────────────────────────────────────────────────────────────
-    if hooks_action == "noop" and cmd_action == "noop" and not perms_changed:
-        print(
-            f"\ncoding-standards: already installed — {settings_path} ({scope}). "
-            f"No changes."
-        )
-        return 0
-
-    verb = {"added": "Wired", "updated": "Updated", "noop": "Unchanged"}[hooks_action]
-    cmd_verb = {
-        "created": "linked",
-        "refreshed": "refreshed",
-        "noop": "unchanged",
-    }[cmd_action]
-    print(
-        f"\ncoding-standards: {verb} {len(HOOK_FILES)} PreToolUse hooks into "
-        f"{settings_path} ({scope});\n"
-        f"  /coding-standards command {cmd_verb} at "
-        f"{commands_dir / 'coding-standards.md'}.\n"
-        f"  Hook commands use: {report['python_command']} "
-        f"(detected at bootstrap time).\n"
-        f"  Hooks dir: {HOOKS_DIR}\n"
-        f"  Restart your agent if hooks or commands don't activate on the next tool call."
-    )
-    if perms_changed:
-        print(
-            "  Also pre-approved reading the skill's files + running its scripts "
-            "(no permission prompts when it loads references or runs review-files.py)."
-        )
-    return 0
+    return report_install_result(WiringResult(
+        scope=scope,
+        settings_path=settings_path,
+        commands_dir=commands_dir,
+        hooks_action=hooks_action,
+        cmd_action=cmd_action,
+        perms_changed=perms_changed,
+        hook_python=hook_python,
+        venv_python=venv_python,
+    ))
 
 
 if __name__ == "__main__":

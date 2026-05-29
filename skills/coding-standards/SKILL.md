@@ -191,6 +191,47 @@ Look at the file you're about to write/edit/review. Determine which framework fo
 
 ---
 
+## Step 1.4 — Resolve the project structure
+
+Step 1 gave you the **framework** (the language + line-level rules). This step resolves the **folder layout** the project follows.
+
+Each framework offers a **catalog** of ready-made structures under `references/<framework>/structures/`. A project either follows one of those, or keeps its **own custom layout** — and **only a custom layout is ever written to a `.coding-standards-structure` file** at the repo root. A project on a standard never gets a file and is never asked.
+
+> Catalog status: **Next.js** has a `structures/` catalog (`route-colocated`, `feature-first`, `screaming-architecture`, `feature-sliced-design`). Other frameworks still fall back to their single `references/<framework>/structure.md` until a catalog is added.
+
+**Run this every time the skill activates, in order. Stop at the first match.**
+
+### 1. Is there a `.coding-standards-structure` file at the repo root?
+
+**Yes** → it describes the project's custom layout. Read it, follow it. **Done — no question.**
+
+### 2. No file → look at the folders. Do they match a catalog structure?
+
+**Yes** (the layout already follows e.g. `route-colocated`) → use that structure's bundled reference. **Done — no question, no file.** It is re-recognised from the folders on every run, so nothing needs saving.
+
+### 3. No file, and the layout is **custom** (matches none of the catalog) → ask the user **once**
+
+Use `AskUserQuestion`, every option carrying a folder-tree `preview`:
+
+> Your folders are custom. Keep them, or switch to one of ours?
+
+1. **Keep current** — keep the project's own custom layout.
+2. **Original (recommended)** — `structures/screaming-architecture.md`.
+3. **…other catalog variants** — `route-colocated`, `feature-first`, `feature-sliced-design`.
+
+(`AskUserQuestion` allows at most 4 options + an auto "Other". Show *Keep current*, *Original (recommended)*, and the two most relevant variants; route the rest through "Other". Each `preview` is the **Layout** tree from that variant's file.)
+
+Then:
+
+- **Keep current** → scan → draft the layout → the user confirms → **write `.coding-standards-structure`** (the learned custom layout). Include a `hooks:` block so write-time enforcement matches this project's reality — e.g. `junk-drawer: off` if it already uses `utils.ts`, `deep-import: off` if it has no barrels (the hooks read these via `hooks/_structure.py`; a missing toggle stays **on**). Next run, step 1 finds the file — never asks again.
+- **Pick a standard** → use that structure's bundled reference. **No file written** — the project now follows a known standard, re-recognised from its folders next run.
+
+**The question returns only when the layout is custom AND no file has been saved.** A standard project: never asked, no file. A custom project: asked once, then remembered by the file.
+
+This resolved structure replaces `references/<framework>/structure.md` in Step 2's load list. The seven `common/` files (line-level rules) always load and apply **unchanged**, whatever structure is chosen.
+
+---
+
 ## Step 1.5 — Pick execution shape: orchestrator pipeline vs inline
 
 You have two execution shapes for Write and Review modes. Pick deterministically:

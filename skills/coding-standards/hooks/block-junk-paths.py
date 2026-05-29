@@ -26,6 +26,7 @@ from pathlib import Path
 # command entry; this keeps them self-bootstrapping without requiring a package.
 sys.path.insert(0, str(Path(__file__).parent))
 from _exclusions import is_excluded_path  # noqa: E402
+from _structure import is_check_enabled  # noqa: E402
 
 # ST-005 — junk-drawer filenames. Files named for *what they are* instead of
 # *what they do*. Everything ends up there because nothing has to.
@@ -108,6 +109,12 @@ def main() -> int:
     # the tool that produced it, not by the user. Skip silently.
     excluded, _pattern = is_excluded_path(file_path)
     if excluded:
+        return 0
+
+    # Structure-aware: a custom project's `.coding-standards-structure` may turn
+    # the junk-drawer check off (e.g. a layout that already uses utils.ts). No
+    # file, or no toggle → the check stays on. See hooks/_structure.py.
+    if not is_check_enabled("junk-drawer", file_path):
         return 0
 
     violations = check_path_violations(file_path)
