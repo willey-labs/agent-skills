@@ -39,7 +39,7 @@ All paths in this document are **relative to this SKILL.md file**. `references/c
 
 **Run this exactly once the first time the skill activates in any new session, scope, or after a skill update.** It does:
 
-1. **Readiness check** — Python version (3.9+), Python command (`python` vs `python3`), pip availability, virtualenv detection, platform (Windows / macOS / Linux), tree-sitter package availability.
+1. **Readiness check** — Python version (the stdlib hooks need 3.9+; the optional tree-sitter TS/JS AST checks need **3.10+** — current `tree-sitter`/`tree-sitter-javascript` wheels dropped 3.9), Python command (`python` vs `python3`), pip availability, virtualenv detection, platform (Windows / macOS / Linux), tree-sitter package availability.
 2. **Auto-install missing tree-sitter packages** — when invoked with `--auto-install` (recommended for agent contexts; the bootstrap can't prompt the user from a non-TTY).
 3. **Wire PreToolUse hooks** into the correct `settings.json` (project vs global is auto-detected from the SKILL.md install path).
 4. **Symlink `/coding-standards` slash command** into `.claude/commands/`.
@@ -124,7 +124,7 @@ For the orchestrator pipeline: filter the target file list through `is_excluded_
 - User said "what does this skill do?" / "tell me about coding standards",
 - User's message is too generic to infer mode ("help me with my code", "check my project").
 
-When triggered, invoke the `AskUserQuestion` tool with EXACTLY this payload (do not paraphrase the descriptions — they are the deterministic UX):
+When triggered, invoke the `AskUserQuestion` tool with this payload. The **labels and header are a verbatim routing contract** — reproduce them exactly (the agent matches the user's answer against the label text). The descriptions may carry extra framework/rule detail — the `/coding-standards` slash command shows a richer variant (see `commands/coding-standards.md`) — but must stay faithful to the meaning below:
 
 ```
 question:    "What do you want to do with the coding-standards skill?"
@@ -148,14 +148,14 @@ options:
 ```
 
 After the answer:
-- **Write code…** → Step 1 → Step 2 → Write mode.
-- **Check existing code…** → ask the user *what* to check (file, folder, diff command, PR number) → Step 1 (per-file) → Step 2 → Review mode (use the strict PASS/FAIL walkthrough from this SKILL.md's Review section).
-- **Show me the rules** → Step 1 (detect framework once) → Step 2 (load all refs) → present a one-screen index of rule codes and wait for follow-up questions.
+- **Write code…** → confirm/await the task → Step 1 (detect framework) → **Step 1.5 — ask the "Run mode" question (multiple agents vs single)** → Step 2 / Step 2.O → Write mode.
+- **Check existing code…** → ask the user *what* to check (file, folder, diff command, PR number) → Step 1 (per-file) → **Step 1.5 — ask the "Run mode" question** → Step 2 / Step 2.O → Review mode (use the strict PASS/FAIL walkthrough from this SKILL.md's Review section).
+- **Show me the rules** → Step 1 (detect framework once) → Step 2 (load all refs) → present a one-screen index of rule codes and wait for follow-up questions. (No "Run mode" question — nothing is written or reviewed.)
 
 **Invariants:**
 - Never invoke this step twice in a session — once mode is set, it stays set.
 - Never invoke it when the user has named a task — that's an annoying false ask.
-- The four exact words "Write code that follows these rules", "Check existing code against these rules", "Show me the rules" are part of the contract; the slash command and skill activation must produce identical option text.
+- The three option **labels** ("Write code that follows these rules", "Check existing code against these rules", "Show me the rules") and the **header** ("Mode") are the contract: the slash command and skill activation MUST produce identical labels and header. The option **descriptions** may differ in detail between the two entry points (the slash command carries a richer variant) — only the labels and header must match.
 
 ---
 
@@ -175,7 +175,7 @@ Look at the file you're about to write/edit/review. Determine which framework fo
 | `laravel` | `composer.json` with `laravel/framework` **or** an `artisan` file at the repo root **or** the file is `.php` under `app/` |
 | `csharp` | `*.csproj`, `*.sln`, `*.cs` files |
 | `spring-boot` | `pom.xml` with `spring-boot-starter-*` **or** `build.gradle{,.kts}` with `org.springframework.boot` plugin **or** `@SpringBootApplication` in a `.java`/`.kt` file |
-| `django` | `manage.py` + `settings.py` at repo root **or** `django` in `pyproject.toml` / `requirements.txt` |
+| `django` | `manage.py` at repo root **plus** a settings module (`settings.py`, or a `config/settings/` or `<project>/settings/` package) **or** `django` in `pyproject.toml` / `requirements.txt` |
 | `fastapi` | `fastapi` in `pyproject.toml` / `requirements.txt` **or** `from fastapi import FastAPI` in a `.py` file |
 | `flask` | `flask` in `pyproject.toml` / `requirements.txt` **or** `from flask import Flask` **and** not Django/FastAPI |
 | `go-http` | `go.mod` at repo root **and** any of `gin-gonic/gin`, `labstack/echo`, `gofiber/fiber`, `go-chi/chi`, `gorilla/mux` in the module graph — or net/http with handler-based routing |
@@ -199,15 +199,44 @@ You have two execution shapes for Write and Review modes. Pick deterministically
 |---|---|
 | Task scope = single file edit (≤30 lines change), OR single function refactor, OR Q&A about a rule | **Inline.** You (the main agent) do the work yourself. Skip Step 2.X and continue with Step 2 (load all references) → Step 3 (apply rules). |
 | Task scope = 2+ files, OR a new feature/use case, OR a diff/PR review, OR explicit `--thorough` flag, OR explicit `/coding-standards` slash command | **Orchestrator pipeline.** You become the orchestrator and dispatch to workers. Continue with Step 2.O (orchestrator). |
-| `Agent` tool is NOT available in this host | Fall back to **inline** regardless of scope. |
+| `Agent` tool is NOT available in this host (e.g. Cursor, Codex, OpenCode) | Fall back to **inline** regardless of scope — and say so in your announcement. |
 
-**Default to inline when uncertain.** The pipeline is for non-trivial work where the latency cost is justified by the comprehensiveness gain.
+**This choice is mandatory and must be announced — it is NOT advisory.** It is made one of two ways:
+
+**A) Invoked via `/coding-standards` or the Step 0.5 picker → ASK the user.**
+Once the task is known and it's a Write or Review task (skip for "Show me the rules"), and the `Agent` tool is available in this host, invoke `AskUserQuestion` with EXACTLY this payload:
+
+```
+question:    "How should I run this?"
+header:      "Run mode"
+multiSelect: false
+options:
+  - label:       "Multiple agents (thorough)"
+    description: "I spawn three specialist sub-agents in sequence — Worker 1
+                  Structure → Worker 2 Code quality → Worker 3 Failure handling —
+                  then write the final result. Best for a new feature, multi-file
+                  work, or a full review."
+  - label:       "Single agent (fast)"
+    description: "I do the whole task myself in one pass. Best for a single file,
+                  a small refactor, or a quick change."
+```
+   - **"Multiple agents"** → run the orchestrator pipeline (Step 2.O): you, the main agent, dispatch Worker 1 → Worker 2 → Worker 3 via the `Agent` tool, then write the result.
+   - **"Single agent"** → run inline (Step 2 → Step 3): you do it yourself.
+   - If the `Agent` tool is unavailable, **don't ask** — go inline and say so (sub-agents can't run in this host).
+   - Ask this **at most once per session**; reuse the user's choice for later tasks unless they say otherwise.
+
+**B) Plain message (no command, e.g. "fix this" / "review this PR") → you decide from the table above, then announce it in one line**, naming the trigger that matched:
+   - `Execution shape → ORCHESTRATOR PIPELINE (trigger: 2+ files). Dispatching Worker 1 → Worker 2 → Worker 3.`
+   - `Execution shape → INLINE (trigger: single-file refactor). Handling it myself.`
+   If a row-2 trigger matches, use the pipeline; inline is only for row 1 or when the `Agent` tool is unavailable.
+
+Doing any work without either asking (A) or announcing (B) violates this skill.
 
 ---
 
 ## Step 2.O — Orchestrator pipeline (when picked above)
 
-You (the main agent) are now the **orchestrator**. You do not apply rules yourself; you coordinate three sequential workers. Workers never write to disk — you do the final Write at the end. This guarantees hooks fire exactly once on the final code.
+You (the main agent) are now the **orchestrator**. You do not apply rules yourself; you coordinate three sequential workers. Workers never write to disk — you do the final Write at the end, so the hooks run on the final, complete code (not on Worker 1's placeholder bodies or Worker 2's error-handling-free draft). This is a **process invariant, not a platform guarantee**: a `general-purpose` subagent inherits the project's `Write|Edit` PreToolUse hooks and *could* write if it ignored its brief, so the briefs forbid it (`Output JSON only`). If a worker writes prematurely, the hook simply blocks the incomplete code and you re-dispatch. If your host lets you restrict a subagent's tools, dispatch the workers without `Write`/`Edit`/`MultiEdit` to enforce this structurally.
 
 ### Worker roster
 
@@ -217,7 +246,7 @@ You (the main agent) are now the **orchestrator**. You do not apply rules yourse
 | **Worker 2 — Code Quality (line level)** | FN-001 to FN-009, NM-*, OD-003, FMT-* | `workers/worker-2-quality.md` |
 | **Worker 3 — Failure Handling** | EH-*, FN-010 | `workers/worker-3-failure.md` |
 
-Cross-cutting principles (DP-006 KISS, DP-007 DRY, FN-011) are applied **per-domain** by each worker as a lens — no single worker owns them.
+Cross-cutting principles (DP-006 KISS, DP-007 DRY / FN-011 — the same idea in two families, and FN-012 "rewrite the draft, don't ship it") are applied **per-domain** by each worker as a lens — no single worker owns them. (FN-010, the idiomatic-failure-mechanism rule, is Worker 3's, not cross-cutting.)
 
 ### Pipeline shape
 
@@ -233,10 +262,11 @@ User task
 **Review mode:**
 ```
 User task (diff/PR/file)
+  → Orchestrator runs hooks/review-files.py --json over the file set (deterministic pass)
   → Worker 1 outputs findings JSON (no code changes)
   → Worker 2 outputs findings JSON
   → Worker 3 outputs findings JSON
-  → Orchestrator concatenates, sorts by severity, presents unified report
+  → Orchestrator merges the linter findings + all worker findings, sorts by severity, presents unified report
 ```
 
 ### How to dispatch a worker
@@ -281,7 +311,7 @@ For each worker N in {1, 2, 3}:
 
 ### After all workers complete (Review mode)
 
-9. **Concatenate findings** from Worker 1 + Worker 2 + Worker 3.
+9. **Concatenate findings** from `hooks/review-files.py` (run it first — `--json` — these are deterministic must-fix) + Worker 1 + Worker 2 + Worker 3.
 10. **Sort by severity** (must-fix → should-fix → consider) and group by file.
 11. **Present** to the user as a structured PASS/FAIL table. Cite rule codes. Do not editorialize.
 
@@ -310,7 +340,7 @@ Files written: <list>. Hooks passed.
 ### Pipeline invariants
 
 - **Workers never call `Write`/`Edit`.** They emit code as JSON values. Only you (the orchestrator) write to disk.
-- **Hooks fire exactly once** per file, on the final code, after Worker 3.
+- **Hooks fire on the orchestrator's final Write** per file, after Worker 3 — because workers emit JSON, not disk writes (a process invariant; see Step 2.O). If a worker writes prematurely, the hook blocks the incomplete code and you re-dispatch.
 - **No worker can modify rules outside its `owns_rules` list.** Validate before accepting output.
 - **No retries past 2.** If a worker fails twice, fall back to inline.
 - **Sequential, not parallel.** Worker N's output is Worker N+1's input. Do not dispatch Worker 2 before Worker 1 completes.
@@ -366,12 +396,19 @@ When you're reviewing a diff, a PR, or a file, walk through the rules systematic
 
 1. **Scope.** List each file in the diff. For each, determine the framework using Step 1.
 2. **Load references.** For each framework that appears in the diff, read the corresponding `<framework>/structure.md`. Always read all seven `common/` files (they apply to every file).
-3. **Check each file against each applicable rule.** For each rule, either:
+3. **Run the hooks as a linter (deterministic pass — DO NOT skip).** The `block-*.py` hooks fire only on `Write`/`Edit`, so during a review they never run on their own. Run them over the reviewed files yourself with the bundled driver:
+   ```bash
+   python3 <skill-dir>/hooks/review-files.py <file> [<file> ...]
+   # or feed a diff:   git diff --name-only | python3 <skill-dir>/hooks/review-files.py --stdin
+   # or, in the orchestrator pipeline, add --json and parse the result per file
+   ```
+   It feeds each file's current content to every hook (the same write-time contract) and reports exactly what the hooks would block: `any`/`Any`/`dynamic`/`mixed`, Hungarian notation, 4+ argument functions, junk-drawer paths, deep imports, and the TS/Python AST checks. Excluded files (node_modules, generated, lock files, ...) are skipped automatically. **Every finding it returns is a must-fix** — it's deterministic, so fold these into your report first and never miss or re-litigate them.
+4. **Check each file against each applicable rule** (the judgement pass — the rules regex/AST cannot catch: FN-001 length nuance, FN-009 CQS, OD-003 Demeter, EH-002 boundaries, the framework `structure.md` rules). For each rule, either:
    - Report `PASS` (rule applies, no violations found), or
    - Report a finding as `file.tsx:42 — <which rule> — <what's wrong>`, or
    - Report `SKIPPED — <reason>` (rule does not apply to this file; explain why).
-4. **Summarize.** Group findings by severity. Distinguish *must-fix* (correctness, security, broken contracts) from *should-fix* (clean-code rule, would be cleaner) from *consider* (judgement call, design tradeoff).
-5. **Never silently skip a rule.** If you didn't check it, say so. A review with hidden gaps is worse than a review that admits its scope.
+5. **Summarize.** Group findings by severity. Distinguish *must-fix* (the step-3 hook findings, plus correctness, security, broken contracts) from *should-fix* (clean-code rule, would be cleaner) from *consider* (judgement call, design tradeoff).
+6. **Never silently skip a rule.** If you didn't check it, say so. A review with hidden gaps is worse than a review that admits its scope.
 
 ---
 

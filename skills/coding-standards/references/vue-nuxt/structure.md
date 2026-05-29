@@ -2,6 +2,8 @@
 
 The chosen pattern for Vue 3 / Nuxt 3 projects: **flat business folders** with composition-API single-file components, Pinia for global state, composables for shared logic. Same shape as Next.js / React Native, adapted to Vue idioms.
 
+> **Nuxt 4 note** (current stable since mid-2025; Nuxt 3 reaches EOL in 2026): the architecture below is unchanged, but Nuxt 4 moved the default source directory to `app/`. The project-root auto-import folders shown here (`composables/`, `components/`, `utils/`) live under `app/` by default in Nuxt 4 — read those paths as `app/composables/` etc. when on Nuxt 4.
+
 ---
 
 ## The philosophy in one sentence

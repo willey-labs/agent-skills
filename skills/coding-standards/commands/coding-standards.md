@@ -63,8 +63,10 @@ After the user picks:
 
 Apply Step 1 (framework detect) → Step 1.5 (orchestrator pipeline default when `/coding-standards` was invoked) → Step 2.O (workers) → integration → final Write.
 
+**Because `/coding-standards` was used explicitly, ask the user how to run it** (SKILL.md Step 1.5, path A): once the task is known, invoke `AskUserQuestion` with the "Run mode" question — **Multiple agents** (you, the main agent, dispatch Worker 1 → Worker 2 → Worker 3 via the `Agent` tool — i.e. the Step 2.O orchestrator) vs **Single agent** (you do it inline). Run whichever the user picks and announce it. Skip the question and go inline (saying so) only when the `Agent` tool isn't available in this host, or for the "Show me the rules" mode. Ask the run-mode question at most once per session.
+
 ## Do not
 
 - Do not invoke `AskUserQuestion` if `$ARGUMENTS` already names a task.
 - Do not invoke `AskUserQuestion` more than once per session — once mode is chosen, it stays chosen until the user says otherwise.
-- Do not paraphrase the option descriptions when calling `AskUserQuestion`. Use them verbatim — the descriptions are part of the deterministic UX.
+- Reproduce the option **labels** and the **header** ("Mode") verbatim — they are the routing contract shared with `SKILL.md` Step 0.5 (the agent matches the user's answer against the label text). The descriptions below are the richer `/coding-standards` variant; keep them faithful to the SKILL.md meaning, but they need not be byte-identical to SKILL.md's shorter descriptions.

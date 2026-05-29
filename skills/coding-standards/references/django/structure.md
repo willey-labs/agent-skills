@@ -142,7 +142,7 @@ class BookAppointmentView(APIView):
 | Selector (optional) | Read-side queries that don't belong on a manager/queryset | Mutations |
 | Model | Invariants tied to the model's own data, `save()` hooks, scopes (managers) | Workflows that touch multiple aggregates |
 
-This is the "Django Styleguide" pattern that's become the standard for non-trivial Django apps.
+This is the [HackSoftware "Django Styleguide"](https://github.com/HackSoftware/Django-Styleguide) pattern — a widely-used convention for non-trivial Django apps, not a framework default (Django ships no services layer).
 
 ---
 

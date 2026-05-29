@@ -12,7 +12,7 @@ The chosen pattern for Next.js (App Router) projects: **Screaming Architecture +
 
 ## Builds on `common/structure.md`
 
-This file specializes the universal structural rules in `references/common/structure.md` (folder-as-module, no deep imports, Rule of Three, no junk-drawer files, generic names at the design-system layer). The Next.js rules below add what the App Router needs on top of those: route groups, the `app/` boundary, server/client component placement, and the mandatory per-use-case shape. Read `common/structure.md` first; treat the rules below as additions and specializations.
+This file specializes the universal structural rules in `references/common/structure.md` (folder-as-module, no deep imports, Rule of Three, no junk-drawer files, generic names at the design-system layer). The Next.js rules below add what the App Router needs on top of those: route groups, the `app/` boundary, and the mandatory per-use-case shape. Read `common/structure.md` first; treat the rules below as additions and specializations.
 
 ---
 

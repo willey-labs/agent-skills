@@ -25,6 +25,24 @@ performance hit from registering them all.
 `block-junk-paths.py` only fires on `Write` (path-based — Edit/MultiEdit
 operate on already-accepted paths).
 
+## Review mode — run the hooks as a linter (read-only)
+
+The hooks above are **write-time**: they fire on `Write`/`Edit`/`MultiEdit`. A
+code *review* writes nothing, so they don't fire on their own. To get the same
+deterministic checks while reviewing existing files, run the bundled driver:
+
+```bash
+python3 review-files.py <file> [<file> ...]
+git diff --name-only | python3 review-files.py --stdin
+python3 review-files.py --json <file> ...     # machine-readable, for the orchestrator
+```
+
+It feeds each file's current content to every `block-*.py` hook as a synthetic
+`Write` payload — identical to the write-time contract — and prints the
+violations grouped by file. Excluded files are skipped exactly as at write time.
+It always exits `0` (it reports; it never blocks). The skill's Review mode runs
+this as its deterministic first pass and folds the findings in as must-fix.
+
 ## Installation
 
 ### Step 1 — Install the skill files
@@ -80,8 +98,12 @@ for what the bootstrap writes. You shouldn't need to copy it manually
 unless you're customizing the hook list or running on an agent that
 doesn't auto-run `SKILL.md` Step 0.
 
-> Hooks are a Claude Code / Cline feature. Other agents that support skills
-> still get the rule documentation, but not the write-time blocking.
+> Write-time blocking via these hooks is a **Claude Code** feature (the exit-2
+> + stderr PreToolUse contract these scripts implement). Cline also has hooks,
+> but blocks via a different contract (a JSON `{"cancel": true}` response on
+> stdout, not exit 2), so these scripts won't block under Cline as-is. Other
+> agents that support skills still get the rule documentation, but not the
+> write-time blocking.
 
 ## What the agent sees on a block
 
@@ -106,7 +128,7 @@ The skill enforces rules on **your code**, not on code owned by external tools. 
 |---|---|
 | Installed deps | `**/node_modules/**`, `**/vendor/**`, `**/bower_components/**` |
 | shadcn/ui | `**/components/ui/**` (matches all monorepo variants: `packages/components/ui/**`, `apps/web/src/components/ui/**`, etc.) |
-| ORM migrations | `**/prisma/migrations/**`, `**/drizzle/migrations/**`, `**/alembic/versions/**`, `**/migrations/0001_*.py` |
+| ORM migrations | `**/prisma/migrations/**`, `**/drizzle/migrations/**`, `**/alembic/versions/**`, `**/migrations/[0-9][0-9][0-9][0-9]_*.py` (Django — all 4-digit prefixes, not just `0001_`) |
 | Codegen | `**/generated/**`, `**/*.gen.ts`, `**/zz_generated.*`, `**/*_pb.go`, `**/*.designer.cs` |
 | Build outputs | `**/dist/**`, `**/build/**`, `**/.next/**`, `**/.nuxt/**`, `**/.svelte-kit/**`, `**/target/**`, `**/bin/**`, `**/obj/**` |
 | Lock files | `**/package-lock.json`, `**/yarn.lock`, `**/pnpm-lock.yaml`, `**/composer.lock`, `**/Cargo.lock`, `**/go.sum`, `**/poetry.lock`, `**/uv.lock` |
@@ -137,7 +159,7 @@ src/weirdo.ts
 
 Custom patterns extend the defaults — they don't replace them. The project root is the first ancestor directory containing `.git`, `package.json`, `pyproject.toml`, `go.mod`, `composer.json`, `pom.xml`, or `.coding-standards-ignore` itself.
 
-**Monorepo support is built in.** The `**/` prefix on default patterns matches any depth, so `**/components/ui/**` correctly excludes shadcn output regardless of whether your project uses `src/`, `apps/<app>/src/`, `packages/components/`, or any other monorepo layout.
+**Monorepo support is built in.** The `**/` prefix on default patterns matches any depth, so `**/components/ui/**` correctly excludes shadcn output regardless of whether your project uses `src/`, `apps/<app>/src/`, `packages/components/`, or any other monorepo layout. Note this exempts **any** folder named `components/ui`, not only shadcn-generated ones — if you hand-write code there, enforcement is off for it (move it or rename the folder if you want it checked).
 
 ## Optional: enable TypeScript/JavaScript AST checks
 

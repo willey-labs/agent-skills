@@ -196,7 +196,9 @@ public sealed class Order
     {
         var list = items.ToList();
         if (list.Count == 0) throw new EmptyOrderException();
-        return new Order { Id = Guid.NewGuid(), CustomerId = customerId, Status = OrderStatus.Pending, _items = { ..list } };
+        var order = new Order { Id = Guid.NewGuid(), CustomerId = customerId, Status = OrderStatus.Pending };
+        order._items.AddRange(list); // factory owns the private field; no `{ ..list }` spread (invalid in an initializer)
+        return order;
     }
 
     public void Cancel(string reason)

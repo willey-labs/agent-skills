@@ -14,9 +14,9 @@ A good name answers three questions without a comment: *why does this exist, wha
 
 ```
 // Bad — reader has to trace `d` through the codebase
-const d = elapsedTimeInDays(start, end);
+const d = computeElapsedDays(start, end);
 
-// Good — the name answers "why"
+// Good — the name answers "why" (only the variable changed; the function is the same)
 const elapsedTimeInDays = computeElapsedDays(start, end);
 ```
 

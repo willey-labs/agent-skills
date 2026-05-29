@@ -43,12 +43,18 @@ try:
     try:
         import tree_sitter_javascript
         _JS_LANGUAGE = tree_sitter.Language(tree_sitter_javascript.language())
-    except ImportError:
+    except Exception:
+        # ImportError when the grammar isn't installed; TypeError/AttributeError
+        # when an installed-but-incompatible version changes the Language() API.
         _JS_LANGUAGE = None
     _TS_LANGUAGE = tree_sitter.Language(tree_sitter_typescript.language_typescript())
     _TSX_LANGUAGE = tree_sitter.Language(tree_sitter_typescript.language_tsx())
     _AST_AVAILABLE = True
-except ImportError:
+except Exception:
+    # ImportError when tree-sitter isn't installed; TypeError/AttributeError when
+    # a version-skewed binding changes the Language()/Parser() API (the modern
+    # `Language(capsule)` form raises on bindings <0.22). Either way, fall back
+    # to regex-only checks rather than crashing the hook on every Write/Edit.
     _AST_AVAILABLE = False
     _TS_LANGUAGE = _TSX_LANGUAGE = _JS_LANGUAGE = None
 
@@ -60,7 +66,7 @@ JS_EXTENSIONS = {".js", ".jsx", ".mjs", ".cjs"}
 VUE_LIKE_EXTENSIONS = {".vue", ".svelte"}
 
 ANY_RULES: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r":\s*any\b(?!\s*\w)"), "type annotation `: any`"),
+    (re.compile(r":\s*any\b"), "type annotation `: any`"),
     (re.compile(r"<\s*any\s*[,>]"), "generic argument `<any>`"),
     (re.compile(r"\bas\s+any\b"), "type assertion `as any`"),
     (re.compile(r"\bany\s*\[\]"), "array type `any[]`"),
@@ -272,11 +278,17 @@ def _class_extends_boundary_parent(class_node) -> bool:
     """OD-005 carve-out — class extends a known framework-boundary parent
     or has decorators that mark it as a framework-boundary class.
     """
-    # Look for decorators on the class declaration.
+    # Look for decorators on the class declaration. In tree-sitter-typescript a
+    # class `decorator` node is a CHILD of the class_declaration; older/other
+    # grammar versions may place it as a preceding sibling. Check both so the
+    # OD-005 carve-out is robust to grammar drift.
     decorators = []
-    for sibling in class_node.parent.children if class_node.parent else []:
-        if sibling.type == "decorator":
-            decorators.append(sibling.text.decode("utf-8", errors="replace"))
+    candidate_nodes = list(class_node.children)
+    if class_node.parent:
+        candidate_nodes += list(class_node.parent.children)
+    for node in candidate_nodes:
+        if node.type == "decorator":
+            decorators.append(node.text.decode("utf-8", errors="replace"))
     if any(
         d.lstrip("@").split("(")[0] in OD_005_BOUNDARY_PARENTS
         for d in decorators
@@ -498,14 +510,28 @@ def main() -> int:
     if not violations:
         return 0
 
+    # Cite only the rules that actually fired, derived from the violation lines
+    # (the `any` ban carries no code, so it just isn't listed).
+    cited = sorted({
+        match.group(0)
+        for v in violations
+        for match in re.finditer(r"\b(?:FN|NM|OD|ST|EH|FMT|DP)-\d+\b", v)
+    })
+    cited_str = ", ".join(cited) if cited else "the rule references"
     header = (
         "coding-standards hook blocked this write — fix the violations and try again.\n"
-        "See skills/coding-standards/references/common/ for cited rules "
-        "(FN-001, FN-005, NM-006, OD-004, ST-003).\n"
+        f"See skills/coding-standards/references/common/ for cited rules ({cited_str}).\n"
     )
     sys.stderr.write(header + "\n".join(f"  - {v}" for v in violations) + "\n")
     return 2
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as exc:  # noqa: BLE001
+        # Never let an unexpected internal error (e.g. a tree-sitter API change
+        # that slips past the load guard) block a legitimate write. Fail OPEN:
+        # exit 0 so Claude Code proceeds, and note it on stderr for debugging.
+        sys.stderr.write(f"coding-standards: block-ts-violations internal error, skipped ({exc})\n")
+        sys.exit(0)
