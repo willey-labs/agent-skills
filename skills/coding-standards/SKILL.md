@@ -13,7 +13,7 @@ description: >
 license: MIT
 metadata:
   author: willey-labs
-  version: "4.1.0"
+  version: "4.2.0"
 ---
 
 # Coding Standards
@@ -238,7 +238,7 @@ You have two execution shapes for Write and Review modes. Pick deterministically
 
 | Trigger | Execution shape |
 |---|---|
-| Task scope = single file edit (≤30 lines change), OR single function refactor, OR Q&A about a rule | **Inline.** You (the main agent) do the work yourself. Skip Step 2.X and continue with Step 2 (load all references) → Step 3 (apply rules). |
+| Task scope = single file edit (≤30 lines change), OR single function refactor, OR Q&A about a rule | **Inline.** You (the main agent) do the work yourself. Skip Step 2.O; do **Step 1.6 (seed the task list)** → Step 2 (load all references) → Step 3 (apply rules). |
 | Task scope = 2+ files, OR a new feature/use case, OR a diff/PR review, OR explicit `--thorough` flag, OR explicit `/coding-standards` slash command | **Orchestrator pipeline.** You become the orchestrator and dispatch to workers. Continue with Step 2.O (orchestrator). |
 | `Agent` tool is NOT available in this host (e.g. Cursor, Codex, OpenCode) | Fall back to **inline** regardless of scope — and say so in your announcement. |
 
@@ -262,7 +262,7 @@ options:
                   a small refactor, or a quick change."
 ```
    - **"Multiple agents"** → run the orchestrator pipeline (Step 2.O): you, the main agent, dispatch Worker 1 → Worker 2 → Worker 3 via the `Agent` tool, then write the result.
-   - **"Single agent"** → run inline (Step 2 → Step 3): you do it yourself.
+   - **"Single agent"** → run inline (Step 1.6 → Step 2 → Step 3): you do it yourself.
    - If the `Agent` tool is unavailable, **don't ask** — go inline and say so (sub-agents can't run in this host).
    - Ask this **at most once per session**; reuse the user's choice for later tasks unless they say otherwise.
 
@@ -275,17 +275,21 @@ Doing any work without either asking (A) or announcing (B) violates this skill.
 
 ---
 
-## Step 1.6 — Track the run with TodoWrite (orchestrator pipeline and reviews only)
+## Step 1.6 — Track the run with a task list (every code task)
 
-The orchestrator pipeline and a diff/PR review are the two paths where a user benefits from watching progress: the pipeline is **sequential** (Worker N's output is Worker N+1's input), and a review is a **systematic multi-pass walkthrough**. In both, a live task list shows which stage is running and what's left. A single-file inline edit or a rule Q&A has nothing worth tracking — a checklist there is noise, so don't make one.
+**Whenever this skill does real work — writing, editing, or refactoring code, or reviewing it — open a task list.** Do it as one of your first actions, as soon as you know the mode (Write/Review) and the framework, *before* the substantive work. The list is what makes the skill visible: it shows the user the standards are actually being applied, stage by stage, instead of happening invisibly. Ticking it as you go is the difference between "the skill ran" and "I can see what the skill did." Seed it on **every** such task — inline single-file edits included — not just the orchestrator or review paths.
 
-**Seed a `TodoWrite` list when, and only when, both hold:**
-- `TodoWrite` is available in this host, **and**
-- the execution shape from Step 1.5 is the **orchestrator pipeline**, *or* the mode is **Review** (inline or pipeline).
+**Use whatever task-list tool your host provides.** In Claude Code that tool is `TodoWrite`; some hosts expose the same capability under another name (`TaskCreate` / `TaskUpdate` / `TaskList`, etc.) — use whichever exists and treat it as this skill's task list. Do **not** skip just because the tool isn't literally named `TodoWrite`. Skip the list only if the host has **no** task-list tool of any kind (then proceed without it — the rules still apply).
 
-If `TodoWrite` is unavailable (Cursor, Codex, OpenCode, …), skip it silently and proceed — the same graceful degradation as the `Agent` tool fallback in Step 1.5. The list never replaces the steps below; it mirrors them so the work stays visible.
+**The one exception:** pure rule Q&A — "what does FN-005 mean?", "show me the rules" — has no multi-step work to track, so no list there.
 
-Track the **work the user cares about**, not the internal step numbers. Keep exactly one item `in_progress` at a time and complete it before starting the next, so the list reads like progress rather than a table of contents. Adapt the wording to the real task — fold in the actual file or feature names where that helps — these are the shapes, not lines to copy verbatim.
+Track the **work the user cares about**, not internal step numbers. Keep exactly one item `in_progress` at a time and complete it before the next, so the list reads like progress rather than a table of contents. Adapt the wording to the real task — fold in the actual file or feature names. The shape follows the path picked in Step 1.5:
+
+**Write / refactor — inline (single agent):**
+1. Detect framework + resolve structure
+2. Load rules (common + framework)
+3. Apply rules + write the code
+4. Run hooks / verify
 
 **Write — orchestrator pipeline:**
 1. Detect framework + resolve structure
@@ -294,6 +298,12 @@ Track the **work the user cares about**, not the internal step numbers. Keep exa
 4. Worker 3 — Failure handling
 5. Write files + run hooks
 
+**Review — inline (single agent):**
+1. Scope + detect framework + load references
+2. Run hooks linter (`review-files.py`)
+3. Judgement pass (the rules regex/AST can't catch — FN-001, OD-003, EH-002, `structure.md`)
+4. Summarize findings by severity
+
 **Review — orchestrator pipeline:**
 1. Scope + detect framework per file
 2. Run hooks linter (`review-files.py`)
@@ -301,12 +311,6 @@ Track the **work the user cares about**, not the internal step numbers. Keep exa
 4. Worker 2 — Code-quality findings
 5. Worker 3 — Failure-handling findings
 6. Merge + present report
-
-**Review — inline (a review small enough to skip the pipeline):**
-1. Scope + detect framework + load references
-2. Run hooks linter (`review-files.py`)
-3. Judgement pass (the rules regex/AST can't catch — FN-001, OD-003, EH-002, `structure.md`)
-4. Summarize findings by severity
 
 ---
 
