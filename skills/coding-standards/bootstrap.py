@@ -158,9 +158,14 @@ def in_virtualenv() -> bool:
 
 
 def check_tree_sitter_packages() -> tuple[bool, list[str]]:
-    """Detect which tree-sitter packages are installed.
+    """Detect whether the tree-sitter grammars are available to the hooks.
 
-    Returns (all_present, missing_package_names).
+    Returns (all_present, missing_package_names). Checks the interpreter running
+    bootstrap first, then the managed venv — the interpreter the hooks actually
+    use when one exists (see `hook_interpreter`). Probing only the system Python
+    made an externally-managed host (PEP 668) report 'missing' on every run even
+    after a prior run had installed the grammars into the venv, so each re-run
+    pointlessly reinstalled and nagged for a session restart.
     """
     missing: list[str] = []
     for module, package in OPTIONAL_TREE_SITTER:
@@ -168,7 +173,11 @@ def check_tree_sitter_packages() -> tuple[bool, list[str]]:
             __import__(module)
         except ImportError:
             missing.append(package)
-    return len(missing) == 0, missing
+    if not missing:
+        return True, []
+    if managed_venv_has_tree_sitter():
+        return True, []
+    return False, missing
 
 
 def readiness_report() -> dict:
@@ -301,6 +310,28 @@ def managed_venv_python() -> Path:
     return MANAGED_VENV_DIR / "bin" / "python"
 
 
+def managed_venv_has_tree_sitter() -> bool:
+    """True if the dedicated venv exists and can import every tree-sitter grammar.
+
+    This is the interpreter the hooks run under when the venv exists, so it — not
+    the (often externally-managed) interpreter running bootstrap — is the one
+    whose imports decide whether tree-sitter is really available. Cheap when no
+    venv is present: the `.exists()` short-circuit avoids spawning a subprocess.
+    """
+    venv_python = managed_venv_python()
+    if not venv_python.exists():
+        return False
+    import_line = "import " + ", ".join(module for module, _package in OPTIONAL_TREE_SITTER)
+    try:
+        subprocess.run(
+            [str(venv_python), "-c", import_line],
+            check=True, capture_output=True, text=True, timeout=30,
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
 def create_managed_venv() -> tuple[Path | None, str]:
     """Create a dedicated venv beside the hooks and install tree-sitter into it.
 
@@ -398,6 +429,12 @@ def ensure_tree_sitter(report: dict, args: argparse.Namespace) -> tuple[dict, Pa
     re-run. Returns the (possibly refreshed) report and a managed-venv
     interpreter path (None when no venv was created).
     """
+    # A previous run already built the managed venv with the grammars: reuse it
+    # so the hooks stay pointed at the only interpreter that has them, but don't
+    # reinstall or print the restart nag. Without this, a re-run that skipped the
+    # install would rewire the hooks to a system Python that lacks tree-sitter.
+    if managed_venv_has_tree_sitter():
+        return report, managed_venv_python()
     if not report["missing_tree_sitter"] or args.skip_install:
         return report, None
     if report["python_version"] < MIN_PYTHON_TREE_SITTER:
