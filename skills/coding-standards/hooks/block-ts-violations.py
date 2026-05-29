@@ -35,6 +35,7 @@ from typing import Iterable
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _exclusions import is_excluded_path, has_generation_marker  # noqa: E402
+from _structure import is_check_enabled  # noqa: E402
 
 # Tree-sitter is optional. Import lazily so the hook works without it.
 try:
@@ -167,9 +168,11 @@ def iter_arg_count_violations(clean_lines: list[str], file_path: str) -> Iterabl
                 break
 
 
-def iter_import_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
+def iter_import_violations(
+    clean_lines: list[str], file_path: str, check_deep: bool = True
+) -> Iterable[str]:
     for idx, line in enumerate(clean_lines, start=1):
-        if DEEP_IMPORT_PATTERN.search(line):
+        if check_deep and DEEP_IMPORT_PATTERN.search(line):
             yield (
                 f"{file_path}:{idx} — ST-003: deep import past folder's public API; "
                 f"import from the capability's index.ts instead"
@@ -498,7 +501,13 @@ def main() -> int:
     if is_ts:
         violations.extend(iter_any_violations(clean_lines, file_path))
     violations.extend(iter_hungarian_violations(clean_lines, file_path))
-    violations.extend(iter_import_violations(raw_lines, file_path))
+    # ST-003 deep-import is structure-dependent: a custom project with no barrels
+    # turns it off via `.coding-standards-structure`. Parent-traversal stays on.
+    violations.extend(
+        iter_import_violations(
+            raw_lines, file_path, check_deep=is_check_enabled("deep-import", file_path)
+        )
+    )
 
     # AST checks supersede regex arg-count when tree-sitter is available
     # and the content parses. Otherwise fall back to regex.
