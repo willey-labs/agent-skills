@@ -249,7 +249,13 @@ def _pattern_to_regex(pattern: str) -> re.Pattern[str]:
     body = "".join(out)
     if pattern.startswith("/"):
         return re.compile(rf"^{body}$")
-    return re.compile(rf"(?:^|/){body}$")
+    # Non-leading-slash patterns that contain a `/` match at ANY path depth
+    # (per this function's docstring). The hook receives an ABSOLUTE file_path,
+    # so anchor the body at a directory boundary with `(?:^|.*/)` — mirroring
+    # the bare-filename branch above. `(?:^|/)` alone is unreachable under
+    # re.Pattern.match() (it can only take the `^` branch at offset 0), which
+    # made patterns like `src/third-party/**` silently fail on absolute paths.
+    return re.compile(rf"(?:^|.*/){body}$")
 
 
 # Cache compiled regex per pattern.
@@ -280,17 +286,22 @@ def find_project_root(start: Path) -> Path | None:
 
     A project root is the first ancestor directory containing any of:
     `.coding-standards-ignore`, `.git`, `package.json`, `pyproject.toml`,
-    `Cargo.toml`, `go.mod`, `composer.json`, `pom.xml`, `build.gradle`.
+    `Cargo.toml`, `go.mod`, `composer.json`, `pom.xml`, `build.gradle`,
+    `requirements.txt`/`setup.py`/`setup.cfg` (plain Python), or a `*.csproj` /
+    `*.sln` / `*.fsproj` file (.NET — matched by glob, not exact name).
     Returns None if no marker is found within 20 levels.
     """
     markers = {
         ".coding-standards-ignore", ".git", "package.json", "pyproject.toml",
         "Cargo.toml", "go.mod", "composer.json", "pom.xml", "build.gradle",
-        "build.gradle.kts",
+        "build.gradle.kts", "requirements.txt", "setup.py", "setup.cfg",
     }
+    glob_markers = ("*.csproj", "*.sln", "*.fsproj")
     current = start if start.is_dir() else start.parent
     for _ in range(20):
         if any((current / m).exists() for m in markers):
+            return current
+        if any(next(current.glob(g), None) is not None for g in glob_markers):
             return current
         if current.parent == current:
             return None

@@ -94,8 +94,11 @@ runs on every Write/Edit/MultiEdit automatically.
 See `skills/coding-standards/hooks/README.md` for what each hook catches
 per language.
 
-> Hooks are a Claude Code (and Cline) feature. On other agents the rule
-> documentation still applies, but write-time blocking won't.
+> Write-time blocking via these hooks is a **Claude Code** feature (the
+> exit-2 + stderr PreToolUse contract). Cline also has hooks, but uses a
+> different contract (a JSON `{"cancel": true}` response on stdout, not exit
+> 2), so these scripts won't block under Cline as-is. On other agents the
+> rule documentation still applies, but write-time blocking won't.
 
 ### Manual install (no CLI)
 
@@ -108,10 +111,31 @@ python3 ~/.claude/skills/coding-standards/bootstrap.py
 The bootstrap script handles the hook wiring; restart the agent after
 the first successful run.
 
+### Updating
+
+To move to a newer version, update the files the normal way:
+
+```bash
+# CLI install — re-run to pull the latest
+npx skills add willey-labs/agent-skills
+
+# Manual / git install
+git -C ~/projects/willey-labs/agent-skills pull
+```
+
+You **don't** need to re-run anything by hand, or tell your team to. `bootstrap.py`
+is idempotent, and the skill re-runs it on activation (`SKILL.md` Step 0 — "after a
+skill update"), so the next session picks up any new hooks **and** re-applies the
+permission allow-rules (reading the skill's references and running its scripts
+without a prompt). Because settings are read at session start, the *first* session
+after an update may still prompt once; the next session is clean. To apply
+immediately instead of waiting, run `python3 <skill-dir>/bootstrap.py` and restart.
+
 ## Status
 
-The structure rules have been audited against real projects. Seven
-language-specific PreToolUse hooks in `skills/coding-standards/hooks/`
+The structure rules have been self-reviewed against representative project
+layouts. Seven PreToolUse hooks (one universal path-checker plus six
+language content-checkers) in `skills/coding-standards/hooks/`
 hard-block the high-precision violations regex can catch reliably
 (`any`/`Any`/`interface{}`/`dynamic`/`mixed`, Hungarian notation, 4+ argument
 functions, junk-drawer paths, dot/star imports, deep imports, parent

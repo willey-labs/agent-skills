@@ -2,6 +2,8 @@
 
 The chosen pattern for Laravel projects: **stock Laravel skeleton** — keep the framework's default folder layout (`app/Http/`, `app/Models/`, `app/Providers/`) and add an `app/Services/` folder for business logic. Group large folders by capability via subfolders.
 
+> **Laravel 11/12 note** (12 is current as of 2026, PHP 8.2+): Laravel 11+ ships a slimmer skeleton — there's no default `app/Http/Middleware/`, `app/Console/Kernel.php`, or `app/Exceptions/Handler.php`; middleware, exceptions, and providers are now configured in `bootstrap/app.php` and `bootstrap/providers.php`. The capability-subfolder advice below still applies to the folders that DO exist (`app/Http/Controllers/`, `app/Models/`, `app/Services/`, `app/Providers/`); just don't expect the pre-11 `Kernel.php`/`Handler.php` files.
+
 ---
 
 ## Why stock Laravel and not flat business folders

@@ -42,7 +42,6 @@ import platform
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 # Use absolute() not resolve() — the skill is symlinked from a canonical
@@ -75,10 +74,17 @@ HOOK_FILES = [
 # Cross-platform: Windows, macOS, Linux.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Minimum Python version. The hooks use modern syntax (PEP 604 generics
-# without `from __future__`, etc. — actually we DO use `__future__ annotations`,
-# so 3.7+ would work, but tree-sitter wheels target 3.9+).
+# Minimum Python for the stdlib hooks. They use `from __future__ import
+# annotations`, so 3.9 is a comfortable supported floor (3.7+ would parse).
 MIN_PYTHON = (3, 9)
+
+# Minimum Python for the OPTIONAL tree-sitter AST checks (TS/JS). As of 2025+
+# the current `tree-sitter` (>=0.24) and `tree-sitter-javascript` (>=0.24)
+# wheels require Python >=3.10 — they dropped the cp39 wheel (only
+# `tree-sitter-typescript` still ships one). On 3.9 a plain `pip install`
+# resolves to stale grammar versions or fails outright, so we gate the AST
+# install at 3.10 and let the stdlib hooks run on 3.9 regardless.
+MIN_PYTHON_TREE_SITTER = (3, 10)
 
 # Optional tree-sitter packages for AST checks on TS/JS.
 OPTIONAL_TREE_SITTER = [
@@ -124,15 +130,23 @@ def detect_pip_command() -> str | None:
 
 
 def in_virtualenv() -> bool:
-    """Detect whether the current Python is inside a venv/virtualenv.
+    """Detect whether the current Python is inside an isolated environment.
 
-    True for venv, virtualenv, conda. False for system Python.
-    Used to decide whether to add `--user` to pip install.
+    True for venv/virtualenv (base_prefix != prefix, or the legacy real_prefix)
+    AND for conda/mamba. Conda does NOT reliably set base_prefix != prefix, so
+    it's detected via the CONDA_PREFIX / CONDA_DEFAULT_ENV env markers. False
+    for bare system Python. Used to decide whether to add `--user` to pip
+    install — inside ANY of these, `--user` errors or installs to the wrong
+    place, so it must be omitted.
     """
-    return (
-        hasattr(sys, "real_prefix")
-        or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)
-    )
+    if hasattr(sys, "real_prefix"):
+        return True
+    if hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix:
+        return True
+    # conda/mamba often don't set base_prefix != prefix; fall back to env vars.
+    if os.environ.get("CONDA_PREFIX") or os.environ.get("CONDA_DEFAULT_ENV"):
+        return True
+    return False
 
 
 def check_tree_sitter_packages() -> tuple[bool, list[str]]:
@@ -245,8 +259,18 @@ def install_tree_sitter(report: dict) -> tuple[bool, str]:
         )
         return True, proc.stdout.strip().splitlines()[-1] if proc.stdout else "installed"
     except subprocess.CalledProcessError as e:
-        stderr = (e.stderr or "").strip()[-500:]
-        return False, f"pip install failed:\n{stderr}"
+        stderr = (e.stderr or "").strip()
+        tail = stderr[-500:]
+        if "externally-managed-environment" in stderr.lower() or "externally managed" in stderr.lower():
+            return False, (
+                "pip refused to install into an externally-managed Python (PEP 668 "
+                "— common on Debian/Ubuntu/Homebrew system interpreters). Do NOT "
+                "pass --break-system-packages on a system Python. Instead create a "
+                "venv (`python -m venv .venv && . .venv/bin/activate`) or use pipx, "
+                "then re-run bootstrap. The TS/JS AST checks are optional — the "
+                "hooks still work with regex fallback.\n" + tail
+            )
+        return False, f"pip install failed:\n{tail}"
     except subprocess.TimeoutExpired:
         return False, "pip install timed out after 300s"
 
@@ -315,24 +339,35 @@ def build_hook_entry(scope: str, python_command: str) -> dict:
     """Build the PreToolUse entry that activates every hook in hooks/.
 
     For project scope, use `${CLAUDE_PROJECT_DIR}/.claude/skills/...` so the
-    entry survives moving the project (Claude Code expands the variable).
-    For global scope, use the absolute resolved path — no variable points at
-    the user's home skills dir reliably.
+    entry survives moving the project (Claude Code expands the variable), and
+    keep the portable `python_command` (e.g. "python3") so the committed
+    settings.json works on any teammate's machine.
 
-    `python_command` is detected at bootstrap time so the command works on
-    Windows (`python`) and Linux/macOS (`python3`).
+    For global scope, use the absolute resolved path AND the absolute current
+    interpreter (`sys.executable`) — global settings.json is per-machine, and
+    pinning the running interpreter guarantees the hooks can import the
+    tree-sitter grammars that pip installed into that same interpreter (avoids
+    the PATH-`python3`-vs-`sys.executable` mismatch that silently drops AST
+    checks to regex). The matcher includes `MultiEdit` for backward
+    compatibility with older Claude Code versions that still expose it; on
+    current versions it harmlessly never matches.
+
+    `python_command` is detected at bootstrap time so the project command works
+    on Windows (`python`) and Linux/macOS (`python3`).
     """
     if scope == "project":
         path_prefix = "${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks"
+        hook_python = python_command
     else:
         path_prefix = str(HOOKS_DIR)
+        hook_python = sys.executable
 
     return {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
             {
                 "type": "command",
-                "command": f"{python_command} {path_prefix}/{name}",
+                "command": f"{hook_python} {path_prefix}/{name}",
             }
             for name in HOOK_FILES
         ],
@@ -340,16 +375,23 @@ def build_hook_entry(scope: str, python_command: str) -> dict:
 
 
 def is_our_entry(entry: dict) -> bool:
-    """An existing PreToolUse entry is "ours" if every command references
-    `coding-standards/hooks/`. We replace such entries on re-run; other
-    entries are left untouched.
+    """An existing PreToolUse entry is "ours" if every command references one of
+    our hook scripts by filename (e.g. `.../block-junk-paths.py`).
+
+    We match on the HOOK_FILES basenames rather than a fixed
+    `coding-standards/hooks/` substring, because the GLOBAL-scope command path
+    is the RESOLVED canonical install dir — which (when the skill is symlinked
+    from e.g. an npm cache) may not contain the string `coding-standards`. The
+    old substring check failed to recognize global entries bootstrap had just
+    written, so re-runs appended a duplicate hook block on every invocation.
+    We replace recognized entries on re-run; unrelated entries are untouched.
     """
     hooks = entry.get("hooks") or []
     if not hooks:
         return False
     for hook in hooks:
         cmd = (hook or {}).get("command", "")
-        if "coding-standards/hooks/" not in cmd:
+        if not any(name in cmd for name in HOOK_FILES):
             return False
     return True
 
@@ -411,7 +453,9 @@ def merge_hook_entry(settings: dict, new_entry: dict) -> tuple[dict, str]:
 def write_settings(path: Path, settings: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
-        backup = path.with_suffix(path.suffix + f".bak.{int(time.time())}")
+        # Single rolling backup — overwrite, rather than accumulating one
+        # timestamped .bak per run (which grew unbounded across re-installs).
+        backup = path.with_suffix(path.suffix + ".bak")
         shutil.copy2(path, backup)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
@@ -475,6 +519,50 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def ensure_skill_permissions(settings: dict) -> bool:
+    """Pre-approve reading the skill's own files and running its scripts.
+
+    Without this, the agent hits a Claude Code permission prompt for every
+    reference file it loads (the skill dir is outside the user's project on a
+    global install) and for each `bootstrap.py` / `hooks/review-files.py` run.
+    We add the skill directory to `permissions.additionalDirectories` (file
+    access beyond the project root) plus narrow Bash allow-rules for the skill's
+    Python scripts. Idempotent; preserves existing permission entries. Returns
+    True if anything changed.
+    """
+    perms = settings.get("permissions")
+    if not isinstance(perms, dict):
+        perms = {}
+        settings["permissions"] = perms
+    changed = False
+
+    # Read access to the skill's files. Grant both the path the agent reads
+    # through (the symlink) and its resolved target, in case Claude Code
+    # resolves symlinks before the access check.
+    dirs = perms.get("additionalDirectories")
+    if not isinstance(dirs, list):
+        dirs = []
+        perms["additionalDirectories"] = dirs
+    for candidate in (str(SKILL_DIR), str(SKILL_DIR.resolve())):
+        if candidate not in dirs:
+            dirs.append(candidate)
+            changed = True
+
+    # Run the skill's own scripts without a Bash prompt (cover python3 + python).
+    allow = perms.get("allow")
+    if not isinstance(allow, list):
+        allow = []
+        perms["allow"] = allow
+    for py in ("python3", "python"):
+        for script in ("bootstrap.py", "hooks/review-files.py"):
+            rule = f"Bash({py} {SKILL_DIR}/{script}*)"
+            if rule not in allow:
+                allow.append(rule)
+                changed = True
+
+    return changed
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
 
@@ -495,7 +583,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # ── Step 2: Install missing tree-sitter (optional) ──────────────────────
-    if report["missing_tree_sitter"] and not args.skip_install:
+    py_ok_for_ts = report["python_version"] >= MIN_PYTHON_TREE_SITTER
+    if report["missing_tree_sitter"] and not args.skip_install and not py_ok_for_ts:
+        ver = ".".join(str(x) for x in report["python_version"])
+        print(
+            f"  tree-sitter AST checks need Python "
+            f"{MIN_PYTHON_TREE_SITTER[0]}.{MIN_PYTHON_TREE_SITTER[1]}+ "
+            f"(current tree-sitter / tree-sitter-javascript wheels dropped 3.9); "
+            f"you're on {ver}. Skipping the AST install — TS/JS hooks use the "
+            f"regex fallback. All stdlib hooks (Python AST, path/junk, "
+            f"Go/C#/PHP/JVM) work normally."
+        )
+    elif report["missing_tree_sitter"] and not args.skip_install:
         if args.auto_install:
             should_install = True
         else:
@@ -534,16 +633,38 @@ def main(argv: list[str] | None = None) -> int:
     # ── Step 3: Wire hooks + slash command ──────────────────────────────────
     scope, settings_path, commands_dir = detect_scope_and_targets()
 
+    # Interpreter-consistency warning (project scope only). Project hook commands
+    # use the portable PATH name (e.g. "python3") for teammate portability, but
+    # tree-sitter was installed into THIS interpreter (sys.executable). If PATH's
+    # python3 resolves elsewhere, the hooks run under an interpreter that can't
+    # import tree-sitter, so TS/JS AST checks silently fall back to regex.
+    # (Global scope sidesteps this by pinning sys.executable in build_hook_entry.)
+    if scope == "project" and report["tree_sitter_ok"]:
+        resolved = shutil.which(report["python_command"])
+        try:
+            same = resolved is not None and os.path.realpath(resolved) == os.path.realpath(sys.executable)
+        except OSError:
+            same = True
+        if not same:
+            print(
+                f"  Note: project hook commands use '{report['python_command']}' "
+                f"(resolves to {resolved or '(not found)'}), but tree-sitter is "
+                f"installed in {sys.executable}. If these differ, TS/JS AST checks "
+                f"fall back to regex — install tree-sitter into the PATH interpreter "
+                f"or run bootstrap with that interpreter."
+            )
+
     entry = build_hook_entry(scope, report["python_command"])
     settings = load_settings(settings_path)
     updated, hooks_action = merge_hook_entry(settings, entry)
-    if hooks_action != "noop":
+    perms_changed = ensure_skill_permissions(updated)
+    if hooks_action != "noop" or perms_changed:
         write_settings(settings_path, updated)
 
     cmd_action = install_slash_command(commands_dir)
 
     # ── Report ──────────────────────────────────────────────────────────────
-    if hooks_action == "noop" and cmd_action == "noop":
+    if hooks_action == "noop" and cmd_action == "noop" and not perms_changed:
         print(
             f"\ncoding-standards: already installed — {settings_path} ({scope}). "
             f"No changes."
@@ -566,6 +687,11 @@ def main(argv: list[str] | None = None) -> int:
         f"  Hooks dir: {HOOKS_DIR}\n"
         f"  Restart your agent if hooks or commands don't activate on the next tool call."
     )
+    if perms_changed:
+        print(
+            "  Also pre-approved reading the skill's files + running its scripts "
+            "(no permission prompts when it loads references or runs review-files.py)."
+        )
     return 0
 
 

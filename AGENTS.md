@@ -30,7 +30,7 @@ agent-skills/
     coding-standards/
       SKILL.md                       ← skill entrypoint; Step 0 runs bootstrap.py
       bootstrap.py                   ← deterministic hook installer
-      hooks/                         ← 7 PreToolUse hooks (one per language)
+      hooks/                         ← 7 PreToolUse hooks (1 path-checker + 6 language content-checkers)
       references/
         common/                      ← language-agnostic rules (FN-*, NM-*, OD-*, ST-*, EH-*, FMT-*, DP-*)
         <framework>/structure.md     ← per-framework architecture rules

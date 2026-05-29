@@ -39,8 +39,11 @@ JUNK_DRAWER_EXTS = {
 # but the rest of these parents are fine — we don't flag those.
 JUNK_DRAWER_ALLOWED_PARENTS = ("shared/lib", "internal/platform", "shared/utils")
 
-# ST-005 corollary — top-level mega-files. Constants/types/utils at the
-# project root collect knowledge that should live next to its owner.
+# ST-005 corollary — generic mega-files directly under a `src/` directory
+# (root-level `src/types.ts` OR a nested one like `apps/web/src/constants.ts` —
+# the pattern matches `src/<name>` at any depth). These collect knowledge that
+# should live next to the capability that owns it. Covers JS/TS/Python paths;
+# Go/C#/Java equivalents aren't `src/`-rooted so they aren't matched here.
 TOP_LEVEL_MEGAFILE_PATTERN = re.compile(
     r"(^|/)src/(types|constants|utils|helpers|common|misc)\.(ts|tsx|js|jsx|py)$"
 )
@@ -54,8 +57,12 @@ def check_path_violations(file_path: str) -> list[str]:
     if p.suffix.lower() in JUNK_DRAWER_EXTS:
         stem = p.stem.lower()
         if stem in JUNK_DRAWER_STEMS:
+            # Segment-boundary match — `shared/lib` must be a real directory
+            # path, not a substring of e.g. `shared/library`. Wrap both sides in
+            # `/` so the parent matches only at directory boundaries.
+            bounded = f"/{normalized}"
             allowed = any(
-                allowed_parent in normalized
+                f"/{allowed_parent}/" in bounded
                 for allowed_parent in JUNK_DRAWER_ALLOWED_PARENTS
             )
             if not allowed:

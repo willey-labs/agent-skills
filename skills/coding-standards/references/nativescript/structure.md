@@ -228,7 +228,7 @@ NativeScript's `Frame.navigate()` couples a view model to a route. Keep navigati
 class SignInViewModel extends Observable {
     async signIn() {
         await this.authService.signIn(...)
-        Frame.topmost().navigate('features/appointments/views/appointment-list-page')
+        Frame.topmost().navigate('appointments/views/appointment-list-page')
     }
 }
 
@@ -246,7 +246,7 @@ class SignInViewModel extends Observable {
 export function onLoaded(args: EventData) {
     const page = args.object as Page
     const vm = new SignInViewModel()
-    vm.onSignedIn = () => Frame.topmost().navigate('features/appointments/views/appointment-list-page')
+    vm.onSignedIn = () => Frame.topmost().navigate('appointments/views/appointment-list-page')
     page.bindingContext = vm
 }
 ```

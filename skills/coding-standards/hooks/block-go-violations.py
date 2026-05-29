@@ -45,10 +45,17 @@ ANY_RULES: list[tuple[re.Pattern[str], str]] = [
 # Dot/star import — `import . "fmt"` brings every name into local scope.
 DOT_IMPORT = re.compile(r'^\s*(?:import\s+)?\.\s+"[^"]+"\s*$')
 
-# FN-005 — Go signature with 4+ parameters. Go has two shapes:
-#   func Foo(a int, b int, c int, d int)
-#   func Foo(a, b, c, d int)
-# Both should trigger. Count commas inside the outermost parens of the func sig.
+# FN-005 — Go signature with 4+ parameters. Go has three shapes:
+#   func Foo(a int, b int, c int, d int)   — named function
+#   func Foo(a, b, c, d int)               — grouped-type named function
+#   func (r *Recv) Foo(a, b, c, d int)     — method (receiver before the name)
+#   func(a, b, c, d int) { ... }           — anonymous function literal
+# A method's FIRST paren group is the RECEIVER, not the params — matching the
+# first paren after `func` would capture the receiver and miss the real param
+# list. So try the method shape first (receiver + name + params, capturing the
+# SECOND paren group); fall back to the first-paren shape for named/anonymous
+# functions (which have no receiver).
+METHOD_PARAM_LINE = re.compile(r"\bfunc\s*\([^)]*\)\s*\w+\s*\(([^)]*)\)")
 FUNC_PARAM_LINE = re.compile(r"\bfunc\b[^(]*\(([^)]*)\)")
 
 
@@ -122,7 +129,9 @@ def _count_go_params(param_list: str) -> int:
 
 def iter_arg_count_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
     for idx, line in enumerate(clean_lines, start=1):
-        match = FUNC_PARAM_LINE.search(line)
+        # Methods carry a receiver in the first paren group; prefer the method
+        # pattern (which captures the real param list) before the generic one.
+        match = METHOD_PARAM_LINE.search(line) or FUNC_PARAM_LINE.search(line)
         if not match:
             continue
         count = _count_go_params(match.group(1))

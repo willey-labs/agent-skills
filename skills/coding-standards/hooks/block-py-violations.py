@@ -13,7 +13,9 @@ AST checks (only fire if `ast.parse` succeeds — i.e., the content is a
 syntactically valid Python module; Edit snippets that are partial syntax
 fall back to regex-only):
 - FN-001: function body length (>20 statements is flagged; configurable)
-- FN-005: precise positional argument count (>3, excluding self/cls/*/**)
+- FN-005: precise argument count (>3, excluding self/cls and the *args/**kwargs
+  buckets; keyword-only args after `*` ARE counted — they raise mental load too,
+  so a `*`-only signature does NOT escape the rule. Use a dataclass/TypedDict.)
 - OD-004: hybrid classes (both `@property` getters/setters AND non-trivial
   business methods on the same class). Framework-boundary classes
   (subclasses of Base/Model/Schema/Serializer/Form/View etc.) are exempt
@@ -160,7 +162,7 @@ def iter_arg_count_violations(clean_lines: list[str], file_path: str) -> Iterabl
         if count >= 4:
             yield (
                 f"{file_path}:{idx} — FN-005: function takes {count} parameters; "
-                f"group them into a dataclass / TypedDict / kwargs-only signature"
+                f"group them into a dataclass / TypedDict / parameter object"
             )
 
 
@@ -305,7 +307,7 @@ def iter_ast_violations(source: str, file_path: str) -> tuple[Iterable[str], boo
             violations.append(
                 f"{file_path}:{func.lineno} — FN-005: `{func.name}` takes "
                 f"{positional_count} positional arguments; group them into a "
-                f"dataclass / TypedDict / kwargs-only signature"
+                f"dataclass / TypedDict / parameter object"
             )
         body_stmts = _function_body_statement_count(func)
         if body_stmts > FN_001_MAX_STATEMENTS:
@@ -394,10 +396,16 @@ def main() -> int:
     if not violations:
         return 0
 
+    # Cite only the rules that actually fired (the `Any` ban carries no code).
+    cited = sorted({
+        match.group(0)
+        for v in violations
+        for match in re.finditer(r"\b(?:FN|NM|OD|ST|EH|FMT|DP)-\d+\b", v)
+    })
+    cited_str = ", ".join(cited) if cited else "the rule references"
     header = (
         "coding-standards hook blocked this write — fix the violations and try again.\n"
-        "See skills/coding-standards/references/common/ for cited rules "
-        "(FN-001, FN-005, NM-006, OD-004).\n"
+        f"See skills/coding-standards/references/common/ for cited rules ({cited_str}).\n"
     )
     sys.stderr.write(header + "\n".join(f"  - {v}" for v in violations) + "\n")
     return 2

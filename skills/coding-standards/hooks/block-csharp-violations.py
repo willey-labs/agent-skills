@@ -29,6 +29,9 @@ CS_EXTENSIONS = {".cs"}
 # C#'s "any" escape hatch — `dynamic` bypasses static typing entirely.
 DYNAMIC_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bdynamic\s+\w+\s*[=;,)(]"), "`dynamic` variable / parameter"),
+    (re.compile(r"\bdynamic\s*\[\s*\]"), "`dynamic[]` array"),
+    (re.compile(r"\bas\s+dynamic\b"), "`as dynamic` cast"),
+    (re.compile(r"\(\s*dynamic\s*\)"), "`(dynamic)` cast"),
     (re.compile(r"\bList\s*<\s*dynamic\s*>"), "`List<dynamic>`"),
     (re.compile(r"\bIEnumerable\s*<\s*dynamic\s*>"), "`IEnumerable<dynamic>`"),
     (re.compile(r"\bDictionary\s*<[^>]*,\s*dynamic\s*>"), "`Dictionary<K, dynamic>`"),

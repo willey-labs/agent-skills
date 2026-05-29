@@ -112,7 +112,7 @@ Pydantic schemas live in `schemas.py` and are the project's contract with the ou
 
 ```python
 # checkout/schemas.py
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from uuid import UUID
 
 class OrderItemInput(BaseModel):
@@ -124,6 +124,12 @@ class PlaceOrderRequest(BaseModel):
     shipping_address_id: UUID
 
 class OrderResponse(BaseModel):
+    # from_attributes lets model_validate() read a SQLAlchemy/SQLModel ORM
+    # object's attributes (Pydantic v2). WITHOUT it, model_validate(orm_obj)
+    # raises a ValidationError — see FA-003's `return OrderResponse.model_validate(order)`.
+    # Any nested response schema built from ORM objects needs it too.
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     status: str
     total: int
