@@ -40,8 +40,9 @@ python3 <skill-dir>/bootstrap.py
 
 | Flag | Purpose |
 |---|---|
-| `--check` | Only report readiness; do not install or wire anything. |
-| `--auto-install` | Install the required tree-sitter without the interactive confirm. Implied in non-TTY agent contexts (the install is mandatory, so it always proceeds there). |
+| `--verify` | Fast read-only check: exit 0 if already wired for this scope and Python is OK (nothing to do), non-zero if a full run is needed. Wires/installs nothing. Step 0 runs this first and only falls through to `--auto-install` when it's non-zero — so an already-set-up machine isn't re-bootstrapped on every skill invocation. |
+| `--check` | Print the full readiness report; do not install or wire anything. |
+| `--auto-install` | Install the required packages without the interactive confirm. Implied in non-TTY agent contexts (the install is mandatory, so it always proceeds there). |
 
 There is no opt-out flag: the tree-sitter grammars are required. A host that genuinely can't install them is reported as a blocking issue, not silently downgraded.
 

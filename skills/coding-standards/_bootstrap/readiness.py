@@ -136,12 +136,9 @@ def print_readiness(report: dict) -> None:
         f"  Hook interpreter: project scope -> {report['python_command']}, "
         f"global scope -> dedicated coding-standards venv"
     )
-    # Report only availability — not the launcher interpreter's full path, which
-    # confusingly named whatever venv is first on PATH. The path the hooks use is
-    # already shown on the "Hook interpreter" line above.
     pip_mark = "OK" if report["pip_command"] else "MISSING"
-    pip_str = "available" if report["pip_command"] else "(not found)"
-    print(f"  pip: {pip_str:<33} [{pip_mark}]")
+    pip_str = report["pip_command"] or "(not found)"
+    print(f"  pip: {pip_str:<37} [{pip_mark}]")
     print(f"  Platform: {plat:<30} [{report['platform_pretty']}]")
     total = len(REQUIRED_PACKAGES)
     if report["packages_ok"]:
