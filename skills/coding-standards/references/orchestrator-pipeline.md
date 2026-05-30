@@ -12,6 +12,7 @@ The full protocol for the **orchestrator** execution shape. You arrive here from
 - [How to dispatch a worker](#how-to-dispatch-a-worker)
 - [After all workers complete — Write mode](#after-all-workers-complete-write-mode)
 - [After all workers complete — Review mode](#after-all-workers-complete-review-mode)
+- [Fix mode (`MODE: fix`)](#fix-mode-mode-fix)
 - [Tell the user what happened](#tell-the-user-what-happened)
 - [Pipeline invariants](#pipeline-invariants)
 
@@ -131,7 +132,13 @@ in-session review's findings). If none exists, run Review first to produce one.
    that still has file-local findings, dispatch `workers/fix-agent.md` via the
    `Agent` tool (`subagent_type: "general-purpose"`), batched to the host's
    concurrency cap. The agent's INPUT carries **only that file's current content and
-   its own findings** — never the whole set. Parse the returned JSON
+   its own findings** — never the whole set — with these fields:
+   - `FILE_PATH` — absolute path of the one file being fixed
+   - `CURRENT_CONTENT` — the file's current full content
+   - `FINDINGS` — this file's subset only (JSON array of `{ id, rule, line, severity, fix }`)
+   - `FRAMEWORK` — detected framework key
+   - `STRUCTURE` — resolved project structure
+   Parse the returned JSON
    (`{ path, fixed_content, fixed[], deferred[] }`), then **you** write the file
    (hooks fire per file). Update the ledger: each finding → `fixed` or
    `deferred(reason)`.
