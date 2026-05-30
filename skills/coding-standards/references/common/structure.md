@@ -169,7 +169,12 @@ checkout/
 
 A separate top-level `tests/` mirror of `src/` (`tests/checkout/Checkout.test.ts`) is forbidden — tests drift away from the code they cover, get forgotten in refactors, and slow down navigation.
 
-The same applies to `.types.ts`, `.styles.ts`, `.fixtures.ts`, `.stories.tsx`. Co-locate by default; promote to a shared folder only when the artifact is used by multiple files.
+The same applies to every artifact that exists *because of* a source file —
+co-locate it. The concrete suffixes are language/framework-specific and documented
+in the framework files: TS uses `.test.ts` / `.types.ts` / `.stories.tsx`; Python
+uses `test_*.py` next to the module; Go uses `*_test.go` in the same package; C#
+uses `*Tests.cs`. The rule is the same everywhere: the artifact lives next to what
+it describes, never in a parallel mirror tree.
 
 **Exception:** integration / end-to-end tests that exercise the whole app, not one file. Those legitimately live at the project root (`tests/e2e/`, `tests/integration/`) because they don't belong to any one source file.
 
