@@ -40,16 +40,17 @@ EXEMPT_NAME_PATTERNS = (
     re.compile(r"_test\.(py|go)$"), re.compile(r"^test_.*\.py$"),
     re.compile(r"(test|tests)\.(java|kt|cs)$"),   # FooTest.java, FooTests.cs
     re.compile(r"\.schema\."), re.compile(r"-schema(s)?\."),
-    re.compile(r"\.fixtures?\."), re.compile(r"\.stories\."),
+    re.compile(r"\.fixtures?\."), re.compile(r"\.stor(?:y|ies)\."),
     re.compile(r"\.e2e\."),
 )
 
 # A top-level declaration: a declaration keyword at column 0 (no indent). Broad
 # on purpose — it's a warning heuristic, not a gate.
+# `pub\s+` covers Rust `pub fn` / `pub struct` / etc. at column 0.
 _DECL_LINE = re.compile(
-    r"^(export\s+)?(default\s+)?(public\s+|private\s+|protected\s+|internal\s+|"
+    r"^(export\s+)?(default\s+)?(pub\s+|public\s+|private\s+|protected\s+|internal\s+|"
     r"abstract\s+|static\s+|final\s+|async\s+)*"
-    r"(function|class|interface|type|enum|struct|const|let|var|def|func|trait|impl|protocol)\b"
+    r"(fn|function|class|interface|type|enum|struct|const|let|var|def|func|trait|impl|protocol)\b"
 )
 
 
@@ -67,7 +68,7 @@ def assess(file_path: str, content: str) -> str | None:
     cfg = load_god_file_config(file_path)
     if not cfg["enabled"]:
         return None
-    line_count = content.count("\n") + 1 if content else 0
+    line_count = len(content.splitlines())
     decl_count = count_top_level_decls(content)
     over_lines = line_count > cfg["max_lines"]
     over_decls = decl_count > cfg["max_decls"]
@@ -109,7 +110,7 @@ def main() -> int:
         return 0
 
     # For Edit/MultiEdit the full new content isn't in the payload; fall back to
-    # the post-edit file on disk if present, else the provided content/new_string.
+    # the pre-edit (current on-disk) file if present, else the provided content/new_string.
     content = tool_input.get("content")
     if content is None:
         try:
@@ -128,4 +129,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as exc:  # noqa: BLE001
+        # Never let an unexpected internal error block a legitimate write. Fail OPEN:
+        # exit 0 so Claude Code proceeds, and note it on stderr for debugging.
+        sys.stderr.write(f"coding-standards: warn-god-file internal error, skipped ({exc})\n")
+        sys.exit(0)
