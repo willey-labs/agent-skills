@@ -39,10 +39,19 @@ STRUCTURE_FILENAME = ".coding-standards-structure"
 # full YAML parser (the hooks ship stdlib-only) — a flat line scan for the known
 # keys is robust because the keys are unique.
 _TOGGLE_LINE = re.compile(
-    r"^\s*(deep-import|junk-drawer|tests-colocated)\s*:\s*"
+    r"^\s*(deep-import|junk-drawer|tests-colocated|god-file)\s*:\s*"
     r"(on|off|true|false|yes|no|enable|enabled|disable|disabled)\s*$",
     re.IGNORECASE,
 )
+
+# ST-008 numeric overrides, e.g. `  god-file-max-lines: 600`.
+_GOD_FILE_NUM_LINE = re.compile(
+    r"^\s*(god-file-max-lines|god-file-max-decls)\s*:\s*(\d+)\s*$",
+    re.IGNORECASE,
+)
+
+GOD_FILE_DEFAULT_MAX_LINES = 400
+GOD_FILE_DEFAULT_MAX_DECLS = 10
 _TRUE_WORDS = {"on", "true", "yes", "enable", "enabled"}
 _FALSE_WORDS = {"off", "false", "no", "disable", "disabled"}
 
@@ -96,3 +105,32 @@ def is_check_enabled(check_name: str, file_path: str) -> bool:
     check; only an explicit `<check>: off` does.
     """
     return load_structure_toggles(file_path).get(check_name, True)
+
+
+def load_god_file_config(file_path: str) -> dict[str, object]:
+    """ST-008 soft-warning config for the project owning `file_path`.
+
+    Returns {"enabled": bool, "max_lines": int, "max_decls": int}. Defaults:
+    enabled True (warn), 400 lines, 10 top-level declarations. Only an explicit
+    `god-file: off` disables; numeric keys override the thresholds.
+    """
+    enabled = is_check_enabled("god-file", file_path)
+    max_lines = GOD_FILE_DEFAULT_MAX_LINES
+    max_decls = GOD_FILE_DEFAULT_MAX_DECLS
+    root = find_project_root(Path(file_path))
+    if root is not None:
+        structure_file = root / STRUCTURE_FILENAME
+        if structure_file.exists():
+            try:
+                for line in structure_file.read_text(encoding="utf-8").splitlines():
+                    m = _GOD_FILE_NUM_LINE.match(line)
+                    if not m:
+                        continue
+                    key, value = m.group(1).lower(), int(m.group(2))
+                    if key == "god-file-max-lines":
+                        max_lines = value
+                    elif key == "god-file-max-decls":
+                        max_decls = value
+            except (OSError, UnicodeDecodeError, ValueError):
+                pass
+    return {"enabled": enabled, "max_lines": max_lines, "max_decls": max_decls}
