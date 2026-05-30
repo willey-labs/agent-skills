@@ -29,8 +29,9 @@ agent-skills/
   skills/
     coding-standards/
       SKILL.md                       ← skill entrypoint; Step 0 runs bootstrap.py
-      bootstrap.py                   ← deterministic hook installer
-      hooks/                         ← 8 PreToolUse hooks (1 path-checker + 6 language content-checkers + 1 advisory size-checker)
+      bootstrap.py                   ← installer entry point + orchestrator (stays at root: SKILL.md + the slash command invoke it by this exact path)
+      _bootstrap/                    ← installer internals (ST-001/ST-004 package): paths, dependencies (REQUIRED_PACKAGES registry + presence checks), readiness, install (mandatory deps + venv fallback), scope (detection + ignore template), settings (settings.json wiring + command + permissions)
+      hooks/                         ← 8 PreToolUse hooks (1 path-checker + 6 language content-checkers + 1 advisory size-checker); block-ts/block-py delegate AST checks to _ts_ast.py / _py_ast.py, and all 6 language hooks share the gate/emit plumbing in _hook_run.py
       references/
         common/                      ← language-agnostic rules (FN-*, NM-*, OD-*, ST-*, EH-*, FMT-*, DP-*)
         <framework>/structure.md     ← per-framework architecture rules
@@ -42,8 +43,9 @@ Paths inside `SKILL.md` are **relative to the SKILL.md file itself**, not the re
 
 ## When adding a new hook
 
-The hooks are stdlib-only Python (no third-party deps — they ship as-is). When extending them:
+The hooks are stdlib-only Python, with one exception: `block-ts-violations.py` (via its sibling `hooks/_ts_ast.py`) requires `tree-sitter` for its AST checks. That dep (and any future one) is declared in `_bootstrap/dependencies.py`'s `REQUIRED_PACKAGES` and is **mandatory** — `bootstrap.py` checks, announces, auto-installs (with a PEP 668 venv fallback), and refuses to wire the hooks until every entry loads. When extending the hooks:
 
+- **A new third-party dependency goes in `_bootstrap/dependencies.py`'s `REQUIRED_PACKAGES`, nowhere else.** Add one `(import_name, pip_name)` tuple; the readiness check, announcement, auto-install, venv fallback, and blocking gate all iterate over that list — no special-casing. If the new package needs a newer Python, bump `MIN_PYTHON` (also in `_bootstrap/dependencies.py`) too. Prefer stdlib first: a regex/`ast`-based check with no dependency is always better than adding one.
 - **Precision over recall.** A regex pattern with a known false-positive rate above ~1% does not belong as a hard block — false positives are worse than missed catches. Document the trade-off in the hook file's docstring (`block-ts-violations.py` has examples — Hungarian single-char prefixes were dropped specifically because `aUser` is legitimate).
 - **Strip strings and comments before matching content.** Every content hook has `strip_strings_and_comments()`; use it. The exception is import-path checks, which need raw lines (the path lives inside a string literal that the cleaner would blank out).
 - **Always identify the rule code in the error message.** `"FN-005: function takes 4+ positional arguments"`, not `"too many args"`. The user reads the message, jumps to `references/common/functions.md#fn-005`, sees the worked example.
@@ -91,7 +93,9 @@ echo '{"tool_name":"Write","tool_input":{"file_path":"/r/a.py","content":"def f(
 
 ## Bootstrap detection logic — don't break it
 
-`bootstrap.py` uses `Path(__file__).absolute()` (NOT `.resolve()`). The skill is symlinked from a canonical install location into `~/.claude/skills/<name>/` or `<project>/.claude/skills/<name>/`. Following the symlink (resolve) lands on the canonical path, which has no `.claude` ancestor — scope detection breaks and the script either refuses (good) or writes to the wrong settings.json (bad).
+Scope detection anchors on `Path(...).absolute()` (NOT `.resolve()`). The skill is symlinked from a canonical install location into `~/.claude/skills/<name>/` or `<project>/.claude/skills/<name>/`. Following the symlink (resolve) lands on the canonical path, which has no `.claude` ancestor — scope detection breaks and the script either refuses (good) or writes to the wrong settings.json (bad).
+
+**The anchor lives in `_bootstrap/paths.py` and MUST come from the main script, not the module.** It computes `SCRIPT_PATH`/`SKILL_DIR` from `sys.modules["__main__"].__file__` (falling back to `sys.argv[0]`) — i.e. `bootstrap.py` as invoked. This is load-bearing two ways: (1) Python preserves the symlinked path for the **main script's** `__file__` but **resolves the symlink for an imported module's** `__file__`, so anchoring on `paths.py`'s own `__file__` would land on the canonical path and break scope detection; (2) `bootstrap.py` MUST stay at the skill root — `SKILL_DIR` is its parent, and moving it into the package would shift `SKILL_DIR` down a level and misplace `hooks/`, `commands/`, and the permission grants. Both are caught by Test 1 of the matrix below (it wires to the wrong location). The installer logic lives in the `_bootstrap/` package (`paths`, `dependencies`, `readiness`, `install`, `scope`, `settings`) with `bootstrap.py` as the orchestrator (ST-008/ST-004); scope detection itself is in `_bootstrap/scope.py`.
 
 If you touch the scope-detection code, re-run the 6-test matrix:
 

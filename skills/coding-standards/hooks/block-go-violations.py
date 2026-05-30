@@ -15,14 +15,14 @@ Stdlib only. Reads PreToolUse JSON from stdin, exits 2 with stderr on block.
 
 from __future__ import annotations
 
-import json
 import re
 import sys
 from pathlib import Path
 from typing import Iterable
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _exclusions import is_excluded_path, has_generation_marker  # noqa: E402
+# Shared PreToolUse lifecycle (gate, payload read, block emit) — see _hook_run.
+from _hook_run import block, read_payload, resolve_target  # noqa: E402
 
 GO_EXTENSIONS = {".go"}
 
@@ -142,54 +142,16 @@ def iter_arg_count_violations(clean_lines: list[str], file_path: str) -> Iterabl
             )
 
 
-def extract_new_content(tool_name: str, tool_input: dict) -> str:
-    if tool_name == "Write":
-        return tool_input.get("content", "") or ""
-    if tool_name == "Edit":
-        return tool_input.get("new_string", "") or ""
-    if tool_name == "MultiEdit":
-        edits = tool_input.get("edits") or []
-        return "\n".join(
-            (edit.get("new_string", "") or "") for edit in edits if isinstance(edit, dict)
-        )
-    return ""
-
-
 def main() -> int:
-    raw = sys.stdin.read()
-    if not raw.strip():
+    payload = read_payload()
+    if payload is None:
         return 0
-
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError:
+    target = resolve_target(payload, GO_EXTENSIONS)
+    if target is None:
         return 0
+    file_path, new_content = target
 
-    tool_name = payload.get("tool_name", "")
-    tool_input = payload.get("tool_input") or {}
-    if tool_name not in {"Write", "Edit", "MultiEdit"}:
-        return 0
-
-    file_path = tool_input.get("file_path", "")
-    if not file_path:
-        return 0
-
-    if Path(file_path).suffix not in GO_EXTENSIONS:
-        return 0
-
-    excluded, _pattern = is_excluded_path(file_path)
-    if excluded:
-        return 0
-
-    new_content = extract_new_content(tool_name, tool_input)
-    if not new_content.strip():
-        return 0
-
-    if has_generation_marker(new_content):
-        return 0
-
-    clean = strip_strings_and_comments(new_content)
-    clean_lines = clean.splitlines()
+    clean_lines = strip_strings_and_comments(new_content).splitlines()
     raw_lines = new_content.splitlines()
 
     violations: list[str] = []
@@ -200,12 +162,7 @@ def main() -> int:
     if not violations:
         return 0
 
-    header = (
-        "coding-standards hook blocked this write — fix the violations and try again.\n"
-        "See skills/coding-standards/references/go-http/structure.md and common/.\n"
-    )
-    sys.stderr.write(header + "\n".join(f"  - {v}" for v in violations) + "\n")
-    return 2
+    return block(violations, "See skills/coding-standards/references/go-http/structure.md and common/.")
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ fix the violation before retrying — that's the enforcement.
 | Hook | Scope | What it catches |
 |---|---|---|
 | `block-junk-paths.py` | All languages (path-only) | ST-005 junk-drawer filenames (`utils.ts`, `helpers.py`, `common.go`, ...); ST-005 corollary top-level mega-files (`src/types.ts`, `src/constants.ts`, ...) |
-| `block-ts-violations.py` | `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue .svelte` | `any` (6 forms); NM-006 Hungarian; ST-003 deep imports; parent traversal. **With tree-sitter installed:** FN-001 function length, FN-005 precise arg count, OD-004 hybrid class detection (OD-005 framework-boundary carve-out). Without tree-sitter: regex-only fallback. |
+| `block-ts-violations.py` | `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue .svelte` | `any` (6 forms); NM-006 Hungarian; ST-003 deep imports; parent traversal. **AST checks (required — bootstrap installs tree-sitter):** FN-001 function length, FN-005 precise arg count, OD-004 hybrid class detection (OD-005 framework-boundary carve-out). Regex-only is a defensive fallback if the grammars are ever absent. |
 | `block-py-violations.py` | `.py .pyi` | `typing.Any` (8 forms); NM-006 Hungarian snake_case; `from x import *`. **AST checks (always on — stdlib `ast`):** FN-001 function length, FN-005 precise arg count, OD-004 hybrid class detection with OD-005 framework-boundary carve-out (Model, BaseModel, Serializer, Form, etc.). |
 | `block-go-violations.py` | `.go` | `interface{}` / `any` (param/return/var/map/slice); FN-005 4+ params (grouped or typed); `import . "fmt"` dot imports |
 | `block-csharp-violations.py` | `.cs` | `dynamic` (var/list/dict); NM-006 Hungarian (`strName`, `m_field`, ...); FN-005 4+ params |
@@ -168,23 +168,25 @@ Custom patterns extend the defaults — they don't replace them. The project roo
 
 **Monorepo support is built in.** The `**/` prefix on default patterns matches any depth, so `**/components/ui/**` correctly excludes shadcn output regardless of whether your project uses `src/`, `apps/<app>/src/`, `packages/components/`, or any other monorepo layout. Note this exempts **any** folder named `components/ui`, not only shadcn-generated ones — if you hand-write code there, enforcement is off for it (move it or rename the folder if you want it checked).
 
-## Optional: enable TypeScript/JavaScript AST checks
+## Required: TypeScript/JavaScript AST checks
 
 Python AST checks are always on (uses stdlib `ast`). For TypeScript/JavaScript,
-AST-level checks (FN-001 function length, precise FN-005 arg count, OD-004
-hybrid class detection) require `tree-sitter`:
+the AST-level checks (FN-001 function length, precise FN-005 arg count, OD-004
+hybrid class detection) require `tree-sitter` — and they are **mandatory**:
 
 ```bash
 pip install tree-sitter tree-sitter-typescript tree-sitter-javascript
 ```
 
-The TS/JS hook auto-detects whether tree-sitter is available. If installed,
-AST checks run on top of regex checks. If not, the hook silently falls back
-to regex-only — no error, just less precision. Bootstrap prints a one-line
-install hint when modules are missing.
+`bootstrap.py` installs these for you (needs **Python 3.10+**; falls back to a
+dedicated venv on a PEP 668 externally-managed host) and **refuses to wire the
+hooks until the grammars load** — there is no silent regex-only downgrade at
+the bootstrap level. The regex fallback in `block-ts-violations.py` remains
+only as a defensive safety net for the case where the hook is invoked without
+the grammars (e.g. a project-scope PATH `python3` that differs from the
+interpreter tree-sitter was installed into).
 
-Adds ~25 MB to the install footprint per language grammar. Skip if you're
-not editing TypeScript/JavaScript files often, or accept the regex baseline.
+Adds ~25 MB to the install footprint per language grammar.
 
 ## False-positive policy
 

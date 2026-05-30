@@ -13,7 +13,7 @@ description: >
 license: MIT
 metadata:
   author: willey-labs
-  version: "4.3.0"
+  version: "4.4.0"
 ---
 
 # Coding Standards
@@ -35,19 +35,21 @@ All paths in this document are **relative to this SKILL.md file**. `references/c
 
 ---
 
-## Step 0 — Bootstrap the enforcement hooks (run once per skill install)
+## Step 0 — Bootstrap the enforcement hooks + check machine readiness (run once per skill install)
 
-The first time the skill activates in a new session, scope, or after an update, wire the PreToolUse hooks into the right `settings.json` and link the slash command. From an agent (non-TTY) context:
+The first time the skill activates in a new session, scope, or after an update, **check machine readiness and** wire the PreToolUse hooks into the right `settings.json` and link the slash command. From an agent (non-TTY) context:
 
 ```bash
 python3 <skill-dir>/bootstrap.py --auto-install
 ```
 
-(Use `python` if `python3` isn't on PATH. The script self-detects project vs global scope, picks the right Python command, installs missing tree-sitter packages, seeds a commented `.coding-standards-ignore` template at the repo root so the opt-out is discoverable, and is idempotent — a re-run with no changes is a noop.)
+(Use `python` if `python3` isn't on PATH. The script self-detects project vs global scope, picks the right Python command, runs the readiness check, **auto-installs the skill's required packages**, seeds a commented `.coding-standards-ignore` template at the repo root so the opt-out is discoverable, and is idempotent — a re-run with no changes is a noop. **Global installs get a dedicated `coding-standards` venv** — created if missing, reused if present — so the hooks don't depend on whatever `python3` is first on PATH; **project installs use the portable `python3` name** so the committed `settings.json` works across teammates. A managed venv is also the fallback on a PEP 668 host.)
+
+**The skill's required packages are mandatory.** They're declared in one registry (`REQUIRED_PACKAGES` in `_bootstrap/dependencies.py`) and bootstrap checks, announces, and installs them all — there is no special-casing per library. Today that set is the tree-sitter grammars backing the FN-001 length, FN-005 arg-count, and OD-004 hybrid-class checks on TS/JS, which need **Python 3.10+**. If any required package can't be loaded after the install attempts, bootstrap reports a blocking issue and does **not** wire the hooks — there is no silent degraded-mode fallback.
 
 **After it runs:**
 - `Wired` / `Updated` / `Install OK` → tell the user to **restart the agent session** so the hooks activate.
-- `Blocking issues:` (e.g. Python too old) → surface it verbatim and stop until the user resolves it.
+- `Blocking issues:` (Python below 3.10, or a required package couldn't be installed) → surface it verbatim and **stop** until the user resolves it. The skill is not ready until readiness passes.
 - `cannot determine install scope` → the skill is outside a `.claude/skills/` tree; point at `README.md`'s install command and skip Step 0 (the rules still apply, just without write-time blocking).
 
 Flags, interactive invocation, the readiness-check breakdown, and the scope-detection contract live in `references/bootstrap.md` — read it only if bootstrap misbehaves.
