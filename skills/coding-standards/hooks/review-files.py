@@ -45,6 +45,10 @@ HOOK_FILES = (
     "block-jvm-violations.py",
 )
 
+# Advisory hooks exit 0 and write to stderr regardless — never blocked, but
+# surfaced as should-fix findings tagged "[advisory]" in review output.
+WARN_HOOKS = ("warn-god-file.py",)
+
 
 def check_file(path: str) -> list[str]:
     """Return the hook-level violations for one existing file (empty if clean)."""
@@ -70,6 +74,21 @@ def check_file(path: str) -> list[str]:
                 stripped = line.strip()
                 if stripped.startswith("- "):  # keep the bullet lines, drop the header
                     violations.append(stripped[2:].strip())
+
+    # Advisory hooks exit 0 and write to stderr regardless. Capture them as
+    # warnings, tagged so the merge step files them as should-fix, not must-fix.
+    for hook in WARN_HOOKS:
+        proc = subprocess.run(
+            [sys.executable, str(HOOK_DIR / hook)],
+            input=payload,
+            capture_output=True,
+            text=True,
+        )
+        if proc.stderr.strip():
+            for line in proc.stderr.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("- "):
+                    violations.append("[advisory] " + stripped[2:].strip())
     return violations
 
 
