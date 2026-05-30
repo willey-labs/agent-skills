@@ -133,28 +133,23 @@ A junk-drawer file is one whose name describes nothing about its contents: `util
 
 ## ST-006 — Generic component or type names live only at the design-system layer
 
-A name like `Card`, `Modal`, `Button`, `Selector`, `Repository<T>`, `BaseEntity` is too generic to mean anything about the business. Two `Card`s in the same project (an `AppointmentCard` and a `PrescriptionCard`) collide in autocomplete, in grep, and in the reader's head.
+A name like `Card`, `Modal`, `Button`, `Selector`, `Repository<T>`, `BaseEntity` is
+too generic to mean anything about the business. Generic names belong **only at the
+shared / design-system layer**; capability code uses domain-qualified names
+(`AppointmentCard`, `OrderRepository`, `PrescriptionDoseEditor`).
 
-**The rule:**
+This holds in every language and applies to both UI components and types:
+- a generic UI primitive (`Button`, `Modal`) lives in the project's design-system
+  folder, never inside a capability;
+- `Repository<T>` (one generic interface every capability implements) is a smell —
+  repositories should be capability-shaped (`OrderRepository`) with domain methods;
+- a `BaseEntity` parent every entity extends is usually a shared ID/timestamp shape
+  better expressed as a mixin than a parent.
 
-- **Capability code** uses **domain-qualified** names: `AppointmentCard`, `ConfirmCancelDialog`, `PrescriptionDoseEditor`.
-- **Design-system / shared UI** uses generic names: `Card`, `Modal`, `Button`, `Input`. These belong in `shared/ui/`, `components/ui/`, or whichever is the project's design-system folder — *never* inside a capability folder.
-
-```
-src/
-  shared/ui/
-    Card.tsx               ← generic primitive — design system
-    Modal.tsx
-  appointments/
-    components/
-      AppointmentCard.tsx  ← domain-qualified
-      ConfirmCancelDialog.tsx
-```
-
-This isn't only about UI. The same principle applies to types:
-
-- `Repository<T>` (one generic interface every capability implements) is a code smell — repositories should be capability-shaped (`OrderRepository`, `ProductRepository`) with domain methods.
-- A `BaseEntity` parent class that every entity extends is suspect — usually a shared ID/timestamp shape is enough as a mixin, not as a parent.
+**The design-system folder's name and the file extensions are framework-specific**
+(`shared/ui/` and `.tsx` for Next.js/React Native, `components/ui/` with `.vue` for
+Nuxt). Each `references/<framework>/structure.md` shows the concrete layout; this
+rule states only the principle.
 
 ---
 
