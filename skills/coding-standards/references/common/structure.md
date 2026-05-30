@@ -13,7 +13,7 @@ Open the top of the source tree cold. The folder names should describe **what th
 | ✅ Allowed at the top | ❌ Forbidden |
 |---|---|
 | `appointments/`, `prescriptions/`, `billing/`, `identity/` (capabilities) | `components/`, `hooks/`, `services/`, `repositories/`, `models/`, `controllers/`, `utils/` |
-| The framework's required folders (`app/` for Next.js, framework-mandated skeleton folders) | Generic `types/`, `helpers/`, `common/` |
+| The framework's own mandated top-level folders (declared as an exception in that framework's file) | Generic `types/`, `helpers/`, `common/` |
 | `shared/` for genuinely cross-cutting code | Folder names that describe technical kind, not business meaning |
 
 **Test:** show the top of `src/` to a teammate. Can they describe the product in one sentence using only the folder names? If they list framework concepts ("oh you have controllers and services and models"), the layout is wrong — that's package-by-layer, not package-by-business.
@@ -21,10 +21,10 @@ Open the top of the source tree cold. The folder names should describe **what th
 **Why this matters more than it looks:** when capabilities live as siblings at the top, deleting a feature deletes a folder, refactoring touches one folder, and a stranger finds the code by reading the business glossary. When layers live at the top, every change touches every layer.
 
 **Framework exceptions live in the framework file, not here.** A framework whose
-stock skeleton legitimately puts technical folders at the top (the clearest case is
-Laravel's `app/Http/`, `app/Models/`) declares that carve-out in its own
-`references/<framework>/structure.md` under "Builds on `common/structure.md`". The
-universal rule is stated here; the exceptions are named there.
+stock skeleton legitimately puts technical folders at the top declares that
+carve-out in its own `references/<framework>/structure.md` under "Builds on
+`common/structure.md`". The universal rule is stated here; which frameworks bend it,
+and how, is named there — never in this file.
 
 ---
 
@@ -147,9 +147,8 @@ This holds in every language and applies to both UI components and types:
   better expressed as a mixin than a parent.
 
 **The design-system folder's name and the file extensions are framework-specific**
-(`shared/ui/` and `.tsx` for Next.js/React Native, `components/ui/` with `.vue` for
-Nuxt). Each `references/<framework>/structure.md` shows the concrete layout; this
-rule states only the principle.
+— each `references/<framework>/structure.md` shows the concrete folder and the
+naming convention for its language. This rule states only the principle.
 
 ---
 
@@ -243,8 +242,8 @@ variants of a behavior) — structure splits *responsibilities*; DP-002 splits
 
 Every `references/<framework>/structure.md` builds on these rules. A framework file may:
 
-- **Specialize a rule** — e.g., Next.js says "`app/` is thin, business logic lives in capabilities" (specialization of ST-001).
-- **Add framework-specific rules** — e.g., Cocos Creator's "bundles don't nest," NestJS's "one feature, one module file."
+- **Specialize a rule** — e.g., a framework may say "the framework-mandated entry folder stays thin; business logic lives in capabilities" (specialization of ST-001).
+- **Add framework-specific rules** — e.g., "bundles don't nest," or "one feature, one module file."
 - **Carve a named exception** — e.g., a framework keeps its stock skeleton at the top (ST-001 exception, documented in the framework file), or DTOs are intentionally "hybrid" (Objects & Data OD-004 exception).
 
 A framework file may **not** silently override these rules. If a framework's idiom genuinely conflicts with a structural rule, the framework file names the conflict explicitly and explains why the carve-out is necessary.
