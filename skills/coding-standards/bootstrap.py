@@ -65,6 +65,7 @@ from _bootstrap.settings import (
     hook_interpreter,
     install_slash_command,
     interpreter_note,
+    is_our_entry,
     load_settings,
     merge_hook_entry,
     warn_project_interpreter_mismatch,
@@ -87,6 +88,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--auto-install", action="store_true",
         help="Install the missing required packages without the "
              "interactive confirm (implied in non-TTY agent contexts).",
+    )
+    mode.add_argument(
+        "--verify", action="store_true",
+        help="Fast read-only check: exit 0 if the skill is already wired for "
+             "this scope and Python is OK (nothing to do); non-zero if a full "
+             "--auto-install run is needed. Wires/installs nothing.",
     )
     return parser.parse_args(argv)
 
@@ -161,8 +168,34 @@ def _block_on_missing_packages(report: dict) -> None:
     )
 
 
+def verify_already_set_up() -> int:
+    """`--verify`: 0 if the skill is already wired for this scope and Python is
+    recent enough (nothing to do); non-zero if a full bootstrap run is needed.
+    Read-only — touches no files. Lets the skill skip bootstrap when ready."""
+    report = readiness_report()
+    if not report["python_version_ok"]:
+        return 1
+    try:
+        scope, settings_path, _commands = detect_scope_and_targets()
+        settings = load_settings(settings_path)
+    except SystemExit:
+        return 1
+    hooks_section = settings.get("hooks") if isinstance(settings, dict) else None
+    pre_tool_use = hooks_section.get("PreToolUse") if isinstance(hooks_section, dict) else None
+    wired = isinstance(pre_tool_use, list) and any(
+        isinstance(entry, dict) and is_our_entry(entry) for entry in pre_tool_use
+    )
+    if wired:
+        print(f"coding-standards: already set up ({scope}) — no bootstrap needed.")
+        return 0
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
+
+    if args.verify:
+        return verify_already_set_up()
 
     # ── Step 1: Readiness check ────────────────────────────────────────────
     report = readiness_report()

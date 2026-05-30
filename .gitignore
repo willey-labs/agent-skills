@@ -17,6 +17,10 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Dedicated venv bootstrap.py builds for global installs / PEP 668 hosts
+# (MANAGED_VENV_DIR). Machine-specific; never committed.
+.venv/
+
 # Local config / secrets
 .env
 .env.local
