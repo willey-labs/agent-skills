@@ -49,6 +49,23 @@ def managed_venv_python() -> Path:
     return MANAGED_VENV_DIR / "bin" / "python"
 
 
+def interpreter_has_packages(python_path: str) -> bool:
+    """True if the interpreter at `python_path` can import every required package.
+
+    Used to verify the interpreter the wired hooks actually run under (a missing
+    or wiped dedicated venv must read as 'not available', not crash).
+    """
+    import_line = "import " + ", ".join(module for module, _package in REQUIRED_PACKAGES)
+    try:
+        subprocess.run(
+            [python_path, "-c", import_line],
+            check=True, capture_output=True, text=True, timeout=30,
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
 def managed_venv_has_packages() -> bool:
     """True if the dedicated venv exists and can import every required package.
 
@@ -61,15 +78,7 @@ def managed_venv_has_packages() -> bool:
     venv_python = managed_venv_python()
     if not venv_python.exists():
         return False
-    import_line = "import " + ", ".join(module for module, _package in REQUIRED_PACKAGES)
-    try:
-        subprocess.run(
-            [str(venv_python), "-c", import_line],
-            check=True, capture_output=True, text=True, timeout=30,
-        )
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
-        return False
+    return interpreter_has_packages(str(venv_python))
 
 
 def check_required_packages() -> tuple[bool, list[str]]:

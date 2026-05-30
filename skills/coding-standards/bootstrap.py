@@ -54,7 +54,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from _bootstrap.dependencies import MIN_PYTHON, required_packages_available
+from _bootstrap.dependencies import (
+    MIN_PYTHON,
+    interpreter_has_packages,
+    required_packages_available,
+)
 from _bootstrap.install import ensure_global_venv, ensure_required_packages
 from _bootstrap.paths import HOOKS_DIR
 from _bootstrap.readiness import find_compatible_python, print_readiness, readiness_report
@@ -169,10 +173,26 @@ def _block_on_missing_packages(report: dict) -> None:
     )
 
 
+def _wired_hook_interpreter(pre_tool_use: list) -> str | None:
+    """The interpreter our wired hook commands run under (first token of the
+    command), or None if no entry of ours is present."""
+    for entry in pre_tool_use:
+        if not (isinstance(entry, dict) and is_our_entry(entry)):
+            continue
+        for hook in entry.get("hooks") or []:
+            command = (hook or {}).get("command", "")
+            parts = command.split()
+            if parts:
+                return parts[0]
+    return None
+
+
 def verify_already_set_up() -> int:
-    """`--verify`: 0 if the skill is already wired for this scope and Python is
-    recent enough (nothing to do); non-zero if a full bootstrap run is needed.
-    Read-only — touches no files. Lets the skill skip bootstrap when ready."""
+    """`--verify`: 0 if the skill is genuinely ready (wired AND the hooks'
+    interpreter can import the required packages); non-zero if a full bootstrap
+    run is needed. Read-only — touches no files. Lets the skill skip bootstrap
+    when ready without falsely passing a wired-but-broken install (e.g. the
+    dedicated venv was wiped by a reinstall)."""
     report = readiness_report()
     if not report["python_version_ok"]:
         return 1
@@ -183,10 +203,11 @@ def verify_already_set_up() -> int:
         return 1
     hooks_section = settings.get("hooks") if isinstance(settings, dict) else None
     pre_tool_use = hooks_section.get("PreToolUse") if isinstance(hooks_section, dict) else None
-    wired = isinstance(pre_tool_use, list) and any(
-        isinstance(entry, dict) and is_our_entry(entry) for entry in pre_tool_use
-    )
-    if wired:
+    interpreter = _wired_hook_interpreter(pre_tool_use) if isinstance(pre_tool_use, list) else None
+    # Wired AND the interpreter those hooks use can actually load the packages.
+    # A missing/wiped venv (or a deps-less python3) means the hooks would
+    # fail-open — so that must read as "not ready", triggering a real bootstrap.
+    if interpreter is not None and interpreter_has_packages(interpreter):
         print(f"coding-standards: already set up ({scope}) — no bootstrap needed.")
         return 0
     return 1
