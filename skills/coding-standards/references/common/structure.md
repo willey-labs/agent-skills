@@ -13,14 +13,18 @@ Open the top of the source tree cold. The folder names should describe **what th
 | ✅ Allowed at the top | ❌ Forbidden |
 |---|---|
 | `appointments/`, `prescriptions/`, `billing/`, `identity/` (capabilities) | `components/`, `hooks/`, `services/`, `repositories/`, `models/`, `controllers/`, `utils/` |
-| The framework's required folders (`app/` for Next.js, `Http/` for Laravel) | Generic `types/`, `helpers/`, `common/` |
+| The framework's required folders (`app/` for Next.js, framework-mandated skeleton folders) | Generic `types/`, `helpers/`, `common/` |
 | `shared/` for genuinely cross-cutting code | Folder names that describe technical kind, not business meaning |
 
 **Test:** show the top of `src/` to a teammate. Can they describe the product in one sentence using only the folder names? If they list framework concepts ("oh you have controllers and services and models"), the layout is wrong — that's package-by-layer, not package-by-business.
 
 **Why this matters more than it looks:** when capabilities live as siblings at the top, deleting a feature deletes a folder, refactoring touches one folder, and a stranger finds the code by reading the business glossary. When layers live at the top, every change touches every layer.
 
-**The named exception** is Laravel — Laravel's stock skeleton has top-level `Http/`, `Models/`, `Providers/` because the framework's conventions, generators, and ecosystem all depend on them. See `references/laravel/structure.md`. The rule there becomes: stock skeleton at the top of `app/`, capability subfolders *inside* each layer (`Http/Controllers/Orders/`, `Services/Orders/`).
+**Framework exceptions live in the framework file, not here.** A framework whose
+stock skeleton legitimately puts technical folders at the top (the clearest case is
+Laravel's `app/Http/`, `app/Models/`) declares that carve-out in its own
+`references/<framework>/structure.md` under "Builds on `common/structure.md`". The
+universal rule is stated here; the exceptions are named there.
 
 ---
 
@@ -55,7 +59,7 @@ The same idea exists in every language:
 | Java | package boundaries + `public` access modifier on the entry types |
 | C# | `public` types in the capability namespace are the surface; `internal` is hidden |
 | Go | exported identifiers (capitalized names) form the package's API |
-| PHP | namespace + public class visibility (Laravel's per-namespace convention) |
+| PHP | namespace + public class visibility |
 
 **Why this rule matters:** the public surface is a *contract*. Internals change without breaking callers; public symbols are committed to. Without an explicit entry, every file is implicitly public — and refactoring even a private helper becomes a breaking change because some distant caller imported it directly.
 
@@ -241,7 +245,7 @@ Every `references/<framework>/structure.md` builds on these rules. A framework f
 
 - **Specialize a rule** — e.g., Next.js says "`app/` is thin, business logic lives in capabilities" (specialization of ST-001).
 - **Add framework-specific rules** — e.g., Cocos Creator's "bundles don't nest," NestJS's "one feature, one module file."
-- **Carve a named exception** — e.g., Laravel keeps the stock skeleton at the top (ST-001 exception), NestJS DTOs are intentionally "hybrid" (Objects & Data OD-004 exception).
+- **Carve a named exception** — e.g., a framework keeps its stock skeleton at the top (ST-001 exception, documented in the framework file), or DTOs are intentionally "hybrid" (Objects & Data OD-004 exception).
 
 A framework file may **not** silently override these rules. If a framework's idiom genuinely conflicts with a structural rule, the framework file names the conflict explicitly and explains why the carve-out is necessary.
 
