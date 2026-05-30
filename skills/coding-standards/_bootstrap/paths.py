@@ -18,14 +18,48 @@ detection. `sys.argv[0]` is the fallback when `__main__.__file__` is absent
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
-_main = sys.modules.get("__main__")
-_anchor = getattr(_main, "__file__", None) or sys.argv[0]
+
+def _invocation_path() -> Path:
+    """The path bootstrap was started with, kept symlink-preserving.
+
+    Scope detection needs the path as invoked — through the `.claude/...`
+    shortcut — not its resolved target. We anchor on `sys.argv[0]` (the path
+    exactly as typed), NOT `__main__.__file__`: Python sets `__file__` to
+    `abspath(argv[0])`, and for a relative arg that goes through the
+    symlink-RESOLVED `os.getcwd()`, so `__file__` already points at the real
+    `.agents/...` target — useless for preserving the shortcut. Two cases:
+
+    - Full path (`python3 /…/.claude/skills/…/bootstrap.py`): argv[0] is absolute
+      and keeps the shortcut name verbatim — use it.
+    - Relative (`cd /…/.claude/skills/… && python3 bootstrap.py`): argv[0] is
+      just `bootstrap.py`; resolving it via `os.getcwd()` drops the `.claude`
+      name, but the shell's logical `$PWD` still holds it — use `$PWD` WHEN it
+      points at the same real file (guards a stale $PWD).
+    """
+    main = sys.modules.get("__main__")
+    raw = sys.argv[0] or getattr(main, "__file__", None) or "bootstrap.py"
+    path = Path(raw)
+    if path.is_absolute():
+        return path
+    physical = Path(os.getcwd()) / raw
+    pwd = os.environ.get("PWD")
+    if pwd:
+        logical = Path(pwd) / raw
+        try:
+            if logical.exists() and os.path.realpath(logical) == os.path.realpath(physical):
+                return logical
+        except OSError:
+            pass
+    return physical
+
+
 # The invoked bootstrap.py path, symlink-preserving — the anchor whose parents
-# we walk for `.claude` during scope detection.
-SCRIPT_PATH = Path(_anchor).absolute()
+# scope detection walks for `.claude`.
+SCRIPT_PATH = _invocation_path().absolute()
 # The skill root (bootstrap.py's directory), as seen through the install symlink.
 SKILL_DIR = SCRIPT_PATH.parent
 # Hooks dir resolved to its real location so the command paths in settings.json
