@@ -176,6 +176,65 @@ The same applies to `.types.ts`, `.styles.ts`, `.fixtures.ts`, `.stories.tsx`. C
 
 ---
 
+## ST-008 — One file, one responsibility; grow folders by tier, not by accretion
+
+Source is organized in four tiers: **Domain → Feature → Sub-feature → Unit**.
+
+| Tier | Also called | What it is |
+|---|---|---|
+| Domain | Bounded Context, Capability | A top-level area of *what the product does* (ST-001) |
+| Feature | Feature Module, Vertical Slice | A cohesive capability inside the domain |
+| Sub-feature | Component, Concern | A distinct piece inside a feature (a folder once it earns 2+ files) |
+| Unit | Module file | One responsibility, one file |
+
+A *unit* (one file) has **one reason to change**. ST-005 governs a file's *name*;
+ST-008 governs its *scope*. A file can have a perfect name and still be wrong — if
+`payment.ts` parses input, talks to a gateway, and writes the ledger, it is three
+units wearing one filename.
+
+**The smell:** a well-named file that grows by accretion — it passes ST-005 (the
+name is fine) but does several unrelated things.
+
+**Detectable trigger — check before every write:**
+- the file exceeds the project threshold (default ~400 lines / ~10 top-level
+  declarations — tunable in `.coding-standards-structure`), **or**
+- it holds 2+ unrelated responsibility clusters (e.g. a state machine *and* regex
+  parsers *and* file I/O), **or**
+- you are about to *add* a concern to a file that already owns a different one.
+
+**Then:** extract the new concern into a named sibling unit. When three siblings
+share a theme, promote them to a sub-feature folder with its own `index` (Rule of
+Three, ST-004). **Never create a folder for a single file**, and if a feature has a
+handful of flat units, stop at the feature tier — a sub-feature folder there is
+over-engineering (DP-006 KISS).
+
+**Worked example — a unit doing three things splits into siblings:**
+
+```
+# Before — one unit, three responsibilities
+billing/
+  invoice.ts        ← parses requests + computes totals + persists rows
+  index.ts
+
+# After — one responsibility per unit, same public door
+billing/
+  parse-invoice-request.ts   ← input parsing
+  invoice.ts                 ← the orchestrator (compute + coordinate)
+  invoice-store.ts           ← persistence
+  index.ts                   ← still the only public entry (ST-002)
+```
+
+The behavioral companion is **DP-002** (extract an abstraction when you have 2+
+variants of a behavior) — structure splits *responsibilities*; DP-002 splits
+*variants*.
+
+> **Enforcement note:** the `warn-god-file.py` hook emits an *advisory* warning at
+> write time when a file crosses the threshold (it never blocks — a raw size count
+> has too high a false-positive rate to gate on). The judgement parts of this rule
+> (responsibility clusters) are checked by Worker 1 and in Review mode.
+
+---
+
 ## How framework files extend this
 
 Every `references/<framework>/structure.md` builds on these rules. A framework file may:
@@ -201,6 +260,11 @@ Per folder
   □ Has an index entry (index.ts, __init__.py, mod.rs, ...) once it has 2+ files
   □ Generic names (Card, Modal, Repository<T>) only in the design-system / shared layer
   □ Capability code uses domain-qualified names
+
+File scope (ST-008)
+  □ No unit holds 2+ unrelated responsibilities (god-file)
+  □ Oversized files (advisory warn-god-file threshold) are split into named siblings
+  □ Sub-feature folders are earned (2+ cohesive files), not created for symmetry
 
 Imports
   □ Cross-folder imports go through the folder's public entry
