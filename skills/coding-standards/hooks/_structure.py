@@ -11,6 +11,9 @@ checks the hooks would otherwise hard-block:
       deep-import: off       # ST-003 — off when the project uses no barrels
       junk-drawer: off       # ST-005 — off when the project already uses utils.ts
       tests-colocated: on
+      #   god-file: off            # ST-008 — silence the god-file size advisory
+      #   god-file-max-lines: 600  # raise the advisory line threshold (default 400)
+      #   god-file-max-decls: 15   # raise the top-level-declaration threshold (default 10)
 
 Rules:
 - No file, or the file does not mention a given check → the check is ENABLED

@@ -188,7 +188,7 @@ Use `AskUserQuestion`. The question text **names the detected framework and stat
 
 Then:
 
-- **Keep current** → scan → draft the layout → the user confirms → **write `.coding-standards-structure`** (the learned custom layout). Include a `hooks:` block so write-time enforcement matches this project's reality — e.g. `junk-drawer: off` if it already uses `utils.ts`, `deep-import: off` if it has no barrels (the hooks read these via `hooks/_structure.py`; a missing toggle stays **on**). Next run, step 1 finds the file — never asks again.
+- **Keep current** → scan → draft the layout → the user confirms → **write `.coding-standards-structure`** (the learned custom layout). Include a `hooks:` block so write-time enforcement matches this project's reality — e.g. `junk-drawer: off` if it already uses `utils.ts`, `deep-import: off` if it has no barrels, `god-file: off` to silence the ST-008 advisory entirely, `god-file-max-lines: 600` to raise the line threshold (default 400), `god-file-max-decls: 15` to raise the declaration threshold (default 10) (the hooks read these via `hooks/_structure.py`; a missing toggle stays **on**). Next run, step 1 finds the file — never asks again.
 - **Pick a standard** → use that structure's bundled reference. **No file written** — the project now follows a known standard, re-recognised from its folders next run.
 
 **The question returns only when the layout is custom AND no file has been saved.** A standard project: never asked, no file. A custom project: asked once, then remembered by the file.
@@ -310,7 +310,7 @@ Before writing or reviewing **any** code, read these files in this order:
    - `references/common/formatting.md`
    - `references/common/error-handling.md`
    - `references/common/code-principles.md`
-   - `references/common/structure.md` — the universal structural rules (folder-as-module, no deep imports, Rule of Three, no junk-drawer files). Every framework file builds on this one.
+   - `references/common/structure.md` — the universal structural rules (folder-as-module, no deep imports, Rule of Three, no junk-drawer files, no god-files (ST-008)). Every framework file builds on this one. Note: `warn-god-file.py` is advisory — it warns at write time but never blocks (a raw size count has too high a false-positive rate to gate on).
 
 2. **The architecture file for the detected framework:**
    - `references/<framework>/structure.md`

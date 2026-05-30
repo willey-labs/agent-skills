@@ -15,6 +15,7 @@ fix the violation before retrying — that's the enforcement.
 | `block-csharp-violations.py` | `.cs` | `dynamic` (var/list/dict); NM-006 Hungarian (`strName`, `m_field`, ...); FN-005 4+ params |
 | `block-php-violations.py` | `.php` | `mixed` type; NM-006 Hungarian (`$strName`, ...); FN-005 4+ params |
 | `block-jvm-violations.py` | `.java .kt .kts` | Star imports (`import com.foo.*`); FN-005 4+ params; Kotlin `Any` (annotation/generic) |
+| `warn-god-file.py` | All source languages (advisory — exit 0) | ST-008 god-file size advisory: warns when a non-test/non-schema source file exceeds the project threshold (default 400 lines / 10 top-level declarations). Never blocks. Reads `god-file`, `god-file-max-lines`, `god-file-max-decls` keys from `.coding-standards-structure`. Skips test, schema, fixture, story, and excluded/generated files. |
 
 ### What runs on every Write/Edit/MultiEdit
 
@@ -71,8 +72,10 @@ paste anything into settings.json by hand.**
 After the first activation you'll see:
 
 ```
-coding-standards: Wired 7 PreToolUse hooks into <path>/settings.json (<scope>).
+coding-standards: Wired 8 PreToolUse hooks into <path>/settings.json (<scope>).
 ```
+
+(7 blocking hooks + 1 advisory `warn-god-file.py` that exits 0 with a warning instead of blocking.)
 
 Restart the agent session once for Claude Code to pick up the hooks; from
 the next session on, blocking is automatic on every Write/Edit/MultiEdit.
