@@ -74,9 +74,8 @@ For each worker N in {1, 2, 3}:
    - Retry once with a clarifying message: "Your previous response was not valid JSON. Return ONLY the JSON object specified in the brief."
    - If still failing, fall back to inline (load all references yourself, do the work, write files).
 5. **Validate the output**:
-   - Worker only modified files it had authority over (check `must_not_touch`).
-   - Worker's `changes_made` / `decisions` / `error_handling_added` cite a rule code it owns.
-   - Worker did not introduce abstractions outside its rule list (no new Strategy patterns from Worker 2; no new layers from Worker 3).
+   - **Write mode:** worker only modified files it had authority over (check `must_not_touch`); its `changes_made` / `decisions` / `error_handling_added` cite a rule code it owns; it introduced no abstractions outside its rule list (no new Strategy patterns from Worker 2; no new layers from Worker 3).
+   - **Review mode:** every owned rule appears in exactly one of `findings` / `passed` / `skipped` — **reject (and re-dispatch) a review that silently drops owned rules**, since that is the thin-review failure mode. Each `findings` entry cites an owned rule and carries `file`, `line`, `severity`, and a concrete `fix`.
 6. **If validation fails**, redispatch the worker with the specific violation noted. After one retry, fall back to inline.
 
 > **TodoWrite (only if you seeded a list in SKILL.md Step 1.6):** mark worker N `in_progress` as you dispatch it and `completed` once its output validates (step 5 above). Tick the bracketing items the same way — the final write-and-hooks (Write mode), or the linter pass and merge-and-present (Review mode, where the linter runs *after* the three workers) — as you reach each. If you didn't seed a list (TodoWrite unavailable, or inline single-file work), ignore this.
@@ -97,8 +96,8 @@ For each worker N in {1, 2, 3}:
 ## After all workers complete (Review mode)
 
 9. **Run `hooks/review-files.py --json`** over the file set now — *after* the three workers, as the final deterministic pass. Its findings are must-fix (deterministic; never re-litigated).
-10. **Merge** the linter findings + Worker 1 + Worker 2 + Worker 3, then **sort by severity** (must-fix → should-fix → consider) and group by file.
-11. **Present** to the user as a structured PASS/FAIL table. Cite rule codes. Do not editorialize.
+10. **Merge** every worker's `findings` array + the linter findings. **Dedupe** by `(file, line, rule)` — when a worker finding and a linter finding collide, keep one and mark it must-fix. Then **sort by severity** (must-fix → should-fix → consider) and group by file. The workers' `passed` / `skipped` arrays are the **coverage proof** — use them to state which rules were checked and clean, so the report is visibly comprehensive rather than a short list of hits.
+11. **Write the report file**, then **present** the same content to the user as a structured PASS/FAIL table. Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
 
 ## Tell the user what happened
 

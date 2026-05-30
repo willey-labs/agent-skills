@@ -69,7 +69,9 @@ EXISTING_PATHS: <list of paths already in the project, if any>
 
 Do not load `functions.md`, `naming.md`, `formatting.md`, or `error-handling.md` — those are other workers' domains.
 
-## Process
+## Process (write mode)
+
+**This procedure is for `MODE: write`.** For `MODE: review`, skip to [Review mode](#review-mode-mode-review).
 
 1. **Read the inputs** — understand the task and the framework constraints.
 2. **Decide file paths.** For each artifact the task implies (a use case, a service, a route, an entity, etc.), pick the path per ST-001 (business-shaped folders), ST-002 (folder = module), ST-005 (no junk-drawer names), ST-006 (domain-qualified vs generic), ST-007 (co-location), and the framework's layout rules.
@@ -127,6 +129,41 @@ Return **ONLY valid JSON**, no prose around it:
   ],
   "notes_for_worker_2": "Function bodies in `book-appointment.ts` need implementing. Names `f`, `x`, `r` are placeholders.",
   "notes_for_worker_3": "Stripe and external SDK calls will appear in `charge-customer.ts` — they'll need EH-002 boundary translation."
+}
+```
+
+## Review mode (`MODE: review`)
+
+In review mode you **do not write or move code**. You inspect the file set and report how it measures against the rules you own (frontmatter `owns_rules`). **Be exhaustive — account for every rule you own, on every file in scope.** A review that reports "a few findings" and stops is a failed review.
+
+For each file × each owned rule, place the rule in exactly one bucket:
+- **fail** — a violation. Emit a finding with `file`, `line`, `severity`, `what`, and a concrete `fix`.
+- **pass** — the rule applies and the file complies. Record the rule code in `passed`.
+- **skipped** — the rule cannot apply to this file (e.g. ST-007 co-location on a single-file change). Record it in `skipped` with a one-line `why`.
+
+Never silently drop a rule. Every owned rule lands in one of the three buckets.
+
+**Severity (Worker 1):**
+- `must-fix` — deep imports past a folder's public API (ST-003), junk-drawer files (ST-005). The deterministic linter also catches these; report them anyway — the orchestrator dedupes.
+- `should-fix` — wrong / non-business-shaped placement (ST-001, ST-006), SRP violations (DP-001), business logic depending on concretions instead of abstractions (DP-005), object-vs-data mismatch (OD-002).
+- `consider` — design tradeoffs: a structure that works but a simpler one exists (DP-006 KISS), arguable module boundaries.
+
+**Scope:** report misplacement only for files in the review set — never crawl the whole repo.
+
+### Review output
+
+Return **ONLY valid JSON**:
+
+```json
+{
+  "worker": 1,
+  "name": "structure-and-architecture",
+  "mode": "review",
+  "findings": [
+    { "rule": "ST-003", "file": "<path>", "line": 12, "severity": "must-fix", "what": "Imports orders/internal/calc directly, past the folder's index", "fix": "Import from the orders/ public entry" }
+  ],
+  "passed": ["ST-001", "ST-002", "OD-002"],
+  "skipped": [ { "rule": "ST-007", "why": "single-file change, no co-location decision" } ]
 }
 ```
 

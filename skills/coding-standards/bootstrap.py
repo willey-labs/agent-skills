@@ -16,6 +16,8 @@ What it does, in order:
 3. **Wire hooks** into the correct `settings.json` (project vs global is
    auto-detected from the SKILL.md install path).
 4. **Symlink the slash command** into `.claude/commands/`.
+5. **Seed a `.coding-standards-ignore` template** at the project root (if
+   absent) so the opt-out feature is discoverable instead of invisible.
 
 Idempotent: re-running upgrades hook entries to the current list, refreshes
 the symlink, re-checks readiness. Safe to run repeatedly.
@@ -75,6 +77,38 @@ HOOK_FILES = [
     "block-php-violations.py",
     "block-jvm-violations.py",
 ]
+
+# Seeded at the project root on first bootstrap so users DISCOVER the feature —
+# an absent file is invisible; people assume the skill can't be told to skip
+# anything. Never overwrites an existing file. Patterns here add to the built-in
+# defaults in hooks/_exclusions.py (they don't replace them).
+IGNORE_FILENAME = ".coding-standards-ignore"
+IGNORE_TEMPLATE = """\
+# .coding-standards-ignore
+#
+# Files matched here are skipped by the coding-standards skill — both the
+# write-time hooks and review mode. Gitignore-style patterns, one per line.
+#
+# You usually don't need this file. The skill already excludes node_modules,
+# vendored deps, generated code, migrations, build output, and lock files by
+# default (see hooks/_exclusions.py -> DEFAULT_EXCLUSIONS). Add a pattern below
+# ONLY to skip something project-specific.
+#
+# Examples — uncomment and edit:
+# src/legacy/**          # pre-existing code you're not ready to clean up
+# scripts/one-off-*.ts   # throwaway scripts
+# **/*.config.js         # config files you don't want flagged
+"""
+
+# Project-root markers — mirror hooks/_exclusions.py:find_project_root so the
+# template lands at the same root the hooks resolve. Kept local (bootstrap is
+# standalone and must not import from hooks/).
+PROJECT_ROOT_MARKERS = {
+    ".git", "package.json", "pyproject.toml", "Cargo.toml", "go.mod",
+    "composer.json", "pom.xml", "build.gradle", "build.gradle.kts",
+    "requirements.txt", "setup.py", "setup.cfg",
+}
+PROJECT_ROOT_GLOB_MARKERS = ("*.csproj", "*.sln", "*.fsproj")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -507,6 +541,50 @@ def detect_scope_and_targets() -> tuple[str, Path, Path]:
     )
 
 
+def _find_project_root_from(start: Path) -> Path | None:
+    """Walk up from `start` to the first directory holding a project-root marker.
+
+    Used only for GLOBAL-scope installs, where there is no project tied to the
+    skill location — so we fall back to the cwd the agent ran bootstrap from.
+    Returns None if no marker is found within 20 levels.
+    """
+    current = start if start.is_dir() else start.parent
+    for _ in range(20):
+        if any((current / marker).exists() for marker in PROJECT_ROOT_MARKERS):
+            return current
+        if any(next(current.glob(pattern), None) is not None for pattern in PROJECT_ROOT_GLOB_MARKERS):
+            return current
+        if current.parent == current:
+            return None
+        current = current.parent
+    return None
+
+
+def seed_ignore_template(scope: str, settings_path: Path) -> tuple[str, Path | None]:
+    """Drop a commented `.coding-standards-ignore` template at the project root.
+
+    Discovery, not enforcement: an absent file is invisible, so users assume the
+    skill can't be told to skip anything. Project scope roots at the `.claude`
+    parent; global scope falls back to the cwd's project root. Never overwrites
+    an existing file. Returns (action, path) with action in
+    {'created', 'exists', 'no-project'}.
+    """
+    if scope == "project":
+        project_root: Path | None = settings_path.parent.parent
+    else:
+        project_root = _find_project_root_from(Path.cwd())
+    if project_root is None:
+        return "no-project", None
+    target = project_root / IGNORE_FILENAME
+    if target.exists():
+        return "exists", target
+    try:
+        target.write_text(IGNORE_TEMPLATE, encoding="utf-8")
+    except OSError:
+        return "no-project", None
+    return "created", target
+
+
 def hook_interpreter(scope: str, python_command: str, venv_python: Path | None) -> str:
     """The interpreter string written into each hook command.
 
@@ -750,6 +828,8 @@ class WiringResult:
     perms_changed: bool
     hook_python: str
     venv_python: Path | None
+    ignore_action: str
+    ignore_path: Path | None
 
 
 def _interpreter_note(scope: str, venv_python: Path | None) -> str:
@@ -791,7 +871,12 @@ def warn_project_interpreter_mismatch(
 
 def report_install_result(result: WiringResult) -> int:
     """Print the post-wiring summary and return the process exit code."""
-    if result.hooks_action == "noop" and result.cmd_action == "noop" and not result.perms_changed:
+    if (
+        result.hooks_action == "noop"
+        and result.cmd_action == "noop"
+        and not result.perms_changed
+        and result.ignore_action != "created"
+    ):
         print(
             f"\ncoding-standards: already installed — {result.settings_path} "
             f"({result.scope}). No changes."
@@ -814,6 +899,11 @@ def report_install_result(result: WiringResult) -> int:
         print(
             "  Also pre-approved reading the skill's files + running its scripts "
             "(no permission prompts when it loads references or runs review-files.py)."
+        )
+    if result.ignore_action == "created" and result.ignore_path is not None:
+        print(
+            f"  Seeded a {IGNORE_FILENAME} template at {result.ignore_path} — edit it to "
+            f"skip project-specific files (it's commented; defaults already cover the usual ones)."
         )
     return 0
 
@@ -847,6 +937,7 @@ def main(argv: list[str] | None = None) -> int:
     if hooks_action != "noop" or perms_changed:
         write_settings(settings_path, updated)
     cmd_action = install_slash_command(commands_dir)
+    ignore_action, ignore_path = seed_ignore_template(scope, settings_path)
 
     return report_install_result(WiringResult(
         scope=scope,
@@ -857,6 +948,8 @@ def main(argv: list[str] | None = None) -> int:
         perms_changed=perms_changed,
         hook_python=hook_python,
         venv_python=venv_python,
+        ignore_action=ignore_action,
+        ignore_path=ignore_path,
     ))
 
 

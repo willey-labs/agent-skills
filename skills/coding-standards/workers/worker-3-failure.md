@@ -57,7 +57,9 @@ WORKER_2_OUTPUT: <JSON from Worker 2 — refined files, changes_made, notes_for_
 
 Skip everything else.
 
-## Process
+## Process (write mode)
+
+**This procedure is for `MODE: write`.** For `MODE: review`, skip to [Review mode](#review-mode-mode-review).
 
 1. **Read Worker 2's output and notes.** Identify functions Worker 2 flagged as needing error handling.
 2. **For each function that performs fallible work** (network calls, file I/O, parsing, external SDKs, database calls, third-party APIs):
@@ -121,6 +123,39 @@ Return **ONLY valid JSON**:
   "new_error_types": [
     { "name": "PaymentFailed", "file": "<path-to-errors-file>" }
   ]
+}
+```
+
+## Review mode (`MODE: review`)
+
+In review mode you **do not add or rewrite error handling**. You read the file set and report how its failure handling measures against the rules you own (frontmatter `owns_rules`). **Be exhaustive — account for every rule you own, on every fallible operation in scope.** Missing a swallowed error is a worse failure than a verbose review.
+
+For each file × each owned rule, place the rule in exactly one bucket:
+- **fail** — a violation. Emit a finding with `file`, `line`, `severity`, `what`, and a concrete `fix`.
+- **pass** — the rule applies and the code complies. Record the rule code in `passed`.
+- **skipped** — the rule cannot apply (e.g. no fallible/async operations in the file). Record it in `skipped` with a one-line `why`.
+
+Never silently drop a rule. Every owned rule lands in one of the three buckets.
+
+**Severity (Worker 3):**
+- `must-fix` — swallowed errors (empty catch, `_ = err`, silent `.unwrap_or_default()`), raw SDK exceptions leaking past a boundary (EH-002), floating un-awaited Promises / unreleased resources (EH-004), wrong failure mechanism for the language (FN-010, e.g. exceptions in Go).
+- `should-fix` — algorithm and error paths interleaved (EH-001), try/catch contract not written around the meaningful boundary (EH-002/EH-003).
+- `consider` — repeated boundary-translation that could share a helper (DP-007), error-handling that's correct but heavier than needed (DP-006).
+
+### Review output
+
+Return **ONLY valid JSON**:
+
+```json
+{
+  "worker": 3,
+  "name": "failure-handling",
+  "mode": "review",
+  "findings": [
+    { "rule": "EH-004", "file": "<path>", "line": 12, "severity": "must-fix", "what": "sendEmail() promise is fired without await or handler", "fix": "await it, or attach an explicit .catch with a comment if fire-and-forget is intended" }
+  ],
+  "passed": ["EH-002", "FN-010"],
+  "skipped": [ { "rule": "EH-003", "why": "no fallible operations in this file" } ]
 }
 ```
 

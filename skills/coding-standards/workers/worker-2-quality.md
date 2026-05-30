@@ -75,7 +75,9 @@ WORKER_1_OUTPUT: <JSON from Worker 1 — files with placeholder bodies, decision
 
 Do not load `structure.md`, `error-handling.md`, or `<framework>/structure.md` — out of scope.
 
-## Process
+## Process (write mode)
+
+**This procedure is for `MODE: write`.** For `MODE: review`, skip to [Review mode](#review-mode-mode-review).
 
 1. **Read Worker 1's output.** Understand what each file/function/class is supposed to do from the decisions list and notes_for_worker_2.
 2. **For each function in the skeleton**:
@@ -135,6 +137,39 @@ Return **ONLY valid JSON**:
     }
   ],
   "notes_for_worker_3": "Function `chargeCustomer` calls `stripe.charges.create` — needs EH-002 boundary translation. Function `notifyAndContinue` fires `sendEmail` without awaiting — needs EH-004 review."
+}
+```
+
+## Review mode (`MODE: review`)
+
+In review mode you **do not refine or rewrite code**. You read the file set and report how it measures against the rules you own (frontmatter `owns_rules`). **Be exhaustive — account for every rule you own, on every function/identifier in scope.** A handful of findings is not a review.
+
+For each file × each owned rule, place the rule in exactly one bucket:
+- **fail** — a violation. Emit a finding with `file`, `line`, `severity`, `what`, and a concrete `fix`.
+- **pass** — the rule applies and the code complies. Record the rule code in `passed`.
+- **skipped** — the rule cannot apply (e.g. FMT-004 when the project has no formatter config to check). Record it in `skipped` with a one-line `why`.
+
+Never silently drop a rule. Every owned rule lands in one of the three buckets.
+
+**Severity (Worker 2):**
+- `must-fix` — Hungarian notation (NM-006), 4+ positional args (FN-005), `any`/`Any`/`dynamic`/`mixed`. The deterministic linter also catches these; report them anyway — the orchestrator dedupes.
+- `should-fix` — function too long / doing >1 thing (FN-001, FN-002), mixed abstraction levels (FN-003), hidden side effects (FN-008), CQS violations (FN-009), non-intent-revealing names (NM-001 to NM-005, NM-007 to NM-009), Demeter chains (OD-003).
+- `consider` — formatting / newspaper-order / vertical-spacing nits (FMT-001 to FMT-004), borderline DRY duplication (DP-007).
+
+### Review output
+
+Return **ONLY valid JSON**:
+
+```json
+{
+  "worker": 2,
+  "name": "code-quality-line-level",
+  "mode": "review",
+  "findings": [
+    { "rule": "FN-001", "file": "<path>", "line": 18, "severity": "should-fix", "what": "chargeCustomer is 41 lines and mixes validation, charging, and notification", "fix": "Extract validateOrder, chargeCard, notifyCustomer helpers" }
+  ],
+  "passed": ["NM-001", "NM-006", "FN-005", "OD-003"],
+  "skipped": [ { "rule": "FMT-004", "why": "no team formatter config present to check against" } ]
 }
 ```
 
