@@ -34,6 +34,49 @@ def detect_python_command() -> str:
     return sys.executable
 
 
+def _probe_python_version(path: str) -> tuple[int, int] | None:
+    """(major, minor) of the interpreter at `path`, or None if it won't run."""
+    try:
+        proc = subprocess.run(
+            [path, "-c", "import sys; print(sys.version_info[0], sys.version_info[1])"],
+            check=True, capture_output=True, text=True, timeout=10,
+        )
+        major, minor = proc.stdout.split()[:2]
+        return int(major), int(minor)
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return None
+
+
+def find_compatible_python() -> str | None:
+    """Path to an interpreter >= MIN_PYTHON, or None if none is on the machine.
+
+    Prefers the running interpreter when it already qualifies; otherwise scans
+    PATH for versioned `python3.x` binaries (newest first), then the generic
+    `python3`/`python`. NEVER installs a Python — it only locates one already
+    present, so a host with, say, a 3.9 default but 3.12 also installed can be
+    auto-recovered instead of blocked. Returns None when nothing qualifies (the
+    caller then blocks: bootstrap can't and won't install an interpreter).
+    """
+    if sys.version_info[:2] >= MIN_PYTHON:
+        return sys.executable
+    floor = MIN_PYTHON[1]
+    names = [f"python3.{minor}" for minor in range(floor + 10, floor - 1, -1)]
+    names += ["python3", "python"]
+    seen: set[str] = set()
+    for name in names:
+        path = shutil.which(name)
+        if not path:
+            continue
+        real = os.path.realpath(path)
+        if real in seen:
+            continue
+        seen.add(real)
+        version = _probe_python_version(path)
+        if version is not None and version >= MIN_PYTHON:
+            return path
+    return None
+
+
 def detect_pip_command() -> str | None:
     """Return the canonical pip invocation (`<python> -m pip`).
 
@@ -97,10 +140,14 @@ def readiness_report() -> dict:
 
     blocking: list[str] = []
     if not py_ok:
+        # If this fires, the re-exec fallback already searched PATH and found no
+        # 3.10+ interpreter on the machine — bootstrap can't install one.
         blocking.append(
             f"Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ required (the required "
             f"packages, e.g. the tree-sitter grammars, need it); found "
-            f"{py_version[0]}.{py_version[1]}.{py_version[2]}"
+            f"{py_version[0]}.{py_version[1]}.{py_version[2]} and no newer "
+            f"interpreter on this machine — install Python "
+            f"{MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ and re-run."
         )
 
     return {

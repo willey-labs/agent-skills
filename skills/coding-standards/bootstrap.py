@@ -49,14 +49,15 @@ Flags:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from _bootstrap.dependencies import required_packages_available
+from _bootstrap.dependencies import MIN_PYTHON, required_packages_available
 from _bootstrap.install import ensure_global_venv, ensure_required_packages
 from _bootstrap.paths import HOOKS_DIR
-from _bootstrap.readiness import print_readiness, readiness_report
+from _bootstrap.readiness import find_compatible_python, print_readiness, readiness_report
 from _bootstrap.scope import IGNORE_FILENAME, detect_scope_and_targets, seed_ignore_template
 from _bootstrap.settings import (
     HOOK_FILES,
@@ -191,8 +192,42 @@ def verify_already_set_up() -> int:
     return 1
 
 
+# Env sentinel so a re-exec can't loop (set before exec, checked on entry).
+_REEXEC_FLAG = "_CODING_STANDARDS_REEXEC"
+
+
+def reexec_under_compatible_python() -> None:
+    """If the running Python is below the floor but a compatible one exists on
+    the machine, re-launch bootstrap under it — same argv/cwd/env, so scope
+    detection sees identical inputs and everything downstream (venv build,
+    readiness) runs on a Python that can install the required packages.
+
+    No-op when already compatible, already re-exec'd once, or none is found
+    (readiness then reports the block — bootstrap never installs an interpreter).
+    """
+    if sys.version_info[:2] >= MIN_PYTHON or os.environ.get(_REEXEC_FLAG):
+        return
+    better = find_compatible_python()
+    if not better or os.path.realpath(better) == os.path.realpath(sys.executable):
+        return
+    print(
+        f"  Python {sys.version_info[0]}.{sys.version_info[1]} is below the "
+        f"{MIN_PYTHON[0]}.{MIN_PYTHON[1]} floor — re-running bootstrap under "
+        f"{better}…"
+    )
+    os.environ[_REEXEC_FLAG] = "1"
+    try:
+        os.execv(better, [better, *sys.argv])
+    except OSError:
+        pass  # fall through; readiness will report the block as usual
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
+
+    # Recover from an old launcher Python by re-running under a compatible one
+    # already on the machine (does not return if it re-execs).
+    reexec_under_compatible_python()
 
     if args.verify:
         return verify_already_set_up()
