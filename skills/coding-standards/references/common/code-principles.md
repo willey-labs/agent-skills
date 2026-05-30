@@ -35,6 +35,15 @@ When you need to add a new variant of behavior, you should be able to do it by a
 
 **How:** extract an interface or abstract base for the varying piece; existing callers depend on the abstraction; new variants implement the abstraction without touching the old ones.
 
+**Detectable trigger:** you have written 2+ branches switching on a `type` / `kind`
+/ `mode` string, **or** 2+ sibling types named `XHandler` / `XStrategy` /
+`XProvider`. That is a Strategy. Define one abstraction; each variant implements it
+(this rule + DP-003 LSP + DP-005 DIP); callers depend on the abstraction; adding a
+variant adds a file and edits nothing. If the variants don't all share every method,
+split the abstraction into capability/role interfaces (DP-004 ISP). This is the
+behavioral companion to ST-008: ST-008 splits *responsibilities* into sibling units;
+DP-002 splits *variants* behind one interface.
+
 ---
 
 ## DP-003 — Liskov Substitution Principle (LSP)

@@ -114,6 +114,11 @@ After the answer:
 - **Write code…** → confirm/await the task → Step 1 (detect framework) → **Step 1.4 — resolve structure (ask the structure question first if custom)** → **Step 1.5 — ask the "Run mode" question (multiple agents vs single)** → Step 2 / Step 2.O → Write mode.
 - **Check existing code…** → ask the user *what* to check (file, folder, diff command, PR number) → Step 1 (per-file) → **Step 1.4 — resolve structure (ask the structure question first if custom)** → **Step 1.5 — ask the "Run mode" question** → Step 2 / Step 2.O → Review mode (use the strict PASS/FAIL walkthrough from this SKILL.md's Review section).
 - **Show me the rules** → Step 1 (detect framework once) → Step 1.4 (resolve structure, no question needed — nothing is written) → Step 2 (load all refs) → present a one-screen index of rule codes and wait for follow-up questions. (No "Run mode" question — nothing is written or reviewed.)
+- **Fix existing code from a review** (user says "fix the findings" / "apply the
+  review") → this is **Fix mode**: skip the Write/Review picker, go to Step 1 (detect
+  framework per file in the finding set) → Step 1.4 (resolve structure) → run the
+  `MODE: fix` orchestrator pipeline (`references/orchestrator-pipeline.md`). Fix mode
+  does not ask the Step 1.5 run-mode question — it is always the pipeline.
 
 **Invariants:**
 - Never invoke this step twice in a session — once mode is set, it stays set.
@@ -188,7 +193,7 @@ Use `AskUserQuestion`. The question text **names the detected framework and stat
 
 Then:
 
-- **Keep current** → scan → draft the layout → the user confirms → **write `.coding-standards-structure`** (the learned custom layout). Include a `hooks:` block so write-time enforcement matches this project's reality — e.g. `junk-drawer: off` if it already uses `utils.ts`, `deep-import: off` if it has no barrels (the hooks read these via `hooks/_structure.py`; a missing toggle stays **on**). Next run, step 1 finds the file — never asks again.
+- **Keep current** → scan → draft the layout → the user confirms → **write `.coding-standards-structure`** (the learned custom layout). Include a `hooks:` block so write-time enforcement matches this project's reality — e.g. `junk-drawer: off` if it already uses `utils.ts`, `deep-import: off` if it has no barrels, `god-file: off` to silence the ST-008 advisory entirely, `god-file-max-lines: 600` to raise the line threshold (default 400), `god-file-max-decls: 15` to raise the declaration threshold (default 10) (the hooks read these via `hooks/_structure.py`; a missing toggle stays **on**). Next run, step 1 finds the file — never asks again.
 - **Pick a standard** → use that structure's bundled reference. **No file written** — the project now follows a known standard, re-recognised from its folders next run.
 
 **The question returns only when the layout is custom AND no file has been saved.** A standard project: never asked, no file. A custom project: asked once, then remembered by the file.
@@ -208,6 +213,7 @@ You have two execution shapes for Write and Review modes. Pick deterministically
 | Task scope = single file edit (≤30 lines change), OR single function refactor, OR Q&A about a rule | **Inline.** You (the main agent) do the work yourself. Skip Step 2.O; do **Step 1.6 (seed the task list)** → Step 2 (load all references) → Step 3 (apply rules). |
 | Task scope = 2+ files, OR a new feature/use case, OR a diff/PR review, OR explicit `--thorough` flag, OR explicit `/coding-standards` slash command | **Orchestrator pipeline.** You become the orchestrator and dispatch to workers. Continue with Step 2.O (orchestrator). |
 | `Agent` tool is NOT available in this host (e.g. Cursor, Codex, OpenCode) | Fall back to **inline** regardless of scope — and say so in your announcement. |
+| Task = apply review findings ("fix the findings" / "apply the review") | **Orchestrator pipeline, `MODE: fix`, always.** Per-file fan-out; no run-mode question. Falls back to sequential batches if `Agent` is unavailable. |
 
 **This choice is mandatory and must be announced — it is NOT advisory.** It is made one of two ways:
 
@@ -283,6 +289,13 @@ Track the **work the user cares about**, not internal step numbers. Keep exactly
 6. Merge linter + all worker findings
 7. Write report file + present
 
+**Fix — orchestrator pipeline (apply review findings):**
+1. Load findings + build the completeness ledger
+2. Partition: structural (cross-file) vs file-local
+3. Phase A — structural fixes (barrels, deep imports, ST-008 splits)
+4. Phase B — fan out one fix-agent per file (parallel)
+5. Verify (re-run review-files.py) + report against the ledger
+
 ---
 
 ## Step 2.O — Orchestrator pipeline (when picked above)
@@ -310,7 +323,7 @@ Before writing or reviewing **any** code, read these files in this order:
    - `references/common/formatting.md`
    - `references/common/error-handling.md`
    - `references/common/code-principles.md`
-   - `references/common/structure.md` — the universal structural rules (folder-as-module, no deep imports, Rule of Three, no junk-drawer files). Every framework file builds on this one.
+   - `references/common/structure.md` — the universal structural rules (folder-as-module, no deep imports, Rule of Three, no junk-drawer files, no god-files (ST-008)). Every framework file builds on this one. Note: `warn-god-file.py` is advisory — it warns at write time but never blocks (a raw size count has too high a false-positive rate to gate on).
 
 2. **The architecture file for the detected framework:**
    - `references/<framework>/structure.md`
@@ -336,7 +349,7 @@ When the two would conflict (rare), **common rules win for the inside of code; f
 
 ---
 
-## Mode: Write vs Review
+## Mode: Write, Review, or Fix
 
 ### Write mode
 
@@ -363,6 +376,23 @@ If `TodoWrite` is available, seed the review task list from Step 1.6 first and t
    It feeds each file's current content to every hook (the same write-time contract) and reports exactly what the hooks would block: `any`/`Any`/`dynamic`/`mixed`, Hungarian notation, 4+ argument functions, junk-drawer paths, deep imports, and the TS/Python AST checks. Excluded files (node_modules, generated, lock files, ...) are skipped automatically. **Every finding it returns is a must-fix** — it's deterministic, so it can never be missed or re-litigated.
 5. **Merge, write the report, summarize.** Combine the judgement-pass findings with the deterministic linter findings and group by severity. Distinguish *must-fix* (the linter findings, plus correctness, security, broken contracts) from *should-fix* (clean-code rule, would be cleaner) from *consider* (judgement call, design tradeoff). **Then persist the merged result to a report file per `references/review-report.md`** (`.coding-standards/reviews/<timestamp>.md`, gitignored) and tell the user the path — every review writes one, inline included.
 6. **Never silently skip a rule.** If you didn't check it, say so. A review with hidden gaps is worse than a review that admits its scope.
+
+### Fix mode
+
+When the user says **"fix the findings"**, **"apply the review"**, **"fix everything
+from the review"**, or asks for fixes right after a Review, you are in **Fix mode** —
+apply an existing review's findings across the affected files.
+
+Fix mode **always runs as the orchestrator pipeline** (`MODE: fix`) because it is
+inherently multi-file: it fans out one fix-agent per file, tracked by a completeness
+ledger so nothing is silently half-fixed. **Do not** offer a "single agent" option
+for Fix. If the `Agent` tool is unavailable in this host, run the documented
+sequential-batch fallback and say so.
+
+The full Fix pipeline — ledger, structural-vs-file-local partition, per-file fan-out,
+verify, and ledger-based report — is in `references/orchestrator-pipeline.md` under
+"Fix mode (`MODE: fix`)". Read it before dispatching. The input is the most recent
+`.coding-standards/reviews/<ts>.md` report; if none exists, run Review first.
 
 ---
 

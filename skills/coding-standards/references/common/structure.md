@@ -13,14 +13,18 @@ Open the top of the source tree cold. The folder names should describe **what th
 | ✅ Allowed at the top | ❌ Forbidden |
 |---|---|
 | `appointments/`, `prescriptions/`, `billing/`, `identity/` (capabilities) | `components/`, `hooks/`, `services/`, `repositories/`, `models/`, `controllers/`, `utils/` |
-| The framework's required folders (`app/` for Next.js, `Http/` for Laravel) | Generic `types/`, `helpers/`, `common/` |
+| The framework's own mandated top-level folders (declared as an exception in that framework's file) | Generic `types/`, `helpers/`, `common/` |
 | `shared/` for genuinely cross-cutting code | Folder names that describe technical kind, not business meaning |
 
 **Test:** show the top of `src/` to a teammate. Can they describe the product in one sentence using only the folder names? If they list framework concepts ("oh you have controllers and services and models"), the layout is wrong — that's package-by-layer, not package-by-business.
 
 **Why this matters more than it looks:** when capabilities live as siblings at the top, deleting a feature deletes a folder, refactoring touches one folder, and a stranger finds the code by reading the business glossary. When layers live at the top, every change touches every layer.
 
-**The named exception** is Laravel — Laravel's stock skeleton has top-level `Http/`, `Models/`, `Providers/` because the framework's conventions, generators, and ecosystem all depend on them. See `references/laravel/structure.md`. The rule there becomes: stock skeleton at the top of `app/`, capability subfolders *inside* each layer (`Http/Controllers/Orders/`, `Services/Orders/`).
+**Framework exceptions live in the framework file, not here.** A framework whose
+stock skeleton legitimately puts technical folders at the top declares that
+carve-out in its own `references/<framework>/structure.md` under "Builds on
+`common/structure.md`". The universal rule is stated here; which frameworks bend it,
+and how, is named there — never in this file.
 
 ---
 
@@ -55,7 +59,7 @@ The same idea exists in every language:
 | Java | package boundaries + `public` access modifier on the entry types |
 | C# | `public` types in the capability namespace are the surface; `internal` is hidden |
 | Go | exported identifiers (capitalized names) form the package's API |
-| PHP | namespace + public class visibility (Laravel's per-namespace convention) |
+| PHP | namespace + public class visibility |
 
 **Why this rule matters:** the public surface is a *contract*. Internals change without breaking callers; public symbols are committed to. Without an explicit entry, every file is implicitly public — and refactoring even a private helper becomes a breaking change because some distant caller imported it directly.
 
@@ -129,28 +133,22 @@ A junk-drawer file is one whose name describes nothing about its contents: `util
 
 ## ST-006 — Generic component or type names live only at the design-system layer
 
-A name like `Card`, `Modal`, `Button`, `Selector`, `Repository<T>`, `BaseEntity` is too generic to mean anything about the business. Two `Card`s in the same project (an `AppointmentCard` and a `PrescriptionCard`) collide in autocomplete, in grep, and in the reader's head.
+A name like `Card`, `Modal`, `Button`, `Selector`, `Repository<T>`, `BaseEntity` is
+too generic to mean anything about the business. Generic names belong **only at the
+shared / design-system layer**; capability code uses domain-qualified names
+(`AppointmentCard`, `OrderRepository`, `PrescriptionDoseEditor`).
 
-**The rule:**
+This holds in every language and applies to both UI components and types:
+- a generic UI primitive (`Button`, `Modal`) lives in the project's design-system
+  folder, never inside a capability;
+- `Repository<T>` (one generic interface every capability implements) is a smell —
+  repositories should be capability-shaped (`OrderRepository`) with domain methods;
+- a `BaseEntity` parent every entity extends is usually a shared ID/timestamp shape
+  better expressed as a mixin than a parent.
 
-- **Capability code** uses **domain-qualified** names: `AppointmentCard`, `ConfirmCancelDialog`, `PrescriptionDoseEditor`.
-- **Design-system / shared UI** uses generic names: `Card`, `Modal`, `Button`, `Input`. These belong in `shared/ui/`, `components/ui/`, or whichever is the project's design-system folder — *never* inside a capability folder.
-
-```
-src/
-  shared/ui/
-    Card.tsx               ← generic primitive — design system
-    Modal.tsx
-  appointments/
-    components/
-      AppointmentCard.tsx  ← domain-qualified
-      ConfirmCancelDialog.tsx
-```
-
-This isn't only about UI. The same principle applies to types:
-
-- `Repository<T>` (one generic interface every capability implements) is a code smell — repositories should be capability-shaped (`OrderRepository`, `ProductRepository`) with domain methods.
-- A `BaseEntity` parent class that every entity extends is suspect — usually a shared ID/timestamp shape is enough as a mixin, not as a parent.
+**The design-system folder's name and the file extensions are framework-specific**
+— each `references/<framework>/structure.md` shows the concrete folder and the
+naming convention for its language. This rule states only the principle.
 
 ---
 
@@ -170,9 +168,73 @@ checkout/
 
 A separate top-level `tests/` mirror of `src/` (`tests/checkout/Checkout.test.ts`) is forbidden — tests drift away from the code they cover, get forgotten in refactors, and slow down navigation.
 
-The same applies to `.types.ts`, `.styles.ts`, `.fixtures.ts`, `.stories.tsx`. Co-locate by default; promote to a shared folder only when the artifact is used by multiple files.
+The same applies to every artifact that exists *because of* a source file —
+co-locate it. The concrete suffixes are language/framework-specific and documented
+in the framework files: TS uses `.test.ts` / `.types.ts` / `.stories.tsx`; Python
+uses `test_*.py` next to the module; Go uses `*_test.go` in the same package; C#
+uses `*Tests.cs`. The rule is the same everywhere: the artifact lives next to what
+it describes, never in a parallel mirror tree.
 
 **Exception:** integration / end-to-end tests that exercise the whole app, not one file. Those legitimately live at the project root (`tests/e2e/`, `tests/integration/`) because they don't belong to any one source file.
+
+---
+
+## ST-008 — One file, one responsibility; grow folders by tier, not by accretion
+
+Source is organized in four tiers: **Domain → Feature → Sub-feature → Unit**.
+
+| Tier | Also called | What it is |
+|---|---|---|
+| Domain | Bounded Context, Capability | A top-level area of *what the product does* (ST-001) |
+| Feature | Feature Module, Vertical Slice | A cohesive capability inside the domain |
+| Sub-feature | Component, Concern | A distinct piece inside a feature (a folder once it earns 2+ files) |
+| Unit | Module file | One responsibility, one file |
+
+A *unit* (one file) has **one reason to change**. ST-005 governs a file's *name*;
+ST-008 governs its *scope*. A file can have a perfect name and still be wrong — if
+`payment.ts` parses input, talks to a gateway, and writes the ledger, it is three
+units wearing one filename.
+
+**The smell:** a well-named file that grows by accretion — it passes ST-005 (the
+name is fine) but does several unrelated things.
+
+**Detectable trigger — check before every write:**
+- the file exceeds the project threshold (default ~400 lines / ~10 top-level
+  declarations — tunable in `.coding-standards-structure`), **or**
+- it holds 2+ unrelated responsibility clusters (e.g. a state machine *and* regex
+  parsers *and* file I/O), **or**
+- you are about to *add* a concern to a file that already owns a different one.
+
+**Then:** extract the new concern into a named sibling unit. When three siblings
+share a theme, promote them to a sub-feature folder with its own `index` (Rule of
+Three, ST-004). **Never create a folder for a single file**, and if a feature has a
+handful of flat units, stop at the feature tier — a sub-feature folder there is
+over-engineering (DP-006 KISS).
+
+**Worked example — a unit doing three things splits into siblings:**
+
+```
+# Before — one unit, three responsibilities
+billing/
+  invoice.ts        ← parses requests + computes totals + persists rows
+  index.ts
+
+# After — one responsibility per unit, same public door
+billing/
+  parse-invoice-request.ts   ← input parsing
+  invoice.ts                 ← the orchestrator (compute + coordinate)
+  invoice-store.ts           ← persistence
+  index.ts                   ← still the only public entry (ST-002)
+```
+
+The behavioral companion is **DP-002** (extract an abstraction when you have 2+
+variants of a behavior) — structure splits *responsibilities*; DP-002 splits
+*variants*.
+
+> **Enforcement note:** the `warn-god-file.py` hook emits an *advisory* warning at
+> write time when a file crosses the threshold (it never blocks — a raw size count
+> has too high a false-positive rate to gate on). The judgement parts of this rule
+> (responsibility clusters) are checked by Worker 1 and in Review mode.
 
 ---
 
@@ -180,9 +242,9 @@ The same applies to `.types.ts`, `.styles.ts`, `.fixtures.ts`, `.stories.tsx`. C
 
 Every `references/<framework>/structure.md` builds on these rules. A framework file may:
 
-- **Specialize a rule** — e.g., Next.js says "`app/` is thin, business logic lives in capabilities" (specialization of ST-001).
-- **Add framework-specific rules** — e.g., Cocos Creator's "bundles don't nest," NestJS's "one feature, one module file."
-- **Carve a named exception** — e.g., Laravel keeps the stock skeleton at the top (ST-001 exception), NestJS DTOs are intentionally "hybrid" (Objects & Data OD-004 exception).
+- **Specialize a rule** — e.g., a framework may say "the framework-mandated entry folder stays thin; business logic lives in capabilities" (specialization of ST-001).
+- **Add framework-specific rules** — e.g., "bundles don't nest," or "one feature, one module file."
+- **Carve a named exception** — e.g., a framework keeps its stock skeleton at the top (ST-001 exception, documented in the framework file), or DTOs are intentionally "hybrid" (Objects & Data OD-004 exception).
 
 A framework file may **not** silently override these rules. If a framework's idiom genuinely conflicts with a structural rule, the framework file names the conflict explicitly and explains why the carve-out is necessary.
 
@@ -201,6 +263,11 @@ Per folder
   □ Has an index entry (index.ts, __init__.py, mod.rs, ...) once it has 2+ files
   □ Generic names (Card, Modal, Repository<T>) only in the design-system / shared layer
   □ Capability code uses domain-qualified names
+
+File scope (ST-008)
+  □ No unit holds 2+ unrelated responsibilities (god-file)
+  □ Oversized files (advisory warn-god-file threshold) are split into named siblings
+  □ Sub-feature folders are earned (2+ cohesive files), not created for symmetry
 
 Imports
   □ Cross-folder imports go through the folder's public entry

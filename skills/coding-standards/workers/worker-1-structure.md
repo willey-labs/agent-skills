@@ -9,6 +9,7 @@ owns_rules:
   - ST-005
   - ST-006
   - ST-007
+  - ST-008
   - OD-001
   - OD-002
   - OD-004
@@ -62,7 +63,7 @@ EXISTING_PATHS: <list of paths already in the project, if any>
 
 ## References to load (only these — keep context lean)
 
-1. `references/common/structure.md` — your primary rule set (ST-001 to ST-007).
+1. `references/common/structure.md` — your primary rule set (ST-001 to ST-008).
 2. `references/common/objects-and-data.md` — for OD-001, OD-002, OD-004, OD-005.
 3. `references/common/code-principles.md` — for DP-001 (SRP), DP-002 (OCP), DP-003 (LSP), DP-004 (ISP), DP-005 (DIP), DP-006 (KISS), DP-007 (DRY).
 4. The **resolved structure from your `STRUCTURE` input** — the project's actual layout. If it names a `structures/<name>.md` or a `.coding-standards-structure` file, load that; otherwise fall back to `references/<framework>/structure.md`. Check placement against the resolved layout, never a default.
@@ -75,10 +76,16 @@ Do not load `functions.md`, `naming.md`, `formatting.md`, or `error-handling.md`
 
 1. **Read the inputs** — understand the task and the framework constraints.
 2. **Decide file paths.** For each artifact the task implies (a use case, a service, a route, an entity, etc.), pick the path per ST-001 (business-shaped folders), ST-002 (folder = module), ST-005 (no junk-drawer names), ST-006 (domain-qualified vs generic), ST-007 (co-location), and the framework's layout rules.
+   - **ST-008 (no god-files):** for each artifact, if it would hold 2+ unrelated
+     responsibilities, plan it as multiple named sibling units up front. Promote a
+     group of 3+ related units to a sub-feature folder; never make a folder for one
+     file. Stop at the feature tier when a handful of flat units suffice (KISS).
 3. **Decide class/module shape.** For each artifact:
    - Is it a behavior-exposing object (per OD-001) or a data structure (per OD-002)?
    - Is it a framework-boundary class (DTO, entity, controller — see OD-005)?
    - If it's a class, does it have one reason to change (DP-001 SRP)?
+   - Does any single file accrete more than one responsibility (DP-001 / ST-008)?
+     If so, split it into sibling units behind the same `index`.
    - If extension points exist, is the abstraction stable (DP-002 OCP)?
    - If there's inheritance, do subtypes honor the parent contract (DP-003 LSP)?
    - If interfaces exist, are they segregated (DP-004 ISP)?
@@ -145,7 +152,7 @@ Never silently drop a rule. Every owned rule lands in one of the three buckets.
 
 **Severity (Worker 1):**
 - `must-fix` — deep imports past a folder's public API (ST-003), junk-drawer files (ST-005). The deterministic linter also catches these; report them anyway — the orchestrator dedupes.
-- `should-fix` — wrong / non-business-shaped placement (ST-001, ST-006), SRP violations (DP-001), business logic depending on concretions instead of abstractions (DP-005), object-vs-data mismatch (OD-002).
+- `should-fix` — wrong / non-business-shaped placement (ST-001, ST-006), SRP violations / god-files (DP-001, ST-008), business logic depending on concretions instead of abstractions (DP-005), object-vs-data mismatch (OD-002).
 - `consider` — design tradeoffs: a structure that works but a simpler one exists (DP-006 KISS), arguable module boundaries.
 
 **Scope:** report misplacement only for files in the review set — never crawl the whole repo.

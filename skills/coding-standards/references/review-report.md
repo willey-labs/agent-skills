@@ -27,15 +27,15 @@ The report file is excluded from future reviews — `**/.coding-standards/**` is
 must-fix: N · should-fix: N · consider: N — <rules passed> passed, <rules skipped> skipped (n/a)
 
 ## must-fix
-| File:Line | Rule | Issue | Fix |
-|---|---|---|---|
-| … | … | … | … |
+| ID | File:Line | Rule | Issue | Fix |
+|---|---|---|---|---|
+| F001 | … | … | … | … |
 
 ## should-fix
-| File:Line | Rule | Issue | Fix |
+| ID | File:Line | Rule | Issue | Fix |
 
 ## consider
-| File:Line | Rule | Issue | Fix |
+| ID | File:Line | Rule | Issue | Fix |
 
 ## Coverage
 - **Passed:** <rule codes that applied and were clean>
@@ -43,3 +43,12 @@ must-fix: N · should-fix: N · consider: N — <rules passed> passed, <rules sk
 ```
 
 A section with no findings still appears, with a single `_none_` row — the empty sections are part of the comprehensiveness signal (they show the severity was checked, not skipped).
+
+## Finding IDs (used by Fix mode)
+
+Each finding gets a stable id within the report: `F<NNN>` numbered in document order
+(`F001`, `F002`, …), emitted in the leading `ID` column of each severity table. IDs
+are unique across the whole report (not reset per section). Fix mode's completeness
+ledger keys on these ids, so every finding can be tracked to `fixed` or `deferred`.
+Keep ids stable for the life of the report file — never renumber after the report is
+written.
