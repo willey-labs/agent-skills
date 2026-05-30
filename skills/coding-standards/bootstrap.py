@@ -216,6 +216,10 @@ def reexec_under_compatible_python() -> None:
         f"{better}…"
     )
     os.environ[_REEXEC_FLAG] = "1"
+    # Flush before execv — it replaces the process image immediately, so any
+    # buffered stdout/stderr (the line above) would otherwise be lost.
+    sys.stdout.flush()
+    sys.stderr.flush()
     try:
         os.execv(better, [better, *sys.argv])
     except OSError:
