@@ -9,9 +9,12 @@ You are now using the **coding-standards** skill. The skill lives at `~/.claude/
 
 ## Routing logic
 
-### Always first — Step 0 (bootstrap)
+### Always first — Step 0 (bootstrap + machine-readiness check)
 
-Run `python3 <skill-dir>/bootstrap.py` exactly once per session if you haven't already. The script is idempotent and self-detects scope. If it reports `Wired` or `Updated`, tell the user to restart the agent session so hooks activate.
+Run `python3 <skill-dir>/bootstrap.py --auto-install` exactly once per session if you haven't already. The script is idempotent, self-detects scope, and **checks machine readiness** — Python 3.10+ and the skill's required packages (declared in `REQUIRED_PACKAGES`; today the tree-sitter AST grammars). It announces anything missing and auto-installs it. Global installs get a dedicated `coding-standards` venv (created if missing, reused if present) so the hooks don't depend on whatever `python3` is first on PATH; project installs keep the portable `python3` name. A managed venv is also the PEP 668 fallback.
+
+- If it prints `Blocking issues:` (Python below 3.10, or a required package couldn't be installed), **surface the output verbatim and stop.** The hooks are not wired and the skill is not ready until the user resolves it — do not proceed to routing below.
+- If it reports `Wired` or `Updated`, tell the user to restart the agent session so hooks activate, then continue routing.
 
 ### Then route by `$ARGUMENTS`
 
