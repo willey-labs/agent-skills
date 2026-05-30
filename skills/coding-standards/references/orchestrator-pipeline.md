@@ -99,6 +99,56 @@ For each worker N in {1, 2, 3}:
 10. **Merge** every worker's `findings` array + the linter findings. **Dedupe** by `(file, line, rule)` — when a worker finding and a linter finding collide, keep one and mark it must-fix. Then **sort by severity** (must-fix → should-fix → consider) and group by file. The workers' `passed` / `skipped` arrays are the **coverage proof** — use them to state which rules were checked and clean, so the report is visibly comprehensive rather than a short list of hits.
 11. **Write the report file**, then **present** the same content to the user as a structured PASS/FAIL table. Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
 
+## Fix mode (`MODE: fix`) — apply review findings at scale
+
+Fix mode applies an existing review's findings across many files. It does **not**
+run the Worker 1→2→3 sequence — the unit of independent work is a *file*, not a rule
+domain — so it **fans out one fix-agent per file**. This is the path that scales: a
+large finding set *triggers* fan-out instead of overflowing one context.
+
+**Input:** the most recent `.coding-standards/reviews/<ts>.md` report (or an
+in-session review's findings). If none exists, run Review first to produce one.
+
+1. **Build the completeness ledger.** One row per finding:
+   `{ id, file, line, rule, severity, status }`, `status = pending`. The id is the
+   per-finding id from the review report (see `references/review-report.md`).
+
+2. **Partition findings:**
+   - **STRUCTURAL / cross-file** — ST-002 (barrels/`index`), ST-003 (deep imports),
+     ST-008 (file splits), moves/renames. These have ordering dependencies.
+   - **FILE-LOCAL** — FN-*, NM-*, EH-*, FMT-*, OD-003. Independent per file.
+
+3. **Phase A — structural, coordinated.** Do these yourself (orchestrator), in order,
+   because later steps depend on earlier ones:
+   a. create/extend barrel `index` files (ST-002);
+   b. rewrite deep imports to the new public entries (ST-003);
+   c. apply ST-008 splits (create named sibling files, move declarations).
+   Each write goes through the orchestrator, so the hooks fire. Update the ledger.
+   Independent barrels may fan out, but an import rewrite runs only after the barrel
+   it targets exists.
+
+4. **Phase B — file-local, fan-out (parallel, one agent per file).** For each file
+   that still has file-local findings, dispatch `workers/fix-agent.md` via the
+   `Agent` tool (`subagent_type: "general-purpose"`), batched to the host's
+   concurrency cap. The agent's INPUT carries **only that file's current content and
+   its own findings** — never the whole set. Parse the returned JSON
+   (`{ path, fixed_content, fixed[], deferred[] }`), then **you** write the file
+   (hooks fire per file). Update the ledger: each finding → `fixed` or
+   `deferred(reason)`.
+
+5. **Verify.** Run `hooks/review-files.py --json` over every changed file. If a
+   finding that was marked `fixed` still trips the linter, flip it to `pending` and
+   re-dispatch that one file (max **2** re-fix passes per file; then
+   `deferred(reason="re-fix failed")`).
+
+6. **Report against the ledger.** State `N of M findings fixed across K files; D
+   deferred`, and **list every deferred finding with its reason**. An incomplete run
+   says exactly what remains and why — it never stops silently.
+
+**Fallback when `Agent` is unavailable** (Cursor/Codex/OpenCode): run Phases A and B
+yourself in batches, one file at a time, still driven by the ledger, and report the
+same way. Announce that fan-out is unavailable in this host.
+
 ## Tell the user what happened
 
 After the pipeline completes, summarize:
@@ -128,3 +178,8 @@ Files written: <list>. Hooks passed.
 - **No worker can modify rules outside its `owns_rules` list.** Validate before accepting output.
 - **No retries past 2.** If a worker fails twice, fall back to inline.
 - **Sequential, not parallel.** Worker N's output is Worker N+1's input. Do not dispatch Worker 2 before Worker 1 completes.
+- **Fix mode fans out by file, not by rule domain.** One fix-agent per file, each
+  given only that file's content + its findings. Structural (cross-file) fixes run
+  first, coordinated by the orchestrator; file-local fixes fan out in parallel.
+- **Fix mode is ledger-complete.** Every finding ends `fixed` or `deferred(reason)`;
+  a silent partial result is a failure. Max 2 re-fix passes per file.
