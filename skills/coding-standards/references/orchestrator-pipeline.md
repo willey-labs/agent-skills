@@ -43,11 +43,11 @@ User task
 **Review mode:**
 ```
 User task (diff/PR/file)
-  → Orchestrator runs hooks/review-files.py --json over the file set (deterministic pass)
   → Worker 1 outputs findings JSON (no code changes)
   → Worker 2 outputs findings JSON
   → Worker 3 outputs findings JSON
-  → Orchestrator merges the linter findings + all worker findings, sorts by severity, presents unified report
+  → Orchestrator runs hooks/review-files.py --json over the file set (deterministic pass, runs LAST)
+  → Orchestrator merges all worker findings + linter findings, sorts by severity, presents unified report
 ```
 
 ## How to dispatch a worker
@@ -62,6 +62,7 @@ For each worker N in {1, 2, 3}:
      === INPUT ===
      TASK: <user's original task verbatim>
      FRAMEWORK: <detected framework key from Step 1>
+     STRUCTURE: <resolved structure from Step 1.4 — the chosen structures/<name>.md, the project's .coding-standards-structure custom layout, or the framework default structure.md>
      MODE: write | review
      WORKER_<N-1>_OUTPUT: <previous worker's JSON, omit for Worker 1>
      ```
@@ -78,7 +79,7 @@ For each worker N in {1, 2, 3}:
    - Worker did not introduce abstractions outside its rule list (no new Strategy patterns from Worker 2; no new layers from Worker 3).
 6. **If validation fails**, redispatch the worker with the specific violation noted. After one retry, fall back to inline.
 
-> **TodoWrite (only if you seeded a list in SKILL.md Step 1.6):** mark worker N `in_progress` as you dispatch it and `completed` once its output validates (step 5 above). Tick the bracketing items the same way — the linter pass, and the final write-and-hooks (Write mode) or merge-and-present (Review mode) — as you reach each. If you didn't seed a list (TodoWrite unavailable, or inline single-file work), ignore this.
+> **TodoWrite (only if you seeded a list in SKILL.md Step 1.6):** mark worker N `in_progress` as you dispatch it and `completed` once its output validates (step 5 above). Tick the bracketing items the same way — the final write-and-hooks (Write mode), or the linter pass and merge-and-present (Review mode, where the linter runs *after* the three workers) — as you reach each. If you didn't seed a list (TodoWrite unavailable, or inline single-file work), ignore this.
 
 ## After all workers complete (Write mode)
 
@@ -91,11 +92,12 @@ For each worker N in {1, 2, 3}:
    - Redispatch that worker with the hook's feedback included.
    - Retry the Write.
    - If retry fails twice, surface the error to the user with the hook's diagnostic.
+8a. **Migration offer (messy/custom project).** If Worker 1 returned a non-empty `existing_mismatches` array, do **not** reorganize those files — that's out of scope for the task. After writing the new files, surface a single line: `N existing files don't match {structure} — want a separate migration pass?` and let the user opt in.
 
 ## After all workers complete (Review mode)
 
-9. **Concatenate findings** from `hooks/review-files.py` (run it first — `--json` — these are deterministic must-fix) + Worker 1 + Worker 2 + Worker 3.
-10. **Sort by severity** (must-fix → should-fix → consider) and group by file.
+9. **Run `hooks/review-files.py --json`** over the file set now — *after* the three workers, as the final deterministic pass. Its findings are must-fix (deterministic; never re-litigated).
+10. **Merge** the linter findings + Worker 1 + Worker 2 + Worker 3, then **sort by severity** (must-fix → should-fix → consider) and group by file.
 11. **Present** to the user as a structured PASS/FAIL table. Cite rule codes. Do not editorialize.
 
 ## Tell the user what happened

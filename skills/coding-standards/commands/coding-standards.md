@@ -46,9 +46,9 @@ options:
 ```
 
 After the user picks:
-- **Write code…** → Step 1 (framework detection) → Step 1.5 (orchestrator pipeline because `/coding-standards` was used explicitly — pipeline is the default for this command) → Step 2.O (workers).
-- **Check existing code…** → ask the user *what* to check (file path, folder, diff command, or PR number) → Step 1 (per-file framework detection) → Step 1.5 (orchestrator pipeline) → Step 2.O (workers in review mode).
-- **Show me the rules** → Step 1 (detect framework once) → Step 2 (load all refs inline; no workers) → present a one-screen index of rule codes, then wait for follow-up questions.
+- **Write code…** → Step 1 (framework detection) → **Step 1.4 (resolve structure — ask the structure question first if custom)** → Step 1.5 (orchestrator pipeline because `/coding-standards` was used explicitly — pipeline is the default for this command) → Step 2.O (workers).
+- **Check existing code…** → ask the user *what* to check (file path, folder, diff command, or PR number) → Step 1 (per-file framework detection) → **Step 1.4 (resolve structure — ask the structure question first if custom)** → Step 1.5 (orchestrator pipeline) → Step 2.O (workers in review mode).
+- **Show me the rules** → Step 1 (detect framework once) → Step 1.4 (resolve structure silently — no question) → Step 2 (load all refs inline; no workers) → present a one-screen index of rule codes, then wait for follow-up questions.
 
 **If `$ARGUMENTS` is non-empty** (the user typed `/coding-standards <something>`):
 → Treat `$ARGUMENTS` as the task. Skip the picker entirely. Examples:
@@ -61,7 +61,9 @@ After the user picks:
 | `show me the naming rules` / `what's FN-005?` | Show me the rules / Q&A |
 | `refactor src/cart.ts` | Write (targeted at the path) |
 
-Apply Step 1 (framework detect) → Step 1.5 (orchestrator pipeline default when `/coding-standards` was invoked) → Step 2.O (workers) → integration → final Write.
+Apply Step 1 (framework detect) → **Step 1.4 (resolve structure — ask the structure question first if custom)** → Step 1.5 (orchestrator pipeline default when `/coding-standards` was invoked) → Step 2.O (workers) → integration → final Write.
+
+**Resolve structure (Step 1.4) before the run-mode question** — the structure question is always the first interactive prompt; run-mode is second.
 
 **Because `/coding-standards` was used explicitly, ask the user how to run it** (SKILL.md Step 1.5, path A): once the task is known, invoke `AskUserQuestion` with the "Run mode" question — **Multiple agents** (you, the main agent, dispatch Worker 1 → Worker 2 → Worker 3 via the `Agent` tool — i.e. the Step 2.O orchestrator) vs **Single agent** (you do it inline). Run whichever the user picks and announce it. Skip the question and go inline (saying so) only when the `Agent` tool isn't available in this host, or for the "Show me the rules" mode. Ask the run-mode question at most once per session.
 

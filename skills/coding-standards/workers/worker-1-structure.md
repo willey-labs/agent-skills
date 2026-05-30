@@ -54,15 +54,18 @@ You are Worker 1 in a 3-worker pipeline applying the **coding-standards** skill.
 ```
 TASK: <user's task description>
 FRAMEWORK: <detected framework key, e.g. nextjs, django, go-http>
+STRUCTURE: <resolved structure from Step 1.4 — a structures/<name>.md, the project's .coding-standards-structure custom layout, or the framework default structure.md>
 EXISTING_PATHS: <list of paths already in the project, if any>
 ```
+
+`STRUCTURE` is the layout the project follows — already resolved (and confirmed with the user when custom). **Check placement against it, not against a default you pick yourself.**
 
 ## References to load (only these — keep context lean)
 
 1. `references/common/structure.md` — your primary rule set (ST-001 to ST-007).
 2. `references/common/objects-and-data.md` — for OD-001, OD-002, OD-004, OD-005.
 3. `references/common/code-principles.md` — for DP-001 (SRP), DP-002 (OCP), DP-003 (LSP), DP-004 (ISP), DP-005 (DIP), DP-006 (KISS), DP-007 (DRY).
-4. `references/<framework>/structure.md` — the framework-specific layout rules.
+4. The **resolved structure from your `STRUCTURE` input** — the project's actual layout. If it names a `structures/<name>.md` or a `.coding-standards-structure` file, load that; otherwise fall back to `references/<framework>/structure.md`. Check placement against the resolved layout, never a default.
 
 Do not load `functions.md`, `naming.md`, `formatting.md`, or `error-handling.md` — those are other workers' domains.
 
@@ -87,6 +90,15 @@ Do not load `functions.md`, `naming.md`, `formatting.md`, or `error-handling.md`
 5. **Apply KISS lens.** For each architectural decision, check: would a simpler shape work? Don't add layers, interfaces, or abstractions you can't name a current need for. If you find yourself adding `<T>` or "for future flexibility," delete it.
 6. **Apply DRY lens.** Check at module / data shape level: are you defining the same shape in two places? Same constant in two configs? Pick one source of truth.
 
+## Messy / custom project
+
+When `STRUCTURE` is a custom/messy layout (a `.coding-standards-structure` drafted from an inconsistent repo):
+
+- **Place the task's NEW files cleanly** per the documented layout's dominant pattern.
+- **If the layout is silent** on where a new artifact belongs, fall back to `references/common/structure.md` (ST-*) + the framework default — **for the new file only** — and record the placement choice in `notes_for_worker_2`.
+- **Never reorganize existing misplaced files on a Write task.** That's scope creep. Leave them where they are and list them in `existing_mismatches` (below) so the orchestrator can offer a separate migration pass.
+- **On a Review task (`MODE: review`)**, existing misplacement *is* in scope — but only for files in the review set, never the whole repo. Report each as a finding.
+
 ## Output format
 
 Return **ONLY valid JSON**, no prose around it:
@@ -109,6 +121,9 @@ Return **ONLY valid JSON**, no prose around it:
       "what": "Made Order a data structure with public fields, not an object",
       "why": "Change axis is new operations, not new types — data structures + free functions wins"
     }
+  ],
+  "existing_mismatches": [
+    { "path": "src/lib/checkoutUtils.ts", "rule": "ST-005", "why": "Junk-drawer name; doesn't match resolved structure — left in place, flag for migration" }
   ],
   "notes_for_worker_2": "Function bodies in `book-appointment.ts` need implementing. Names `f`, `x`, `r` are placeholders.",
   "notes_for_worker_3": "Stripe and external SDK calls will appear in `charge-customer.ts` — they'll need EH-002 boundary translation."

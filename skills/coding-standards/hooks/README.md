@@ -41,7 +41,8 @@ It feeds each file's current content to every `block-*.py` hook as a synthetic
 `Write` payload — identical to the write-time contract — and prints the
 violations grouped by file. Excluded files are skipped exactly as at write time.
 It always exits `0` (it reports; it never blocks). The skill's Review mode runs
-this as its deterministic first pass and folds the findings in as must-fix.
+this as its final deterministic pass — after the judgement pass / specialist
+workers — and merges the findings in as must-fix.
 
 ## Installation
 

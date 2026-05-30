@@ -13,7 +13,7 @@ description: >
 license: MIT
 metadata:
   author: willey-labs
-  version: "4.2.0"
+  version: "4.3.0"
 ---
 
 # Coding Standards
@@ -148,9 +148,9 @@ options:
 ```
 
 After the answer:
-- **Write code…** → confirm/await the task → Step 1 (detect framework) → **Step 1.5 — ask the "Run mode" question (multiple agents vs single)** → Step 2 / Step 2.O → Write mode.
-- **Check existing code…** → ask the user *what* to check (file, folder, diff command, PR number) → Step 1 (per-file) → **Step 1.5 — ask the "Run mode" question** → Step 2 / Step 2.O → Review mode (use the strict PASS/FAIL walkthrough from this SKILL.md's Review section).
-- **Show me the rules** → Step 1 (detect framework once) → Step 2 (load all refs) → present a one-screen index of rule codes and wait for follow-up questions. (No "Run mode" question — nothing is written or reviewed.)
+- **Write code…** → confirm/await the task → Step 1 (detect framework) → **Step 1.4 — resolve structure (ask the structure question first if custom)** → **Step 1.5 — ask the "Run mode" question (multiple agents vs single)** → Step 2 / Step 2.O → Write mode.
+- **Check existing code…** → ask the user *what* to check (file, folder, diff command, PR number) → Step 1 (per-file) → **Step 1.4 — resolve structure (ask the structure question first if custom)** → **Step 1.5 — ask the "Run mode" question** → Step 2 / Step 2.O → Review mode (use the strict PASS/FAIL walkthrough from this SKILL.md's Review section).
+- **Show me the rules** → Step 1 (detect framework once) → Step 1.4 (resolve structure, no question needed — nothing is written) → Step 2 (load all refs) → present a one-screen index of rule codes and wait for follow-up questions. (No "Run mode" question — nothing is written or reviewed.)
 
 **Invariants:**
 - Never invoke this step twice in a session — once mode is set, it stays set.
@@ -199,7 +199,9 @@ Each framework offers a **catalog** of ready-made structures under `references/<
 
 > Catalog status: **Next.js** has a `structures/` catalog (`route-colocated`, `feature-first`, `screaming-architecture`, `feature-sliced-design`). Other frameworks still fall back to their single `references/<framework>/structure.md` until a catalog is added.
 
-**Run this every time the skill activates, in order. Stop at the first match.**
+**This step is mandatory and must be announced — it is NOT advisory.** Run it every time the skill activates, in order, and complete it **before the Step 1.5 run-mode question and before any worker dispatch or hook lint**. It is the *first* interactive decision. Stop at the first match. Announce the outcome in one line — e.g. `Structure → CUSTOM layout, asking which standard to follow` or `Structure → matches route-colocated (standard), no question needed`. Doing any Write or Review work without resolving structure first violates this skill.
+
+**Exception — "Show me the rules" / pure rule Q&A:** resolve the structure *silently* to know which `structure.md` to display, but **do not pop the question or write a file** even when the layout is custom — there's nothing to write or review, so there's nothing to decide. The question (case 3 below) fires only on Write and Review tasks.
 
 ### 1. Is there a `.coding-standards-structure` file at the repo root?
 
@@ -211,15 +213,15 @@ Each framework offers a **catalog** of ready-made structures under `references/<
 
 ### 3. No file, and the layout is **custom** (matches none of the catalog) → ask the user **once**
 
-Use `AskUserQuestion`, every option carrying a folder-tree `preview`:
+Use `AskUserQuestion`. The question text **names the detected framework and states the finding**; every option carries a folder-tree `preview`. Order: **recommended first, "keep current" last** (per `AskUserQuestion` convention — the recommended option leads and is tagged `(Recommended)`).
 
-> Your folders are custom. Keep them, or switch to one of ours?
+> Detected **{framework}**. Your folder layout doesn't match a standard {framework} pattern. Switch to a recommended structure, or keep your current one?
 
-1. **Keep current** — keep the project's own custom layout.
-2. **Original (recommended)** — `structures/screaming-architecture.md`.
-3. **…other catalog variants** — `route-colocated`, `feature-first`, `feature-sliced-design`.
+1. **Original (Recommended)** — `structures/screaming-architecture.md`.
+2. **…other catalog variants** — `route-colocated`, `feature-first`, `feature-sliced-design` (show the two most relevant).
+3. **Keep current** — keep the project's own custom layout (learned and written to `.coding-standards-structure`).
 
-(`AskUserQuestion` allows at most 4 options + an auto "Other". Show *Keep current*, *Original (recommended)*, and the two most relevant variants; route the rest through "Other". Each `preview` is the **Layout** tree from that variant's file.)
+(`AskUserQuestion` allows at most 4 options + an auto "Other". Show *Original (Recommended)*, the two most relevant variants, and *Keep current* last; route the rest through "Other". Each `preview` is the **Layout** tree from that variant's file.)
 
 Then:
 
@@ -228,7 +230,9 @@ Then:
 
 **The question returns only when the layout is custom AND no file has been saved.** A standard project: never asked, no file. A custom project: asked once, then remembered by the file.
 
-This resolved structure replaces `references/<framework>/structure.md` in Step 2's load list. The seven `common/` files (line-level rules) always load and apply **unchanged**, whatever structure is chosen.
+This resolved structure replaces `references/<framework>/structure.md` in Step 2's load list. The seven `common/` files (line-level rules) always load and apply **unchanged**, whatever structure is chosen. **In the orchestrator pipeline it is also passed to Worker 1 as its `STRUCTURE` input** (see `orchestrator-pipeline.md`) — Worker 1 checks placement against the *resolved* layout, never a default it picked on its own.
+
+**Messy / custom project, first run.** When the layout is messy and the user keeps it ("Keep current"), the drafted `.coding-standards-structure` may be silent on where a *new* artifact belongs. In that case the new file falls back to `common/structure.md` (ST-*) + the framework default — **for the new file only**, with the placement noted. Worker 1 never reorganizes existing misplaced files on a Write task (no scope creep); it places the task's new files cleanly and the orchestrator offers a separate migration pass. On a Review task, existing misplacement *is* reported — but only for files in the review scope, never the whole repo.
 
 ---
 
@@ -243,6 +247,8 @@ You have two execution shapes for Write and Review modes. Pick deterministically
 | `Agent` tool is NOT available in this host (e.g. Cursor, Codex, OpenCode) | Fall back to **inline** regardless of scope — and say so in your announcement. |
 
 **This choice is mandatory and must be announced — it is NOT advisory.** It is made one of two ways:
+
+**Step 1.4 (structure resolution) must already be complete before this step.** The structure question is always the *first* interactive question; the run-mode question below is second. Never ask run-mode before structure is resolved.
 
 **A) Invoked via `/coding-standards` or the Step 0.5 picker → ASK the user.**
 Once the task is known and it's a Write or Review task (skip for "Show me the rules"), and the `Agent` tool is available in this host, invoke `AskUserQuestion` with EXACTLY this payload:
@@ -299,18 +305,18 @@ Track the **work the user cares about**, not internal step numbers. Keep exactly
 5. Write files + run hooks
 
 **Review — inline (single agent):**
-1. Scope + detect framework + load references
-2. Run hooks linter (`review-files.py`)
-3. Judgement pass (the rules regex/AST can't catch — FN-001, OD-003, EH-002, `structure.md`)
-4. Summarize findings by severity
+1. Scope + detect framework + resolve structure + load references
+2. Judgement pass (the rules regex/AST can't catch — FN-001, OD-003, EH-002, `structure.md`)
+3. Run hooks linter (`review-files.py`) — deterministic pass, runs last
+4. Merge linter + judgement findings, summarize by severity
 
 **Review — orchestrator pipeline:**
-1. Scope + detect framework per file
-2. Run hooks linter (`review-files.py`)
-3. Worker 1 — Structure findings
-4. Worker 2 — Code-quality findings
-5. Worker 3 — Failure-handling findings
-6. Merge + present report
+1. Scope + detect framework per file + resolve structure
+2. Worker 1 — Structure findings
+3. Worker 2 — Code-quality findings
+4. Worker 3 — Failure-handling findings
+5. Run hooks linter (`review-files.py`) — deterministic pass, runs last
+6. Merge linter + all worker findings, present report
 
 ---
 
@@ -377,20 +383,20 @@ When you're reviewing a diff, a PR, or a file, walk through the rules systematic
 
 If `TodoWrite` is available, seed the review task list from Step 1.6 first and tick each step as you finish it — a review is exactly the multi-pass walkthrough a checklist is for. The numbered steps below map onto that list directly.
 
-1. **Scope.** List each file in the diff. For each, determine the framework using Step 1.
-2. **Load references.** For each framework that appears in the diff, read the corresponding `<framework>/structure.md`. Always read all seven `common/` files (they apply to every file).
-3. **Run the hooks as a linter (deterministic pass — DO NOT skip).** The `block-*.py` hooks fire only on `Write`/`Edit`, so during a review they never run on their own. Run them over the reviewed files yourself with the bundled driver:
+1. **Scope + resolve structure.** List each file in the diff. For each, determine the framework using Step 1, then resolve the project structure (Step 1.4) — the structure decision gates the structure findings below.
+2. **Load references.** For each framework that appears in the diff, read the resolved structure (Step 1.4) for that framework. Always read all seven `common/` files (they apply to every file).
+3. **Check each file against each applicable rule** (the judgement pass — the rules regex/AST cannot catch: FN-001 length nuance, FN-009 CQS, OD-003 Demeter, EH-002 boundaries, the resolved `structure.md` rules). For each rule, either:
+   - Report `PASS` (rule applies, no violations found), or
+   - Report a finding as `file.tsx:42 — <which rule> — <what's wrong>`, or
+   - Report `SKIPPED — <reason>` (rule does not apply to this file; explain why).
+4. **Run the hooks as a linter (deterministic pass, runs LAST — DO NOT skip).** The `block-*.py` hooks fire only on `Write`/`Edit`, so during a review they never run on their own. After the judgement pass, run them over the reviewed files yourself with the bundled driver:
    ```bash
    python3 <skill-dir>/hooks/review-files.py <file> [<file> ...]
    # or feed a diff:   git diff --name-only | python3 <skill-dir>/hooks/review-files.py --stdin
    # or, in the orchestrator pipeline, add --json and parse the result per file
    ```
-   It feeds each file's current content to every hook (the same write-time contract) and reports exactly what the hooks would block: `any`/`Any`/`dynamic`/`mixed`, Hungarian notation, 4+ argument functions, junk-drawer paths, deep imports, and the TS/Python AST checks. Excluded files (node_modules, generated, lock files, ...) are skipped automatically. **Every finding it returns is a must-fix** — it's deterministic, so fold these into your report first and never miss or re-litigate them.
-4. **Check each file against each applicable rule** (the judgement pass — the rules regex/AST cannot catch: FN-001 length nuance, FN-009 CQS, OD-003 Demeter, EH-002 boundaries, the framework `structure.md` rules). For each rule, either:
-   - Report `PASS` (rule applies, no violations found), or
-   - Report a finding as `file.tsx:42 — <which rule> — <what's wrong>`, or
-   - Report `SKIPPED — <reason>` (rule does not apply to this file; explain why).
-5. **Summarize.** Group findings by severity. Distinguish *must-fix* (the step-3 hook findings, plus correctness, security, broken contracts) from *should-fix* (clean-code rule, would be cleaner) from *consider* (judgement call, design tradeoff).
+   It feeds each file's current content to every hook (the same write-time contract) and reports exactly what the hooks would block: `any`/`Any`/`dynamic`/`mixed`, Hungarian notation, 4+ argument functions, junk-drawer paths, deep imports, and the TS/Python AST checks. Excluded files (node_modules, generated, lock files, ...) are skipped automatically. **Every finding it returns is a must-fix** — it's deterministic, so it can never be missed or re-litigated.
+5. **Merge + summarize.** Combine the judgement-pass findings with the deterministic linter findings and group by severity. Distinguish *must-fix* (the linter findings, plus correctness, security, broken contracts) from *should-fix* (clean-code rule, would be cleaner) from *consider* (judgement call, design tradeoff).
 6. **Never silently skip a rule.** If you didn't check it, say so. A review with hidden gaps is worse than a review that admits its scope.
 
 ---
