@@ -76,6 +76,7 @@ HOOK_FILES = [
     "block-csharp-violations.py",
     "block-php-violations.py",
     "block-jvm-violations.py",
+    "warn-god-file.py",
 ]
 
 # Seeded at the project root on first bootstrap so users DISCOVER the feature —

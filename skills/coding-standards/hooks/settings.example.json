@@ -11,7 +11,8 @@
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-go-violations.py" },
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-csharp-violations.py" },
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-php-violations.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-jvm-violations.py" }
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-jvm-violations.py" },
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/warn-god-file.py" }
         ]
       }
     ]
