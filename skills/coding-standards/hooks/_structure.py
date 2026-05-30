@@ -52,11 +52,13 @@ _GOD_FILE_NUM_LINE = re.compile(
 
 GOD_FILE_DEFAULT_MAX_LINES = 400
 GOD_FILE_DEFAULT_MAX_DECLS = 10
+
 _TRUE_WORDS = {"on", "true", "yes", "enable", "enabled"}
 _FALSE_WORDS = {"off", "false", "no", "disable", "disabled"}
 
 # Cache per project root so repeated checks in one hook run don't re-read disk.
 _TOGGLE_CACHE: dict[str, dict[str, bool]] = {}
+_NUM_CACHE: dict[str, dict[str, int]] = {}
 
 
 def _parse_toggles(text: str) -> dict[str, bool]:
@@ -74,11 +76,24 @@ def _parse_toggles(text: str) -> dict[str, bool]:
     return toggles
 
 
+def _parse_numeric_overrides(text: str) -> dict[str, int]:
+    nums: dict[str, int] = {}
+    for line in text.splitlines():
+        m = _GOD_FILE_NUM_LINE.match(line)
+        if not m:
+            continue
+        nums[m.group(1).lower()] = int(m.group(2))
+    return nums
+
+
 def load_structure_toggles(file_path: str) -> dict[str, bool]:
     """Return the structure-check toggles for the project owning `file_path`.
 
     Empty dict when there is no `.coding-standards-structure` (a catalog-standard
     project, or none configured).
+
+    Side-effect: also populates `_NUM_CACHE` for the same root so numeric
+    overrides (e.g. god-file thresholds) are parsed in the same single read.
     """
     root = find_project_root(Path(file_path))
     if root is None:
@@ -88,12 +103,17 @@ def load_structure_toggles(file_path: str) -> dict[str, bool]:
         return _TOGGLE_CACHE[cache_key]
     structure_file = root / STRUCTURE_FILENAME
     toggles: dict[str, bool] = {}
+    nums: dict[str, int] = {}
     if structure_file.exists():
         try:
-            toggles = _parse_toggles(structure_file.read_text(encoding="utf-8"))
+            text = structure_file.read_text(encoding="utf-8")
+            toggles = _parse_toggles(text)
+            nums = _parse_numeric_overrides(text)
         except (OSError, UnicodeDecodeError):
             toggles = {}
+            nums = {}
     _TOGGLE_CACHE[cache_key] = toggles
+    _NUM_CACHE[cache_key] = nums
     return toggles
 
 
@@ -113,24 +133,14 @@ def load_god_file_config(file_path: str) -> dict[str, object]:
     Returns {"enabled": bool, "max_lines": int, "max_decls": int}. Defaults:
     enabled True (warn), 400 lines, 10 top-level declarations. Only an explicit
     `god-file: off` disables; numeric keys override the thresholds.
+
+    Calls `load_structure_toggles` which populates both `_TOGGLE_CACHE` and
+    `_NUM_CACHE` in a single disk read; subsequent calls are cache-only.
     """
     enabled = is_check_enabled("god-file", file_path)
-    max_lines = GOD_FILE_DEFAULT_MAX_LINES
-    max_decls = GOD_FILE_DEFAULT_MAX_DECLS
     root = find_project_root(Path(file_path))
-    if root is not None:
-        structure_file = root / STRUCTURE_FILENAME
-        if structure_file.exists():
-            try:
-                for line in structure_file.read_text(encoding="utf-8").splitlines():
-                    m = _GOD_FILE_NUM_LINE.match(line)
-                    if not m:
-                        continue
-                    key, value = m.group(1).lower(), int(m.group(2))
-                    if key == "god-file-max-lines":
-                        max_lines = value
-                    elif key == "god-file-max-decls":
-                        max_decls = value
-            except (OSError, UnicodeDecodeError, ValueError):
-                pass
+    cache_key = str(root) if root is not None else None
+    nums = _NUM_CACHE.get(cache_key, {}) if cache_key is not None else {}
+    max_lines = nums.get("god-file-max-lines", GOD_FILE_DEFAULT_MAX_LINES)
+    max_decls = nums.get("god-file-max-decls", GOD_FILE_DEFAULT_MAX_DECLS)
     return {"enabled": enabled, "max_lines": max_lines, "max_decls": max_decls}
