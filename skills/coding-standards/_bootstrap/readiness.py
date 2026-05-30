@@ -127,12 +127,14 @@ def print_readiness(report: dict) -> None:
     print("coding-standards readiness check:")
     py_mark = "OK" if report["python_version_ok"] else "FAIL"
     print(f"  Python {py}{venv}                 [{py_mark}]")
-    # Scope decides which interpreter lands in settings.json: project keeps the
-    # portable PATH name, global pins this absolute interpreter. State both —
-    # claiming a single "used in settings.json" value here was misleading.
+    # Scope decides which interpreter the hooks run under: project keeps the
+    # portable PATH name (committed settings.json works across teammates),
+    # global uses a dedicated coding-standards venv (built/reused at install,
+    # independent of whatever python3 is first on PATH). Readiness runs before
+    # scope is known, so preview both.
     print(
         f"  Hook interpreter: project scope -> {report['python_command']}, "
-        f"global scope -> {sys.executable}"
+        f"global scope -> dedicated coding-standards venv"
     )
     pip_mark = "OK" if report["pip_command"] else "MISSING"
     pip_str = report["pip_command"] or "(not found)"
