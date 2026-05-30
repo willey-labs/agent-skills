@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from .paths import SCRIPT_PATH
+from .paths import SCRIPT_PATH, SKILL_DIR
 
 # Seeded at the project root on first bootstrap so users DISCOVER the feature —
 # an absent file is invisible; people assume the skill can't be told to skip
@@ -69,8 +69,22 @@ def detect_scope_and_targets() -> tuple[str, Path, Path]:
         if parent.name == ".claude":
             return "project", parent / "settings.json", parent / "commands"
 
-    # No `.claude` ancestor found. Refuse to guess — writing to an
-    # unexpected location is worse than asking the user to install correctly.
+    # Fallback — the invocation path has no `.claude` ancestor (e.g. a symlink
+    # install where the path collapsed to its real `.agents/...` target and $PWD
+    # couldn't recover the shortcut). If the GLOBAL Claude skills dir points back
+    # at where we actually live, it's a global install — wire there. (Project
+    # scope can't be recovered this way: a shared real copy may be symlinked from
+    # many projects, so the invocation path is the only thing that disambiguates.)
+    home_skill = home_claude / "skills" / SKILL_DIR.name
+    try:
+        if home_skill.exists() and os.path.realpath(home_skill) == os.path.realpath(SKILL_DIR):
+            return "global", home_claude / "settings.json", home_claude / "commands"
+    except OSError:
+        pass
+
+    # No `.claude` ancestor found and no global symlink points back. Refuse to
+    # guess — writing to an unexpected location is worse than asking the user to
+    # install correctly.
     raise SystemExit(
         f"bootstrap: cannot determine install scope. This script must be invoked\n"
         f"through a `.claude/skills/coding-standards/bootstrap.py` symlink (project\n"
