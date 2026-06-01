@@ -92,13 +92,13 @@ For each worker N in {1, 2, 3}:
    - Redispatch that worker with the hook's feedback included.
    - Retry the Write.
    - If retry fails twice, surface the error to the user with the hook's diagnostic.
-8a. **Migration offer (messy/custom project).** If Worker 1 returned a non-empty `existing_mismatches` array, do **not** reorganize those files — that's out of scope for the task. After writing the new files, surface a single line: `N existing files don't match {structure} — want a separate migration pass?` and let the user opt in.
+9. **Migration offer (messy/custom project).** If Worker 1 returned a non-empty `existing_mismatches` array, do **not** reorganize those files — that's out of scope for the task. After writing the new files, surface a single line: `N existing files don't match {structure} — want a separate migration pass?` and let the user opt in.
 
 ## After all workers complete (Review mode)
 
-9. **Run `hooks/review-files.py --json`** over the file set now — *after* the three workers, as the final deterministic pass. Its findings are must-fix (deterministic; never re-litigated).
-10. **Merge** every worker's `findings` array + the linter findings. **Dedupe** by `(file, line, rule)` — when a worker finding and a linter finding collide, keep one and mark it must-fix. Then **sort by severity** (must-fix → should-fix → consider) and group by file. The workers' `passed` / `skipped` arrays are the **coverage proof** — use them to state which rules were checked and clean, so the report is visibly comprehensive rather than a short list of hits.
-11. **Write the report file**, then **present** the same content to the user as a structured PASS/FAIL table. Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
+7. **Run `hooks/review-files.py --json`** over the file set now — *after* the three workers, as the final deterministic pass. Its findings are must-fix (deterministic; never re-litigated).
+8. **Merge** every worker's `findings` array + the linter findings. **Dedupe** by `(file, line, rule)` — when a worker finding and a linter finding collide, keep one and mark it must-fix. Then **sort by severity** (must-fix → should-fix → consider) and group by file. The workers' `passed` / `skipped` arrays are the **coverage proof** — use them to state which rules were checked and clean, so the report is visibly comprehensive rather than a short list of hits.
+9. **Write the report file**, then **present** the same content to the user as a structured PASS/FAIL table. Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
 
 ## Fix mode (`MODE: fix`) — apply review findings at scale
 

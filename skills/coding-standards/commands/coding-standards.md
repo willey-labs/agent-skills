@@ -5,35 +5,28 @@ argument-hint: "[task description — e.g. 'review this PR', 'write a checkout f
 
 The user invoked `/coding-standards` with arguments: `$ARGUMENTS`
 
-You are now using the **coding-standards** skill. The skill lives at `~/.claude/skills/coding-standards/` (global install) or `<project>/.claude/skills/coding-standards/` (project install).
+This activates the **coding-standards** skill — follow `SKILL.md` for the full flow (framework detection,
+structure resolution, reference loading, the pipeline). This command only adds three things on top:
+bootstrap, `$ARGUMENTS` routing, and the explicit-invocation run-mode default.
 
-## Routing logic
+## 1. Bootstrap first (Step 0)
 
-### Always first — Step 0 (bootstrap, only when needed)
-
-**Check first, install only if needed** — don't re-bootstrap a machine that's already set up. Run the fast read-only check (single command, absolute path, no `cd`/`&&`/`||` so it matches the pre-approved permission rule and doesn't prompt):
+Run the read-only check once per session (single absolute-path command, no `cd`/operators, so it matches
+the pre-approved permission rule):
 
 ```bash
 python3 <skill-dir>/bootstrap.py --verify
 ```
 
-- **Exit 0** (`already set up …`) → the hooks are wired and Python is fine. **Skip the rest of Step 0** and go straight to routing. Do NOT run `--auto-install`.
-- **Non-zero** → the machine isn't ready (deps missing, not wired, or first run). Now run the full install — again as a single clean command:
+Exit 0 → already wired; go to routing. Non-zero → run `python3 <skill-dir>/bootstrap.py --auto-install`,
+then act on its result (`Wired` / `Updated` → ask the user to restart the session; `Blocking issues:` →
+surface verbatim and stop). Detail lives in SKILL.md Step 0 and `references/bootstrap.md`.
 
-  ```bash
-  python3 <skill-dir>/bootstrap.py --auto-install
-  ```
+## 2. Route by `$ARGUMENTS`
 
-  It self-detects scope, installs the required packages (global → a dedicated `coding-standards` venv; project → portable `python3`; PEP 668 → managed venv fallback), and wires the hooks.
-  - `Blocking issues:` (Python < 3.10, or a required package couldn't be installed) → **surface verbatim and stop**; don't route until resolved.
-  - `Wired` / `Updated` → tell the user to restart the session so hooks activate, then route.
-
-Run Step 0 at most once per session. If `--verify` already returned 0 this session, don't run it again.
-
-### Then route by `$ARGUMENTS`
-
-**If `$ARGUMENTS` is empty** (the user typed just `/coding-standards`):
-→ Invoke the `AskUserQuestion` tool with the exact payload below. Do not proceed until the user picks one.
+**Empty** (`/coding-standards` alone) → invoke `AskUserQuestion` with this exact payload and wait. The
+**labels and header are the routing contract** — reproduce them verbatim (shared with SKILL.md Step 0.5);
+the descriptions may differ.
 
 ```
 question:    "What do you want to do with the coding-standards skill?"
@@ -41,51 +34,35 @@ header:      "Mode"
 multiSelect: false
 options:
   - label:       "Write code that follows these rules"
-    description: "I'll detect the framework (Next.js, NestJS, Django, Laravel,
-                  Spring Boot, Go HTTP, etc.) from your project, load the matching
-                  references, and apply the rules as I write. Hard violations
-                  (banned types, Hungarian, 4+ args, junk-drawer paths) get blocked
-                  at write time by the installed hooks."
-
+    description: "Detect the framework, load the matching references, and apply the
+                  rules as I write. Hard violations are blocked at write time."
   - label:       "Check existing code against these rules"
-    description: "Point me at a file, folder, or diff and I'll report violations.
-                  For each file I list PASS / FAIL / SKIPPED per applicable rule
-                  with file:line citations, grouped by must-fix / should-fix /
-                  consider. See references/<framework>/structure.md anti-patterns
-                  for the strict review checklist."
-
+    description: "Point me at a file, folder, or diff; I report PASS / FAIL / SKIPPED
+                  per rule with file:line citations, grouped by severity."
   - label:       "Show me the rules"
-    description: "Guided tour of the 7 universal rule families (FN-* functions,
-                  NM-* naming, OD-* objects & data, ST-* structure, EH-* errors,
-                  FMT-* formatting, DP-* code principles) plus the framework I
-                  detect for your project. I'll cite rule codes with worked
-                  examples from references/common/ and references/<framework>/."
+    description: "A guided tour of the rule families plus the framework I detect for
+                  your project, with worked examples."
 ```
 
-After the user picks:
-- **Write code…** → Step 1 (framework detection) → **Step 1.4 (resolve structure — ask the structure question first if custom)** → Step 1.5 (orchestrator pipeline because `/coding-standards` was used explicitly — pipeline is the default for this command) → Step 2.O (workers).
-- **Check existing code…** → ask the user *what* to check (file path, folder, diff command, or PR number) → Step 1 (per-file framework detection) → **Step 1.4 (resolve structure — ask the structure question first if custom)** → Step 1.5 (orchestrator pipeline) → Step 2.O (workers in review mode).
-- **Show me the rules** → Step 1 (detect framework once) → Step 1.4 (resolve structure silently — no question) → Step 2 (load all refs inline; no workers) → present a one-screen index of rule codes, then wait for follow-up questions.
-
-**If `$ARGUMENTS` is non-empty** (the user typed `/coding-standards <something>`):
-→ Treat `$ARGUMENTS` as the task. Skip the picker entirely. Examples:
+**Non-empty** → treat `$ARGUMENTS` as the task and skip the picker:
 
 | `$ARGUMENTS` | Mode |
 |---|---|
-| `write a checkout form` | Write |
-| `review this PR` / `audit this file` / `check this diff` | Review |
-| `is this clean?` (with a target) | Review |
-| `show me the naming rules` / `what's FN-005?` | Show me the rules / Q&A |
-| `refactor src/cart.ts` | Write (targeted at the path) |
+| `write a checkout form`, `refactor src/cart.ts` | Write |
+| `review this PR`, `audit this file`, `check this diff`, `is this clean?` (with a target) | Review |
+| `show me the naming rules`, `what's FN-005?` | Show me the rules / Q&A |
 
-Apply Step 1 (framework detect) → **Step 1.4 (resolve structure — ask the structure question first if custom)** → Step 1.5 (orchestrator pipeline default when `/coding-standards` was invoked) → Step 2.O (workers) → integration → final Write.
+Either way, hand off to SKILL.md from Step 1 (framework detection) onward.
 
-**Resolve structure (Step 1.4) before the run-mode question** — the structure question is always the first interactive prompt; run-mode is second.
+## 3. Explicit-invocation default: ask the run-mode question
 
-**Because `/coding-standards` was used explicitly, ask the user how to run it** (SKILL.md Step 1.5, path A): once the task is known, invoke `AskUserQuestion` with the "Run mode" question — **Multiple agents** (you, the main agent, dispatch Worker 1 → Worker 2 → Worker 3 via the `Agent` tool — i.e. the Step 2.O orchestrator) vs **Single agent** (you do it inline). Run whichever the user picks and announce it. Skip the question and go inline (saying so) only when the `Agent` tool isn't available in this host, or for the "Show me the rules" mode. Ask the run-mode question at most once per session.
+Because `/coding-standards` was invoked explicitly, use SKILL.md Step 1.5 **path A**: once the task is
+known (and it's Write or Review, not Q&A), ask the "Run mode" question (Multiple agents vs Single agent)
+and run the user's choice. Structure resolution (Step 1.4) still comes first; run-mode is the second
+question. Skip the run-mode question only when the `Agent` tool is unavailable in this host — then go
+inline and say so.
 
 ## Do not
 
-- Do not invoke `AskUserQuestion` if `$ARGUMENTS` already names a task.
-- Do not invoke `AskUserQuestion` more than once per session — once mode is chosen, it stays chosen until the user says otherwise.
-- Reproduce the option **labels** and the **header** ("Mode") verbatim — they are the routing contract shared with `SKILL.md` Step 0.5 (the agent matches the user's answer against the label text). The descriptions below are the richer `/coding-standards` variant; keep them faithful to the SKILL.md meaning, but they need not be byte-identical to SKILL.md's shorter descriptions.
+- Don't invoke `AskUserQuestion` if `$ARGUMENTS` already names a task.
+- Don't invoke it more than once per session — once mode is chosen, it stays chosen unless the user says otherwise.
