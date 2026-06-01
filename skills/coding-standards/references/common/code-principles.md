@@ -125,9 +125,10 @@ Already covered at the function level in `functions.md` (FN-011). Repeated here 
 - **Configuration** — a single source of truth for environment values. Not three `.env` files with slightly different copies.
 - **Component structures** — if you find yourself copying a pattern (e.g. a list with empty state + loading + error), extract the pattern.
 
-**Important caveat — the DRY paradox.** *Accidental* duplication (two things that look the same today but represent unrelated knowledge) is **not** a DRY violation. Forcing them into a shared abstraction will hurt when they diverge tomorrow.
-
-**The test:** is the duplication about the *same piece of knowledge*, or just the same characters? Two screens both showing a price formatted to two decimals is shared knowledge (currency formatting). Two domain objects that both happen to have a `name: string` field are not.
+The same *accidental-duplication* caveat from FN-011 applies at this scale: deduplicate shared
+**knowledge**, not code that merely looks alike today. Two services both formatting currency share
+knowledge; two types that both happen to have a `name: string` field do not — forcing those together hurts
+when they diverge.
 
 ---
 

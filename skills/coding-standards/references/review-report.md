@@ -10,7 +10,7 @@ Every review — orchestrator pipeline *and* inline single-agent — persists it
 4. **Write the report** in the shape below.
 5. **Tell the user the path** at the end of the review.
 
-The config files `.coding-standards-structure` and `.coding-standards-ignore` stay **flat at the repo root** — they are not under `.coding-standards/`. Only generated review artifacts live in the directory, which is why ignoring the whole directory is safe.
+The config files `.coding-standards-structure` and `.coding-standards-ignore` stay **flat at the framework project root** (the sub-project root in a monorepo) — they are not under `.coding-standards/`. Only generated review artifacts live in the directory, which is why ignoring the whole directory is safe.
 
 The report file is excluded from future reviews — `**/.coding-standards/**` is in the default exclusion list (`hooks/_exclusions.py`) — so a review never reviews a past review.
 

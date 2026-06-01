@@ -4,6 +4,8 @@
 
 Source: [feature-sliced.design](https://feature-sliced.design). Names below are the methodology's **official** vocabulary — used verbatim.
 
+> This variant follows `common/structure.md` for the inside of every folder (segment); everything below is just its outer shape — the layers, slices, and import direction.
+
 ## Layers (top imports from below; never upward)
 
 ```
@@ -20,7 +22,7 @@ src/
 
 ## Slices and segments
 
-- **Slice** = a folder inside a layer, named by business domain: `entities/user/`, `features/auth/`, `widgets/order-summary/`. Slices in the same layer may not import each other.
+- **Slice** = a folder inside a layer, named by business domain: `entities/<entity>/`, `features/<feature>/`, `widgets/<widget>/`. Slices in the same layer may not import each other.
 - **Segment** = a folder inside a slice, named by purpose. Official segment names:
 
 ```
@@ -41,28 +43,16 @@ src/
 ## Hooks this variant implies
 
 ```yaml
-deep-import (ST-003): ON       # cross-slice / public-API boundaries enforced
-junk-drawer (ST-005): ON       # "lib" segment is intentional, not a dumping ground
-tests (ST-007):       ON
-common rules:         ON
+deep-import (ST-003): ON       # cross-slice / public-API boundaries enforced — the only variant-driven toggle (god-file is a separate project-level advisory)
+universal rules:      ON       # ST-005 junk-drawer, no-any, naming, arg-count, ST-008 tiers — mandatory, never per-variant
 ```
 
 > Note: FSD's `app/` layer is the whole application shell (routing + providers), which in a Next.js App Router project overlaps with the framework's own `app/` directory. Teams typically keep Next.js's `app/` as the route layer and place FSD layers under `src/` — confirm this mapping with the user when this variant is chosen.
 
 ## `.coding-standards-structure` written when chosen
 
+Recording the choice is a single `follows:` line — the layout above stays the reference, so it isn't copied into the file. FSD's public-API segments mean `deep-import` stays on (the default) and needs no toggle:
+
 ```yaml
-framework: nextjs
-variant: feature-sliced-design
-source: feature-sliced.design
-layers: [app, pages, widgets, features, entities, shared]   # processes deprecated
-slice: by business domain within a layer
-segments: [ui, api, model, lib, config]
-imports:
-  rule: "import only from layers strictly below"
-  enforce: "@feature-sliced/eslint-config or steiger"
-hooks:
-  deep-import: on
-  junk-drawer: on
-  tests-colocated: on
+follows: feature-sliced-design
 ```

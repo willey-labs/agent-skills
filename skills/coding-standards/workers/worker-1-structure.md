@@ -66,7 +66,7 @@ EXISTING_PATHS: <list of paths already in the project, if any>
 1. `references/common/structure.md` — your primary rule set (ST-001 to ST-008).
 2. `references/common/objects-and-data.md` — for OD-001, OD-002, OD-004, OD-005.
 3. `references/common/code-principles.md` — for DP-001 (SRP), DP-002 (OCP), DP-003 (LSP), DP-004 (ISP), DP-005 (DIP), DP-006 (KISS), DP-007 (DRY).
-4. The **resolved structure from your `STRUCTURE` input** — the project's actual layout. If it names a `structures/<name>.md` or a `.coding-standards-structure` file, load that; otherwise fall back to `references/<framework>/structure.md`. Check placement against the resolved layout, never a default.
+4. The **resolved structure from your `STRUCTURE` input** — the project's actual layout. If it names a `structures/<name>.md`, load that. If it's a `.coding-standards-structure` file, load it — and when that file carries a `follows: <standard>` line, load the named standard's reference (`structures/<name>.md` or `references/<framework>/structure.md`) instead of a layout body. Otherwise fall back to `references/<framework>/structure.md`. Check placement against the resolved layout, never a default.
 
 Do not load `functions.md`, `naming.md`, `formatting.md`, or `error-handling.md` — those are other workers' domains.
 
