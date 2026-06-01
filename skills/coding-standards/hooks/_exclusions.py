@@ -167,8 +167,9 @@ DEFAULT_EXCLUSIONS: tuple[str, ...] = (
 
     # coding-standards' own generated artifacts — review reports written by
     # the skill. Never review a past review. (The flat config files
-    # `.coding-standards-structure` / `.coding-standards-ignore` live at root
-    # and are NOT under this dir.)
+    # `.coding-standards-structure` / `.coding-standards-ignore` live at the
+    # framework project root — the nearest marker dir, a sub-project root in a
+    # monorepo — and are NOT under this dir.)
     "**/.coding-standards/**",
 )
 
