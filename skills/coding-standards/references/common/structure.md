@@ -1,280 +1,253 @@
 # Structure
 
-Language-agnostic rules for how source files are organized into folders. Apply on top of any framework's `<framework>/structure.md`, which extends or carves exceptions to these rules.
+How to organize code in a project — any language, any framework.
 
-A codebase's folder layout is its first piece of documentation. Done well, a new contributor opens `src/` and reads the business in 30 seconds. Done badly, every change touches five folders and nobody is sure where a new file belongs.
+**The framework already set the project's outer folders.** Whatever the framework scaffolds (`app/`,
+`components/`, `Controllers/`, `Services/`, and so on), or whatever layout the team picked — follow it
+as-is. Don't fight it, don't move it, don't re-document it. The outer shell is not this skill's job.
+
+**This file governs what goes *inside* those folders** — where code actually rots:
+
+- everything dumped flat into one folder,
+- one file that does many unrelated jobs,
+- a file or folder named `utils` / `helpers` / `common`, which says nothing.
+
+The rule, everywhere:
+
+> Organize the inside by **Business → Feature → Sub-feature → Unit**. One file does one job. When a job
+> has interchangeable forms, define one shared interface and one file per form. Shared code rises only to
+> the lowest level that covers everything using it.
+
+The codes (ST-001…008) below are labels so reviews and tools can point at a rule.
 
 ---
 
-## ST-001 — Top-level folders inside `src/` (or the project root) name the business
+## The four levels
 
-Open the top of the source tree cold. The folder names should describe **what the product does**, not how it's built.
-
-| ✅ Allowed at the top | ❌ Forbidden |
+| Level | What it is |
 |---|---|
-| `appointments/`, `prescriptions/`, `billing/`, `identity/` (capabilities) | `components/`, `hooks/`, `services/`, `repositories/`, `models/`, `controllers/`, `utils/` |
-| The framework's own mandated top-level folders (declared as an exception in that framework's file) | Generic `types/`, `helpers/`, `common/` |
-| `shared/` for genuinely cross-cutting code | Folder names that describe technical kind, not business meaning |
+| **Business** | A top-level area of what the product does. |
+| **Feature** | One capability within a business. |
+| **Sub-feature** | A distinct piece within a feature — created only once **3** related files earn the folder (Rule of Three). |
+| **Unit** | One file, one job. The floor. |
 
-**Test:** show the top of `src/` to a teammate. Can they describe the product in one sentence using only the folder names? If they list framework concepts ("oh you have controllers and services and models"), the layout is wrong — that's package-by-layer, not package-by-business.
+Go a level deeper only when there's enough to justify it: one file never gets its own folder; one use
+never gets a `shared`.
 
-**Why this matters more than it looks:** when capabilities live as siblings at the top, deleting a feature deletes a folder, refactoring touches one folder, and a stranger finds the code by reading the business glossary. When layers live at the top, every change touches every layer.
+The shape, in the abstract:
 
-**Framework exceptions live in the framework file, not here.** A framework whose
-stock skeleton legitimately puts technical folders at the top declares that
-carve-out in its own `references/<framework>/structure.md` under "Builds on
-`common/structure.md`". The universal rule is stated here; which frameworks bend it,
-and how, is named there — never in this file.
+```
+<business>/
+  <feature>/
+    <unit>.<ext>            ← one job each
+    <sub-feature>/          ← only once 3 related files earn it
+      <unit>.<ext>
+      <entry>               ← front door
+    <entry>
+  <entry>
+```
+
+**Where the levels sit depends on the framework's outer shell:**
+
+- The framework lets the top folders be named freely → business folders go at the top
+  (`<business>/<feature>/…`).
+- The framework dictates the top folders → business and feature folders go *inside* the mandated ones
+  (`<mandated-folder>/<business>/<feature>/…`).
+
+Same model, different height. Never fight the framework to lift business folders to the top — apply the
+model wherever the folders are yours to name.
 
 ---
 
-## ST-002 — A folder is a module with one public entry
+## ST-001 — Name by meaning, not by kind
 
-Each folder of substance has an `index` file (`index.ts`, `__init__.py`, `mod.rs`, `package-info.java`, `index.php` depending on the language) that lists what other code is allowed to use. Everything else is private.
+A folder or file name states **what it's about** — the part of the product it serves, or the job it does
+— never **what technical category it belongs to**.
 
-```
-checkout/
-  Checkout.ts             ← internal
-  cart.ts                 ← internal
-  pricing.ts              ← internal
-  index.ts                ← 🚪 declares the public surface
-```
+- ❌ named by kind: `controllers/`, `services/`, `models/`, `repositories/`, `utils/`, `helpers/`, `types/`
+- ✅ named by meaning: the area of the product, or the job performed (`<verb>-<noun>.<ext>`)
 
-```ts
-// ✅ Consumers go through the front door
-import { Checkout } from './checkout'
+This applies **at whatever level the names are yours to choose**. If the framework hands over a `Services/`
+folder, keep it — but inside it, group by area of the product; don't pile everything flat.
 
-// ❌ Consumers reach past the front door
-import { Checkout } from './checkout/Checkout'
-import { applyDiscount } from './checkout/pricing'
-```
+**Test:** read the names you created aloud. If they describe the tech stack ("controllers, services,
+models"), the inside is filed by kind — wrong. If they describe the product, it's filed by meaning — right.
 
-The same idea exists in every language:
-
-| Language | Convention |
-|---|---|
-| TypeScript / JavaScript | `index.ts` re-exports the public symbols |
-| Python | `__init__.py` lists `__all__` or imports public names from submodules |
-| Rust | `mod.rs` (or `lib.rs`) declares which submodules are `pub` |
-| Java | package boundaries + `public` access modifier on the entry types |
-| C# | `public` types in the capability namespace are the surface; `internal` is hidden |
-| Go | exported identifiers (capitalized names) form the package's API |
-| PHP | namespace + public class visibility |
-
-**Why this rule matters:** the public surface is a *contract*. Internals change without breaking callers; public symbols are committed to. Without an explicit entry, every file is implicitly public — and refactoring even a private helper becomes a breaking change because some distant caller imported it directly.
-
-**Single-file folder exception:** if a folder has one file, callers may import the file directly. Add an `index` once the folder gains a second file.
+**Why:** when one part of the product is one folder, changing or deleting it touches one folder. When it's
+smeared across kind-named layers, every change touches every layer.
 
 ---
 
-## ST-003 — No deep imports past the folder's public API
+## ST-002 — Each folder of substance has one front door
 
-This is the runtime enforcement of ST-002. Cross-folder imports must go through the destination folder's public entry. Reaching into another folder's internals breaks encapsulation, ties you to implementation details, and creates fanout chains that make refactoring impossible.
-
-```ts
-// ✅ Allowed
-import { Checkout } from '@/checkout'
-
-// ❌ Forbidden — bypasses the public API
-import { applyDiscount } from '@/checkout/pricing'
-import { Checkout } from '@/checkout/Checkout'
-```
-
-**Enforce it:**
-
-- **JS / TS** — ESLint's `import/no-restricted-paths` or `eslint-plugin-boundaries`.
-- **Python** — `import-linter` with layered/independence contracts, or a custom flake8 check.
-- **Java / Kotlin** — ArchUnit rules.
-- **C#** — Roslyn analyzers (`NetArchTest`, `ArchUnitNET`).
-- **Go** — `go-cleanarch` or `import-boss`; alternatively use `internal/` folders (Go's built-in mechanism — code under `pkg/foo/internal/` is invisible to packages outside `pkg/foo/`).
-- **PHP** — Deptrac.
-
-A skill doesn't replace the linter. The skill catches the rule at write/review time; the linter catches it on every commit forever after.
-
----
-
-## ST-004 — Rule of Three: nothing starts shared
-
-Shared code is the most expensive code in the codebase — changing it means changing every caller, every test, every assumption that depends on it being stable. Earn shared status by demonstrating actual reuse.
-
-The promotion path is mechanical:
-
-1. **First use** → write the code inside the folder that needs it.
-2. **Second use** → it is okay to **duplicate**. Yes, really. Two copies of a 5-line helper is better than a premature shared abstraction.
-3. **Third use** → *now* extract to `shared/` (or the language's equivalent — `internal/` in Go, `common/` in some Python codebases).
-
-**Why duplication at two is right:** when only two callers exist, you don't yet know whether they will diverge. A "shared" helper extracted from two callers gets a third user three weeks later who needs a slightly different version — and now you're stuck. Either you fork (and the third user reimplements it), or you parameterize (and the shared helper grows flags and conditionals until it's worse than the duplicates). At three users you actually know the shape.
-
-**Anti-rule:** never *start* in `shared/`. Speculative shared code is the worst kind of shared code — written for users that may never exist.
-
----
-
-## ST-005 — No junk-drawer files
-
-A junk-drawer file is one whose name describes nothing about its contents: `utils.ts`, `helpers.ts`, `common.ts`, `misc.ts`, `lib.ts`, `Utils.cs`, `helpers.py`, `Util.java`. Everything ends up there because nothing has to.
-
-**The smell:** a file that grows by accretion. Functions land in it because the author didn't think about where they actually belonged.
-
-**The rule:** name files by **what they do**, not by **what kind of thing they are**.
-
-| ❌ Junk drawer | ✅ Named |
-|---|---|
-| `utils.ts` | `format-currency.ts`, `parse-date.ts`, `slugify.ts` |
-| `helpers.ts` | `validate-email.ts`, `compute-tax.ts` |
-| `common.ts` | `http-client.ts`, `retry.ts`, `backoff.ts` |
-| `misc.py` | `image_resize.py`, `text_normalize.py` |
-| `Util.cs` | `MoneyFormatter.cs`, `DateRangeValidator.cs` |
-
-`shared/lib/<purpose>.ts` is allowed because each file has a specific purpose. `shared/utils.ts` is forbidden because the name promises nothing.
-
-**One-rule corollary — no junk-drawer constants/types files either.** A top-level `src/constants.ts` or `src/types.ts` is the same anti-pattern. Constants live next to the code that owns them; capability-wide types live in the capability's `types.ts`; truly app-wide types live in `shared/types/global.ts` with a narrow surface.
-
----
-
-## ST-006 — Generic component or type names live only at the design-system layer
-
-A name like `Card`, `Modal`, `Button`, `Selector`, `Repository<T>`, `BaseEntity` is
-too generic to mean anything about the business. Generic names belong **only at the
-shared / design-system layer**; capability code uses domain-qualified names
-(`AppointmentCard`, `OrderRepository`, `PrescriptionDoseEditor`).
-
-This holds in every language and applies to both UI components and types:
-- a generic UI primitive (`Button`, `Modal`) lives in the project's design-system
-  folder, never inside a capability;
-- `Repository<T>` (one generic interface every capability implements) is a smell —
-  repositories should be capability-shaped (`OrderRepository`) with domain methods;
-- a `BaseEntity` parent every entity extends is usually a shared ID/timestamp shape
-  better expressed as a mixin than a parent.
-
-**The design-system folder's name and the file extensions are framework-specific**
-— each `references/<framework>/structure.md` shows the concrete folder and the
-naming convention for its language. This rule states only the principle.
-
----
-
-## ST-007 — Tests, types, and styles live next to source
-
-Anything that exists *because of* a file belongs *next to* that file.
+A folder holding more than one file exposes a single entry (`index.ts`, `__init__.py`, a package's
+exported names — whatever the language uses) that declares what outsiders may use. Everything else is
+private.
 
 ```
-checkout/
-  Checkout.ts
-  Checkout.test.ts        ← right next to the file under test
-  cart.ts
-  cart.test.ts
-  types.ts                ← capability-local types
-  index.ts
+<feature>/
+  <unit-a>.<ext>     ← private
+  <unit-b>.<ext>     ← private
+  <entry>            ← the front door: the only thing others import
 ```
 
-A separate top-level `tests/` mirror of `src/` (`tests/checkout/Checkout.test.ts`) is forbidden — tests drift away from the code they cover, get forgotten in refactors, and slow down navigation.
+The front door is a contract: insides change freely, the door stays stable. Without one, every file is
+implicitly public and nothing can be refactored safely.
 
-The same applies to every artifact that exists *because of* a source file —
-co-locate it. The concrete suffixes are language/framework-specific and documented
-in the framework files: TS uses `.test.ts` / `.types.ts` / `.stories.tsx`; Python
-uses `test_*.py` next to the module; Go uses `*_test.go` in the same package; C#
-uses `*Tests.cs`. The rule is the same everywhere: the artifact lives next to what
-it describes, never in a parallel mirror tree.
-
-**Exception:** integration / end-to-end tests that exercise the whole app, not one file. Those legitimately live at the project root (`tests/e2e/`, `tests/integration/`) because they don't belong to any one source file.
+Single-file folder: callers may import it directly; add the front door when the second file arrives.
 
 ---
 
-## ST-008 — One file, one responsibility; grow folders by tier, not by accretion
+## ST-003 — Don't reach past the front door
 
-Source is organized in four tiers: **Domain → Feature → Sub-feature → Unit**.
-
-| Tier | Also called | What it is |
-|---|---|---|
-| Domain | Bounded Context, Capability | A top-level area of *what the product does* (ST-001) |
-| Feature | Feature Module, Vertical Slice | A cohesive capability inside the domain |
-| Sub-feature | Component, Concern | A distinct piece inside a feature (a folder once it earns 2+ files) |
-| Unit | Module file | One responsibility, one file |
-
-A *unit* (one file) has **one reason to change**. ST-005 governs a file's *name*;
-ST-008 governs its *scope*. A file can have a perfect name and still be wrong — if
-`payment.ts` parses input, talks to a gateway, and writes the ledger, it is three
-units wearing one filename.
-
-**The smell:** a well-named file that grows by accretion — it passes ST-005 (the
-name is fine) but does several unrelated things.
-
-**Detectable trigger — check before every write:**
-- the file exceeds the project threshold (default ~400 lines / ~10 top-level
-  declarations — tunable in `.coding-standards-structure`), **or**
-- it holds 2+ unrelated responsibility clusters (e.g. a state machine *and* regex
-  parsers *and* file I/O), **or**
-- you are about to *add* a concern to a file that already owns a different one.
-
-**Then:** extract the new concern into a named sibling unit. When three siblings
-share a theme, promote them to a sub-feature folder with its own `index` (Rule of
-Three, ST-004). **Never create a folder for a single file**, and if a feature has a
-handful of flat units, stop at the feature tier — a sub-feature folder there is
-over-engineering (DP-006 KISS).
-
-**Worked example — a unit doing three things splits into siblings:**
+Cross-folder imports go through the destination's front door, never into its internals.
 
 ```
-# Before — one unit, three responsibilities
-billing/
-  invoice.ts        ← parses requests + computes totals + persists rows
-  index.ts
-
-# After — one responsibility per unit, same public door
-billing/
-  parse-invoice-request.ts   ← input parsing
-  invoice.ts                 ← the orchestrator (compute + coordinate)
-  invoice-store.ts           ← persistence
-  index.ts                   ← still the only public entry (ST-002)
+✅ import { thing } from '<folder>'
+❌ import { thing } from '<folder>/<internal-file>'
 ```
 
-The behavioral companion is **DP-002** (extract an abstraction when you have 2+
-variants of a behavior) — structure splits *responsibilities*; DP-002 splits
-*variants*.
-
-> **Enforcement note:** the `warn-god-file.py` hook emits an *advisory* warning at
-> write time when a file crosses the threshold (it never blocks — a raw size count
-> has too high a false-positive rate to gate on). The judgement parts of this rule
-> (responsibility clusters) are checked by Worker 1 and in Review mode.
+Reaching in couples the caller to private details, so renaming or moving those details breaks distant code.
+Enforce with the project's import linter (the skill catches it at write time; the linter catches it on
+every commit).
 
 ---
 
-## How framework files extend this
+## ST-004 — Don't share until proven; share at the lowest level that covers it
 
-Every `references/<framework>/structure.md` builds on these rules. A framework file may:
+Shared code is the most expensive code — a change to it changes every caller. Earn it:
 
-- **Specialize a rule** — e.g., a framework may say "the framework-mandated entry folder stays thin; business logic lives in capabilities" (specialization of ST-001).
-- **Add framework-specific rules** — e.g., "bundles don't nest," or "one feature, one module file."
-- **Carve a named exception** — e.g., a framework keeps its stock skeleton at the top (ST-001 exception, documented in the framework file), or DTOs are intentionally "hybrid" (Objects & Data OD-004 exception).
+1. **First use** → write it where it's used.
+2. **Second use** → copying is allowed; two small copies beat a wrong abstraction.
+3. **Third use** → now extract it.
 
-A framework file may **not** silently override these rules. If a framework's idiom genuinely conflicts with a structural rule, the framework file names the conflict explicitly and explains why the carve-out is necessary.
+When extracted, it rises only to the **lowest level that covers everything using it**: used by two features
+of one business → it lives at that business's level, not the global shared; used across businesses → only
+then the top-level `shared/`.
+
+**Never start in `shared/`** — code written for callers that don't exist yet is the worst kind.
+
+(Exception: stable external infrastructure — a third-party client, a library wrapper — may be shared at two
+users, because it won't diverge. Rule of Three guards against sharing *business logic* prematurely, not
+against reusing a fixed tool.)
 
 ---
 
-## Review checklist (universal — apply to every file in every project)
+## ST-005 — No junk-drawer names
+
+A name that describes nothing collects everything: `utils`, `helpers`, `common`, `misc`. Name a file by
+the job it does (`<verb>-<noun>`), so it has exactly one reason to exist.
+
+The same applies to catch-all mega-files — a single top-level `types` or `constants` holding the whole
+project. Split them; constants and types live beside the code that owns them.
+
+---
+
+## ST-006 — Generic names only in the shared / design-system layer
+
+A name generic enough to mean anything (`Card`, `Modal`, `Button`, `Repository<T>`, `BaseEntity`) says
+nothing about the product. Such names belong only in the shared design-system layer. Inside a business or
+feature, qualify the name with what it's for (`<domain>Card` rather than `Card`; `<domain>Repository`
+rather than `Repository<T>`).
+
+The exact design-system folder name and file suffixes are framework-specific; the framework file gives them.
+
+---
+
+## ST-007 — Tests, types, and styles sit beside what they describe
+
+Anything that exists *because of* a file lives *next to* it.
 
 ```
-Top-level layout
-  □ Folders at the top of src/ describe the business, not technical layers
-  □ No utils.ts, helpers.ts, common.ts, misc.ts, lib.ts, etc.
-  □ No top-level mega-files (src/types.ts, src/constants.ts)
-  □ shared/ contains only code with 3+ real users
+<feature>/
+  <unit>.<ext>
+  <unit>.test.<ext>      ← beside the file it tests
+  <unit>.types.<ext>     ← feature-local types
+```
 
-Per folder
-  □ Has an index entry (index.ts, __init__.py, mod.rs, ...) once it has 2+ files
-  □ Generic names (Card, Modal, Repository<T>) only in the design-system / shared layer
-  □ Capability code uses domain-qualified names
+A separate top-level `tests/` tree mirroring the source is forbidden — it drifts from the code and gets
+forgotten. (Exception: whole-app end-to-end tests, which belong to no single file, live at the project root.)
+
+---
+
+## ST-008 — One file, one job; grow by splitting, not by piling on
+
+The rule that matters most, and the one most often gotten wrong: a file keeps absorbing jobs until it does
+everything.
+
+**One file = one reason to change.** ST-005 governs a file's *name*; ST-008 governs its *scope*. A file
+can be perfectly named and still wrong — if one file parses input, calls an external service, *and* writes
+to storage, that's three jobs in one file.
+
+**Split when any of these holds** (check before adding to a file):
+
+- the file already does two or more unrelated things,
+- you're about to add a job to a file that already owns a different one,
+- it has grown past roughly **400 lines / 10 top-level declarations** (a nudge, not a hard gate; tunable
+  per project).
+
+**Then** move the new job into its own named file beside the original. Once 3 such siblings share a theme,
+promote them to a sub-feature folder with its own front door (Rule of Three). Never create a folder for one
+file, or a sub-feature folder for symmetry.
+
+```
+# Before — one file, three jobs
+<feature>/
+  <feature>.<ext>        ← parses input + calls a service + writes storage
+  <entry>
+
+# After — one job per file, same front door
+<feature>/
+  parse-input.<ext>
+  <feature>.<ext>        ← coordinates the steps
+  store-record.<ext>
+  <entry>
+```
+
+**Variants split differently.** When a job has interchangeable forms, don't grow one file with branches —
+define **one shared interface plus one file per form**, and select the right one at runtime. A new form is
+then one new file; nothing else changes.
+
+```
+<feature>/<forms>/
+  <form-interface>.<ext>   ← the shared shape every form implements
+  <form-a>.<ext>
+  <form-b>.<ext>
+  <entry>
+```
+
+> A write-time hook (`warn-god-file.py`) warns when a file crosses the size threshold; it never blocks (a
+> raw line count is too blunt to gate on). The judgement — "is this two jobs?" — stays with the author and
+> the review.
+
+---
+
+## How framework files build on this
+
+Each `references/<framework>/structure.md` adds only what's specific to that framework: what the front door
+*is* in that language, which outer folders the framework forces (so business folders are filed in the right
+place), and that framework's own traps. It does not restate the rules above — they load alongside it.
+
+---
+
+## Review checklist
+
+```
+Naming & filing
+  □ Names describe meaning, not technical kind (no controllers/, services/, utils.ts)
+  □ Filed business → feature → sub-feature → unit, inside whatever the framework gave
+  □ No junk-drawer names or catch-all mega-files
+  □ Generic names (Card, Modal, Repository<T>) only in the shared/design-system layer
 
 File scope (ST-008)
-  □ No unit holds 2+ unrelated responsibilities (god-file)
-  □ Oversized files (advisory warn-god-file threshold) are split into named siblings
-  □ Sub-feature folders are earned (2+ cohesive files), not created for symmetry
+  □ No file does two or more unrelated jobs
+  □ Oversized files split into named siblings
+  □ Variants split into one-interface + one-file-each, not branches in one file
+  □ Sub-feature folders earned by 3+ related files, not made for symmetry
 
-Imports
-  □ Cross-folder imports go through the folder's public entry
-  □ No deep imports past index / public API
-  □ Enforced by linter (ESLint, import-linter, ArchUnit, ...)
-
-Co-location
-  □ Tests next to source, not in a parallel tests/ tree
-  □ Types, fixtures, stories next to the files they describe
+Boundaries & sharing
+  □ Each multi-file folder has one front door
+  □ No import reaches past a folder's front door
+  □ Nothing shared before its third user; shared code sits at the lowest covering level
+  □ Tests/types/styles sit beside what they describe
 ```

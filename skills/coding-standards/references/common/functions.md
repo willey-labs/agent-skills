@@ -138,22 +138,10 @@ Now the call site reads like a conversation: *Does it exist? No. Then set it.* C
 
 ## FN-010 — Make failure handling invisible to the algorithm
 
-The algorithm should read as the algorithm. Failure handling should be one separate concern, in one separate place — never interleaved with the steps of the work.
-
-The wrong shape is *integer error codes* checked at every step:
-
-```
-// Algorithm disappears under guards
-if (addUser(...) === Error.OK) {
-  if (addProfile(...) === Error.OK) {
-    if (addEmail(...) === Error.OK) {
-      ...
-    }
-  }
-}
-```
-
-The right shape uses **whichever idiomatic failure mechanism your language gives you** to keep the algorithm clean:
+Keeping failure handling out of the algorithm's visible body is EH-001's job (see `error-handling.md`,
+which has the before/after). This rule is the other half: *how* a function signals failure once it's
+separated out. Use **whichever idiomatic failure mechanism your language gives you** — not error codes
+ported in from another language:
 
 | Language family | Idiomatic mechanism | What the algorithm looks like |
 |---|---|---|

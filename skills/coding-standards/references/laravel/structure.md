@@ -1,504 +1,66 @@
-# Laravel — Architecture
+# Laravel — Structure
 
-The chosen pattern for Laravel projects: **stock Laravel skeleton** — keep the framework's default folder layout (`app/Http/`, `app/Models/`, `app/Providers/`) and add an `app/Services/` folder for business logic. Group large folders by capability via subfolders.
+## Builds on `common/structure.md`
 
-> **Laravel 11/12 note** (12 is current as of 2026, PHP 8.2+): Laravel 11+ ships a slimmer skeleton — there's no default `app/Http/Middleware/`, `app/Console/Kernel.php`, or `app/Exceptions/Handler.php`; middleware, exceptions, and providers are now configured in `bootstrap/app.php` and `bootstrap/providers.php`. The capability-subfolder advice below still applies to the folders that DO exist (`app/Http/Controllers/`, `app/Models/`, `app/Services/`, `app/Providers/`); just don't expect the pre-11 `Kernel.php`/`Handler.php` files.
+Laravel is the one **exception** to "name the top folders by business." Its routing, queues, scheduling,
+broadcasting, and `make:*` generators all expect the stock skeleton (`app/Http/Controllers/`,
+`app/Models/`, `app/Services/`, …). So keep the stock skeleton at the top of `app/` — don't fight it with
+`app/<Business>/`. Apply the business → feature → sub-feature → unit model from `common/structure.md` *inside*
+those stock folders. The rest of `common/` (front door, Rule of Three, no junk drawers, one job per file)
+applies unchanged.
 
----
+## Outer shell
 
-## Why stock Laravel and not flat business folders
-
-Every other framework in this skill uses flat top-level business folders (`src/orders/`, `src/auth/`). Laravel is the deliberate exception:
-
-- Laravel's stock skeleton (`app/Http/Controllers/`, `app/Models/`) is what every tutorial, every package, every IDE plugin, every contributor coming from another Laravel project expects.
-- Artisan generators (`make:controller`, `make:model`, `make:request`) write to those stock paths by default.
-- Routing, middleware, view composers, queue workers, scheduled commands, and broadcasting all reference these folders implicitly.
-
-Fighting that costs more than it gains. The rules below accept Laravel's package-by-layer skeleton and impose discipline *inside* it: thin controllers, services for orchestration, capability grouping via subfolders.
-
-**Builds on `common/structure.md` — with a named exception.** The universal rule ST-001 says "top-level folders inside `src/` name the business." Laravel is the deliberate framework-wide exception: stock skeleton at the top of `app/`, capability subfolders *inside* `Controllers/`, `Requests/`, `Resources/`, `Services/`. The other universal rules in `common/structure.md` (no junk-drawer files, Rule of Three for `shared/`, generic names at the design-system layer) still apply normally. Read `common/structure.md` first to understand the rule it's bending.
-
----
-
-## Mandatory shape
+Once a capability gains supporting files, group it with a subfolder *within* its stock parent — and repeat
+the same business subfolder across every layer:
 
 ```
-app/
-  Console/                          ← Artisan commands
-    Commands/
-
-  Exceptions/
-    Handler.php
-
-  Http/
-    Controllers/                    ← thin — delegate to services
-      Controller.php                ← Laravel's base controller
-      Orders/                       ← grouped by capability
-        OrderController.php
-      Catalog/
-        ProductController.php
-        CategoryController.php
-      Billing/
-        PaymentController.php
-        InvoiceController.php
-      Auth/
-        AuthController.php
-
-    Middleware/
-      Authenticate.php
-      RequestLogger.php
-      RateLimiter.php
-
-    Requests/                       ← Form Requests (validation)
-      Orders/
-        PlaceOrderRequest.php
-        CancelOrderRequest.php
-      Auth/
-        SignInRequest.php
-        RegisterRequest.php
-
-    Resources/                      ← API response shaping
-      Orders/
-        OrderResource.php
-      Catalog/
-        ProductResource.php
-
-  Models/                           ← Eloquent models
-    Order.php
-    OrderItem.php
-    Product.php
-    Category.php
-    Payment.php
-    Invoice.php
-    User.php
-
-  Services/                         ← business logic, orchestration
-    Orders/
-      OrderService.php              ← orchestrates place/cancel/refund
-    Catalog/
-      ProductService.php
-    Billing/
-      PaymentService.php
-    Auth/
-      AuthService.php
-
-  Events/                           ← (when needed)
-    OrderPlaced.php
-    PaymentCaptured.php
-
-  Listeners/                        ← (when needed)
-    SendOrderConfirmation.php
-    ReleaseInventoryReservation.php
-
-  Jobs/                             ← queue jobs
-    ProcessRefund.php
-
-  Mail/                             ← mailables
-    OrderConfirmation.php
-
-  Notifications/                    ← notifications
-    OrderShipped.php
-
-  Policies/                         ← authorization policies
-    OrderPolicy.php
-
-  Providers/                        ← service providers
-    AppServiceProvider.php
-    AuthServiceProvider.php
-    EventServiceProvider.php
-    RouteServiceProvider.php
-
-  Rules/                            ← custom validation rules
-    UniqueOrderReference.php
-
-bootstrap/, config/, database/, public/, resources/, routes/, storage/, tests/   ← Laravel stock
+app/Http/Controllers/<Business>/<Business>Controller.php
+app/Http/Requests/<Business>/<Action>Request.php
+app/Models/<Business>/<Entity>.php
+app/Services/<Business>/                 ← the real domain logic
+  <Feature>/                             ← sub-feature, earned (3+ files)
+    <Feature>Service.php
+    <Action>.php
+    <Forms>/                             ← variants: interface + one file per form
 ```
 
-**The principle:** the folder names at the top of `app/` are *what Laravel expects them to be*. Inside the larger folders (`Controllers/`, `Requests/`, `Resources/`, `Services/`), group files by capability using subfolders once you have 3+ files of that kind for a capability.
+(Laravel 11+ ships only `AppServiceProvider`; middleware, exceptions, and routing live in
+`bootstrap/app.php`, not in stock provider classes.)
 
----
+## Naming (PSR-4)
 
-## LRV-001 — Top-level `app/` folders are Laravel's stock layout
+- **Folders are namespaces → `PascalCase`**: `app/Services/<Business>/`, never lowercase `<business>/`.
+  The folder name is part of the class's namespace.
+- **Files → `PascalCase.php`** matching the class inside.
+- Models are nouns (`<Entity>.php`), action classes are verbs (`<Verb><Entity>.php`), `<Action>Request.php`,
+  `<Entity>Resource.php`.
 
-| Allowed at the top of `app/` | Forbidden |
-|---|---|
-| ✅ Laravel stock folders: `Console/`, `Exceptions/`, `Http/`, `Models/`, `Providers/` | ❌ `app/Domain/` — that's DDD-style and not what this skill prescribes |
-| ✅ `Services/` — universally added by serious Laravel teams | ❌ `app/Orders/`, `app/Catalog/` (top-level business folders fight Laravel's skeleton) |
-| ✅ Laravel stock as-needed: `Events/`, `Listeners/`, `Jobs/`, `Mail/`, `Notifications/`, `Policies/`, `Rules/` | ❌ `app/Modules/`, `app/Features/` |
-|  | ❌ `app/Helpers/`, `app/Utils/` (junk drawers) |
+## Front door
 
-A new file generated by `php artisan make:controller OrderController` lands in `app/Http/Controllers/`. The rules below extend that — they don't replace it.
+Laravel has no `index` file. A folder's public surface is its **public service / action class** — callers
+depend on that, not on its siblings. For swappable variants, the **interface** is the front door and the
+implementation is bound in `AppServiceProvider`.
 
----
+## Laravel specifics
 
-## LRV-002 — Group inside the layer by capability once it grows
+- **Controllers are thin** — type-hint a Form Request to validate, type-hint a service (the container
+  injects it), call it, return a Resource. No DB queries, business rules, or job dispatch in a controller;
+  if a method runs past ~5 lines, move the body into the service.
 
-Laravel's stock layout is layered (`Controllers/`, `Models/`, `Requests/`). For small apps that's fine. As soon as a layer reaches 3+ files for one capability, **group with a subfolder**:
+- **Services own use cases** — one verb-named method per business action, or one invokable Action class per
+  use case (pick one style, stay consistent). Past ~10 methods a service is a god class — split into Actions.
 
-```
-Before (flat — fine when small):
-  app/Http/Controllers/OrderController.php
-  app/Http/Controllers/ProductController.php
-  app/Http/Controllers/PaymentController.php
+- **Validation → Form Requests** at the boundary (`rules()` + `authorize()`), never inline
+  `$request->validate()` in a controller.
 
-After (grouped — needed once each capability gains supporting files):
-  app/Http/Controllers/Orders/
-    OrderController.php
-    OrderItemController.php
-    OrderRefundController.php
-  app/Http/Controllers/Catalog/
-    ProductController.php
-    CategoryController.php
-  app/Http/Controllers/Billing/
-    PaymentController.php
-    InvoiceController.php
-```
+- **Responses → API Resources** — never return an Eloquent model straight from a controller; shape it
+  through a Resource.
 
-Same rule applies to `Requests/`, `Resources/`, `Services/`, `Events/`, `Listeners/`, `Jobs/`. The capability folder lives *inside* its Laravel-stock parent.
+- **Eloquent is the allowed hybrid (`common/objects-and-data.md` OD-005).** Put behavior *on* the model when
+  it's about the model's own data (`$<entity>->total()`, `$<entity>->cancel($reason)`, query scopes). Put it in a
+  **service** when it coordinates multiple models or external systems (charge payment, send mail, dispatch
+  jobs). The model must not become a god class owning cross-cutting workflows.
 
-**Why not group at the top of `app/` instead?** Because Laravel's routing, queues, scheduling, broadcasting, and generators all expect controllers in `Http/Controllers/`, models in `Models/`, etc. Subfolder grouping keeps those conventions intact while still co-locating each capability's pieces *within each layer*.
-
----
-
-## LRV-003 — Behavior on Eloquent models when it's about the model's data; in services when it's about orchestration
-
-**Framework-boundary carve-out (see `common/objects-and-data.md` OD-005).** Eloquent models, Form Requests with `rules()` / `authorize()` methods, and API Resources carry both data shape *and* framework behavior — that's by design and is allowed. Eloquent is an Active Record; OD-004 already names Active Record as the exception. The line stays firm: *cross-cutting workflows* (charging payment, sending email, dispatching jobs across capabilities) belong in services, not on the model.
-
-This is the most-debated rule in Laravel projects. The clean answer:
-
-**Put behavior on the Eloquent model when:**
-- It computes something derived from the model's own attributes/relations: `$order->total()`, `$order->isCancellable()`, `$user->fullName()`.
-- It mutates the model itself via its own data: `$order->cancel($reason)` setting `status = 'cancelled'`.
-- It's a query scope: `Order::scopePending()`, `Product::scopeInStock()`.
-
-**Put behavior in a service when:**
-- It coordinates *multiple* models or external systems: charging the customer, sending email, dispatching the warehouse job.
-- It enforces use-case-wide invariants spanning concerns.
-- It performs a transaction that touches multiple aggregates.
-
-```php
-// ✅ Good — Order owns its own status transitions and totals
-class Order extends Model
-{
-    public function items() { return $this->hasMany(OrderItem::class); }
-
-    public function total(): int {
-        return $this->items->sum(fn($i) => $i->subtotal());
-    }
-
-    public function isCancellable(): bool {
-        return $this->status !== OrderStatus::Shipped;
-    }
-
-    public function cancel(string $reason): void {
-        if (!$this->isCancellable()) {
-            throw new CannotCancelShippedOrderException();
-        }
-        $this->status = OrderStatus::Cancelled;
-        $this->cancellation_reason = $reason;
-        $this->save();
-        OrderCancelled::dispatch($this);
-    }
-}
-
-// ✅ Good — OrderService orchestrates across the system
-namespace App\Services\Orders;
-
-class OrderService
-{
-    public function __construct(
-        private PaymentService $payments,
-        private InventoryService $inventory,
-    ) {}
-
-    public function place(PlaceOrderRequest $request): Order {
-        $this->inventory->reserve($request->input('items'));
-        $order = Order::create([...]);
-        $this->payments->charge($order);
-        return $order;
-    }
-}
-```
-
-Eloquent is an Active Record. The Active Record pattern *allows* navigational methods (`save`, `delete`, relationships) and *allows* behavior tied to the model's own data. What it forbids is the model becoming a god class that owns cross-cutting workflows — push those into services.
-
----
-
-## LRV-004 — Controllers are thin
-
-Controllers do four things and nothing else:
-
-1. Type-hint a Form Request to validate input.
-2. Type-hint a service (Laravel's container injects it).
-3. Call the service.
-4. Return an API Resource, redirect, or response.
-
-```php
-namespace App\Http\Controllers\Orders;
-
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Orders\PlaceOrderRequest;
-use App\Http\Requests\Orders\CancelOrderRequest;
-use App\Http\Resources\Orders\OrderResource;
-use App\Models\Order;
-use App\Services\Orders\OrderService;
-
-final class OrderController extends Controller
-{
-    public function __construct(private OrderService $orders) {}
-
-    public function store(PlaceOrderRequest $request): OrderResource
-    {
-        $order = $this->orders->place($request);
-        return new OrderResource($order);
-    }
-
-    public function destroy(CancelOrderRequest $request, Order $order)
-    {
-        $this->orders->cancel($order, $request->validated('reason'));
-        return response()->noContent();
-    }
-}
-```
-
-**Forbidden in controllers:**
-- ❌ Direct DB queries (`DB::table(...)`, `Order::where(...)->get()` beyond simple finds via route-model binding)
-- ❌ Business rules (`if ($order->customer->is_vip) { ... }`)
-- ❌ Sending notifications, dispatching jobs (move to service or to a model method)
-- ❌ Inline validation (use a Form Request)
-
-If a controller method exceeds ~5 lines, push the body into the service.
-
----
-
-## LRV-005 — Validation belongs in Form Requests
-
-Use Laravel Form Requests at the boundary so the controller and service can trust their input:
-
-```php
-namespace App\Http\Requests\Orders;
-
-use Illuminate\Foundation\Http\FormRequest;
-
-final class PlaceOrderRequest extends FormRequest
-{
-    public function rules(): array {
-        return [
-            'customer_id'         => ['required', 'uuid', 'exists:users,id'],
-            'items'               => ['required', 'array', 'min:1'],
-            'items.*.product_id'  => ['required', 'uuid', 'exists:products,id'],
-            'items.*.quantity'    => ['required', 'integer', 'min:1'],
-        ];
-    }
-
-    public function authorize(): bool {
-        return $this->user()->can('placeOrders');
-    }
-}
-```
-
-The controller type-hints `PlaceOrderRequest $request` and Laravel runs validation before the controller body executes. No `$request->validate([...])` inline in controllers.
-
----
-
-## LRV-006 — Services own use cases; one method per use case
-
-Services are the orchestration layer. Keep methods at the level of *use cases* — one method per business action, named with a verb.
-
-```php
-namespace App\Services\Orders;
-
-class OrderService
-{
-    public function place(PlaceOrderRequest $request): Order { ... }
-    public function cancel(Order $order, string $reason): void { ... }
-    public function refund(Order $order, Money $amount): Refund { ... }
-}
-```
-
-**When a service grows beyond ~5 use-case methods**, consider splitting along the use-case lines into single-purpose classes (the Actions pattern — see LRV-006b). Don't let a service become a god class with 20 methods.
-
-### LRV-006b — Actions pattern (lighter alternative)
-
-Some teams prefer one invokable class per use case instead of grouping use cases in a service. Either is acceptable; pick one and stay consistent:
-
-```php
-// app/Services/Orders/PlaceOrder.php  (or app/Actions/Orders/PlaceOrder.php)
-namespace App\Services\Orders;
-
-final class PlaceOrder
-{
-    public function __construct(
-        private PaymentService $payments,
-        private InventoryService $inventory,
-    ) {}
-
-    public function __invoke(PlaceOrderRequest $request): Order {
-        $this->inventory->reserve($request->input('items'));
-        $order = Order::create([...]);
-        $this->payments->charge($order);
-        return $order;
-    }
-}
-
-// in the controller
-public function store(PlaceOrderRequest $request, PlaceOrder $placeOrder): OrderResource
-{
-    return new OrderResource($placeOrder($request));
-}
-```
-
-Actions are smaller and easier to test in isolation. Services group related actions. Both are valid — the rule is one consistent choice per project.
-
----
-
-## LRV-007 — Repositories only when there's a real reason
-
-Don't add a repository class just because "clean architecture." Eloquent already gives you a queryable, mockable persistence layer. Add a repository only when:
-
-- You have **complex queries** (joins across many tables, reporting queries) that don't belong on the model.
-- You need to **swap the persistence** (rare in practice).
-- You want to **mock persistence in tests** at the boundary — though most teams just use `RefreshDatabase` and integration tests instead.
-
-If you do add one, keep it thin and capability-grouped:
-
-```
-app/Repositories/Orders/OrderRepository.php
-```
-
-The repository wraps Eloquent — it doesn't replace it. Eloquent stays the queryable model; the repository holds *complex* queries that don't fit cleanly on the model itself.
-
----
-
-## LRV-008 — Cross-capability side effects via events
-
-Capabilities don't reach into each other's services directly. When `Orders/` finishes an order and shipping needs to react, dispatch an event; don't call `ShippingService::ship()` from `OrderService::place()`.
-
-```php
-// In OrderService
-$order->save();
-OrderPlaced::dispatch($order);
-
-// In a separate listener
-namespace App\Listeners;
-
-class SendToShippingQueue
-{
-    public function __construct(private ShippingService $shipping) {}
-
-    public function handle(OrderPlaced $event): void {
-        $this->shipping->scheduleShipment($event->order);
-    }
-}
-```
-
-Why: capabilities stay independent, you can add new listeners without touching `OrderService`, and you can run the side effects async via queues by default.
-
-For tight, synchronous coupling that genuinely shouldn't be deferred (e.g. enforcing an invariant that spans two capabilities), call the other capability's service directly — but treat that as the exception, not the default.
-
----
-
-## LRV-009 — Routes group by capability
-
-Inside `routes/api.php` (or `web.php`), group endpoints by capability and import controllers from their namespace:
-
-```php
-use App\Http\Controllers\Orders\OrderController;
-use App\Http\Controllers\Catalog\ProductController;
-use App\Http\Controllers\Auth\AuthController;
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::apiResource('orders',   OrderController::class);
-    Route::apiResource('products', ProductController::class);
-});
-
-Route::post('auth/sign-in',  [AuthController::class, 'signIn']);
-Route::post('auth/sign-out', [AuthController::class, 'signOut']);
-```
-
-For larger projects, extract per-capability route files (`routes/orders.php`, `routes/catalog.php`) and require them from `api.php` / register them in `RouteServiceProvider`.
-
----
-
-## LRV-010 — Service container bindings
-
-Most Laravel apps don't need many manual bindings — typed constructor injection just works. When you do bind something:
-
-- App-wide bindings (logger swap, HTTP client config) → `AppServiceProvider::register()`.
-- Auth-related bindings → `AuthServiceProvider`.
-- Event/listener mapping → `EventServiceProvider`.
-- Route loading → `RouteServiceProvider`.
-
-A capability that needs many bindings can ship its own `<Capability>ServiceProvider.php` in `app/Providers/`, registered in `config/app.php`. Don't let `AppServiceProvider` become a 200-line god provider.
-
----
-
-## LRV-011 — Naming
-
-Match Laravel's conventions exactly — every generator, package, and tutorial assumes them:
-
-| Type | Convention | Example |
-|---|---|---|
-| Controller | `<Resource>Controller` (PascalCase, singular resource) | `OrderController` |
-| Form Request | `<Verb><Resource>Request` | `PlaceOrderRequest`, `CancelOrderRequest` |
-| API Resource | `<Resource>Resource` | `OrderResource` |
-| Eloquent model | PascalCase, singular | `Order`, `Product`, `User` |
-| Service | `<Resource>Service` (when grouping) or `<Verb><Resource>` (when one class per action) | `OrderService` or `PlaceOrder` |
-| Repository | `<Resource>Repository` | `OrderRepository` |
-| Event | Past tense | `OrderPlaced`, `PaymentCaptured` |
-| Listener / Job | Imperative verb | `SendOrderConfirmation`, `ReleaseInventoryReservation` |
-| Policy | `<Resource>Policy` | `OrderPolicy` |
-| Mailable | `<Subject>Mail` or descriptive noun | `OrderConfirmation` |
-| Notification | Descriptive noun | `OrderShipped` |
-| Custom rule | Descriptive (no `Rule` suffix needed) | `UniqueOrderReference` |
-| Capability subfolder | PascalCase, plural noun | `Orders/`, `Catalog/`, `Billing/`, `Auth/` |
-
-Capability subfolder names should match across `Controllers/`, `Requests/`, `Resources/`, `Services/`, etc. If you have `Http/Controllers/Orders/`, the matching folders are `Http/Requests/Orders/`, `Http/Resources/Orders/`, `Services/Orders/`. Consistent grouping makes the codebase navigable.
-
----
-
-## Anti-patterns to flag in review
-
-| Anti-pattern | Why it's banned |
-|---|---|
-| Top-level business folders in `app/` (`app/Orders/`, `app/Catalog/`) | Fights Laravel's stock skeleton; breaks generators and conventions |
-| `app/Domain/` folder | Not what this skill prescribes |
-| `app/Modules/`, `app/Features/` wrappers | Same |
-| Controllers with business logic, direct queries, or notification dispatch | Should delegate to a service |
-| Models with full business workflows (charging payment, sending email) | Cross-cutting orchestration belongs in a service, not on the model |
-| Anemic models (only `$fillable` and relations, all logic in services) | Behavior tied to the model's own data belongs *on* the model |
-| Inline `$request->validate([...])` in controllers | Use a Form Request |
-| Returning Eloquent models directly from controllers | Use an API Resource to shape the response |
-| `app/Helpers.php` or global helper functions | Junk drawer |
-| Repository wrapping a single-table model with `find`, `save`, `delete` | Adds nothing Eloquent doesn't already do — drop the repository |
-| Service god classes (15+ methods) | Split along use-case lines (Services-with-fewer-methods or Actions pattern) |
-| Flat `Http/Controllers/` with 40 controllers, none grouped | Group by capability once you exceed ~3 controllers per capability |
-| Capability subfolders that don't match across layers (`Controllers/Orders/` but `Services/order/`) | Use consistent PascalCase plural everywhere |
-
----
-
-## Review checklist
-
-```
-Structure
-  □ Top-level app/ uses Laravel stock folders (Http, Models, Providers, Services, …)
-  □ No app/Domain/, app/Modules/, app/Features/
-  □ No top-level business folders in app/
-  □ Capability subfolders consistent across Controllers/Requests/Resources/Services
-
-HTTP boundary
-  □ Controllers thin (≤ ~5 lines per action)
-  □ Form Requests validate (no inline $request->validate)
-  □ API Resources shape responses (Eloquent models never returned directly)
-  □ Route-model binding used when applicable
-
-Business logic placement
-  □ Model behavior is about the model's own data (totals, status transitions, scopes)
-  □ Cross-cutting workflows live in services or actions
-  □ Cross-capability side effects via events, not direct calls
-  □ Repositories only when there's a real reason
-
-Services
-  □ One class per use case (Actions) OR one class per capability with use-case methods (Services) — consistent across the project
-  □ No service god classes (≥ 10 methods)
-```
+- **No repository wrapping a single Eloquent model** — Eloquent already is the data layer; a
+  `find`/`save`/`delete` repository over one model adds nothing.

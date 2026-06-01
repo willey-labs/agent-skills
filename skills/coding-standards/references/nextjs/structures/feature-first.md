@@ -4,6 +4,8 @@
 
 Source: [bulletproof-react](https://github.com/alan2207/bulletproof-react) — the most-referenced scalable React/Next structure. Folder names below are verbatim from its `docs/project-structure.md`.
 
+> This variant follows `common/structure.md` for the inside of every folder; everything below is just its outer shape — where each feature's folder sits and how it exposes its public surface.
+
 ## Layout
 
 ```
@@ -48,33 +50,14 @@ shared  →  features  →  app
 ## Hooks this variant implies
 
 ```yaml
-deep-import (ST-003): ON       # enforce the per-feature index.ts boundary
-junk-drawer (ST-005): ON       # feature/shared utils OK, but no bare utils.ts dumping ground
-tests (ST-007):       ON
-common rules:         ON
+deep-import (ST-003): ON       # enforce the per-feature index.ts boundary — the only variant-driven toggle (god-file is a separate project-level advisory)
+universal rules:      ON       # ST-005 junk-drawer, no-any, naming, arg-count, ST-008 tiers — mandatory, never per-variant
 ```
 
 ## `.coding-standards-structure` written when chosen
 
+Recording the choice is a single `follows:` line — the layout above stays the reference, so it isn't copied into the file. This variant keeps per-feature barrels, so `deep-import` stays on (the default) and needs no toggle:
+
 ```yaml
-framework: nextjs
-variant: feature-first
-source: bulletproof-react
-where:
-  routing:       app/
-  feature:       src/features/<feature>/
-  feature-parts: [api, components, hooks, stores, types, utils]
-  feature-public-api: src/features/<feature>/index.ts
-  shared-ui:     src/components/
-  shared-logic:  src/lib/
-  shared-hooks:  src/hooks/
-  global-state:  src/stores/
-  config:        src/config/
-imports:
-  rule: "shared -> features -> app"
-  cross-feature: forbidden
-hooks:
-  deep-import: on
-  junk-drawer: on
-  tests-colocated: on
+follows: feature-first
 ```
