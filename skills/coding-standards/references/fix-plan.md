@@ -34,6 +34,9 @@ A milestone-driven fix run (`orchestrator-pipeline.md` → Fix mode) persists it
 
 ## M4 — src/payments (4 findings) — pending
 - [ ] F021 — src/payments/checkout.ts:12 — FN-002 — extract function
+
+## Follow-ups (not in scope)
+- promote: src/notifications/ — email-sender, sms-sender, push-sender share a theme (3+ flat siblings) → sub-feature folder earned
 ```
 
 ## Statuses
@@ -41,6 +44,10 @@ A milestone-driven fix run (`orchestrator-pipeline.md` → Fix mode) persists it
 - **Milestone:** `pending` → `in_progress` → `done` | `done-with-deferrals`.
 - **Finding:** checked = fixed; unchecked with a bold `**deferred: <reason>**` suffix = deferred; unchecked plain = pending. Finding IDs are the report's `F<NNN>` ids — never renumber or drop them.
 - **Header `Status:`** mirrors the run: `in_progress (M<k> of <total>)` while looping; `done` / `done-with-deferrals` when every milestone is terminal; `blocked (M<k>: <one-line reason>)` when a blocker stopped the run.
+
+## Follow-ups
+
+Work the run *discovered* but must not *do*. Phase-A step d (`orchestrator-pipeline.md`, Fix mode) records promotion candidates here — folders whose flat siblings crossed ST-008's Rule of Three after the splits landed. Entries are outside the approved scope: never executed during the run, never blocking a milestone, surfaced as one-line offers in the final report. The section is omitted when there are no candidates.
 
 ## Resume procedure
 

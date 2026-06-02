@@ -18,22 +18,25 @@ This module reads only the `hooks:` toggles below; it ignores `follows:` and any
 layout body. A `follows:`-only file therefore yields no toggles, so every check
 stays ENABLED.
 
-Only TWO checks are toggleable, and only because each has a structural
-precondition a layout can genuinely lack:
+Only THREE checks are toggleable — `deep-import` because a layout can genuinely
+lack the structure it checks for (no barrels), `god-file` and `flat-folder`
+because they are advisories that never block, so relaxing the *reminder* is safe:
 
     variant: current
     hooks:
       deep-import: off       # ST-003 — off ONLY when the layout has no barrels by design
-      #   god-file: off            # ST-008 — silence the (advisory, never-blocking) size warning
-      #   god-file-max-lines: 600  # raise the advisory line threshold (default 400)
-      #   god-file-max-decls: 15   # raise the top-level-declaration threshold (default 10)
+      #   god-file: off              # ST-008 — silence the (advisory, never-blocking) size warning
+      #   god-file-max-lines: 600    # raise the advisory line threshold (default 400)
+      #   god-file-max-decls: 15     # raise the top-level-declaration threshold (default 10)
+      #   flat-folder: off           # ST-008 — silence the (advisory) flat-folder promotion warning
+      #   flat-folder-max-files: 20  # raise the flat sibling-count threshold (default 12)
 
 Everything else is MANDATORY and has no off switch. `junk-drawer` (ST-005:
 `utils.ts` / `helpers.py`), no-`any`, naming and arg-count are universal — they
 are not toggle keys at all. `tests-colocated` (ST-007) is likewise not a toggle
-(no hook reads it at write time). The parser recognises only `deep-import` and
-`god-file`; any other `<key>: off` line is unrecognised and ignored — there is
-no way to switch ST-005 off.
+(no hook reads it at write time). The parser recognises only `deep-import`,
+`god-file`, and `flat-folder`; any other `<key>: off` line is unrecognised and
+ignored — there is no way to switch ST-005 off.
 
 Rules:
 - No file, or the file does not mention a given check → the check is ENABLED
@@ -61,25 +64,27 @@ STRUCTURE_FILENAME = ".coding-standards-structure"
 
 # Toggle lines anywhere in the file, e.g. `  deep-import: off`. We don't need a
 # full YAML parser (the hooks ship stdlib-only) — a flat line scan for the known
-# keys is robust because the keys are unique. Only the two checks with a genuine
-# structural precondition are recognised: `deep-import` (ST-003, off when a layout
-# has no barrels) and `god-file` (ST-008, an advisory). `junk-drawer` (ST-005) and
-# `tests-colocated` (ST-007) are intentionally NOT here — ST-005 is mandatory in
-# every layout, and no hook reads ST-007 at write time.
+# keys is robust because the keys are unique. Only three checks are recognised:
+# `deep-import` (ST-003, off when a layout has no barrels by design) and the two
+# ST-008 advisories, `god-file` and `flat-folder` (never block, so silencing the
+# reminder is safe). `junk-drawer` (ST-005) and `tests-colocated` (ST-007) are
+# intentionally NOT here — ST-005 is mandatory in every layout, and no hook reads
+# ST-007 at write time.
 _TOGGLE_LINE = re.compile(
-    r"^\s*(deep-import|god-file)\s*:\s*"
+    r"^\s*(deep-import|god-file|flat-folder)\s*:\s*"
     r"(on|off|true|false|yes|no|enable|enabled|disable|disabled)\s*$",
     re.IGNORECASE,
 )
 
 # ST-008 numeric overrides, e.g. `  god-file-max-lines: 600`.
-_GOD_FILE_NUM_LINE = re.compile(
-    r"^\s*(god-file-max-lines|god-file-max-decls)\s*:\s*(\d+)\s*$",
+_NUM_OVERRIDE_LINE = re.compile(
+    r"^\s*(god-file-max-lines|god-file-max-decls|flat-folder-max-files)\s*:\s*(\d+)\s*$",
     re.IGNORECASE,
 )
 
 GOD_FILE_DEFAULT_MAX_LINES = 400
 GOD_FILE_DEFAULT_MAX_DECLS = 10
+FLAT_FOLDER_DEFAULT_MAX_FILES = 12
 
 _TRUE_WORDS = {"on", "true", "yes", "enable", "enabled"}
 _FALSE_WORDS = {"off", "false", "no", "disable", "disabled"}
@@ -107,7 +112,7 @@ def _parse_toggles(text: str) -> dict[str, bool]:
 def _parse_numeric_overrides(text: str) -> dict[str, int]:
     nums: dict[str, int] = {}
     for line in text.splitlines():
-        m = _GOD_FILE_NUM_LINE.match(line)
+        m = _NUM_OVERRIDE_LINE.match(line)
         if not m:
             continue
         nums[m.group(1).lower()] = int(m.group(2))
@@ -172,3 +177,21 @@ def load_god_file_config(file_path: str) -> dict[str, object]:
     max_lines = nums.get("god-file-max-lines", GOD_FILE_DEFAULT_MAX_LINES)
     max_decls = nums.get("god-file-max-decls", GOD_FILE_DEFAULT_MAX_DECLS)
     return {"enabled": enabled, "max_lines": max_lines, "max_decls": max_decls}
+
+
+def load_flat_folder_config(file_path: str) -> dict[str, object]:
+    """ST-008 flat-folder promotion advisory config for the project owning `file_path`.
+
+    Returns {"enabled": bool, "max_files": int}. Defaults: enabled True (warn),
+    12 flat source files. Only an explicit `flat-folder: off` disables; the
+    `flat-folder-max-files` key overrides the threshold.
+
+    Same single-read caching as `load_god_file_config`: `is_check_enabled`
+    populates both caches on first call for a root.
+    """
+    enabled = is_check_enabled("flat-folder", file_path)
+    root = find_project_root(Path(file_path))
+    cache_key = str(root) if root is not None else None
+    nums = _NUM_CACHE.get(cache_key, {}) if cache_key is not None else {}
+    max_files = nums.get("flat-folder-max-files", FLAT_FOLDER_DEFAULT_MAX_FILES)
+    return {"enabled": enabled, "max_files": max_files}

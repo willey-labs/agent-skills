@@ -13,7 +13,7 @@ description: >
 license: MIT
 metadata:
   author: willey-labs
-  version: "4.5.0"
+  version: "4.6.0"
 ---
 
 # Coding Standards
@@ -182,8 +182,8 @@ resolve it silently to know which `structure.md` to display, but don't ask or wr
 
 Read `references/structure-resolution.md` before acting on case 3, a monorepo, or a toggle. It has the
 full mechanics: monorepo file placement (the sub-project root, not the repo root), the
-single-vs-multi-structure question shapes, what "keep current" does and doesn't exempt, the two toggleable
-checks (`deep-import`, `god-file`), and the messy-project fallback.
+single-vs-multi-structure question shapes, what "keep current" does and doesn't exempt, the three toggleable
+checks (`deep-import`, `god-file`, `flat-folder`), and the messy-project fallback.
 
 The resolved structure is the **outer shell only** — it replaces `references/<framework>/structure.md` in
 Step 2's load list as the placement guide. The seven `common/` files (the inner-decomposition rules) always

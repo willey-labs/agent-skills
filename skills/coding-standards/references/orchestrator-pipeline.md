@@ -135,7 +135,13 @@ numbers — counted over the whole report — to trim its chat output (see
    because later steps depend on earlier ones:
    a. create/extend barrel `index` files (ST-002);
    b. rewrite deep imports to the new public entries (ST-003);
-   c. apply ST-008 splits (create named sibling files, move declarations).
+   c. apply ST-008 splits (create named sibling files, move declarations);
+   d. **re-check each folder the splits added files to:** if 3+ flat siblings now
+      share a theme, the folder has earned a sub-feature promotion (ST-008's Rule
+      of Three) that is **not** in the ledger — record it as a *promotion
+      candidate* (folder + themed cluster). Don't perform it: fix mode never
+      expands its own ledger mid-run. Candidates surface as offers in the final
+      report.
    Each write goes through the orchestrator, so the hooks fire. Update the ledger.
    Independent barrels may fan out, but an import rewrite runs only after the barrel
    it targets exists.
@@ -162,7 +168,10 @@ numbers — counted over the whole report — to trim its chat output (see
 
 6. **Report against the ledger.** State `N of M findings fixed across K files; D
    deferred`, and **list every deferred finding with its reason**. An incomplete run
-   says exactly what remains and why — it never stops silently.
+   says exactly what remains and why — it never stops silently. If Phase A recorded
+   promotion candidates, add one line per folder — `<folder> now holds <n> flat
+   files; <x, y, z> share a theme and have earned a sub-feature folder — want a
+   promotion pass?` — the same opt-in shape as the Write-mode migration offer.
 
 ### Milestone-driven fix (above the threshold)
 
@@ -196,8 +205,10 @@ and resume mechanics live in `references/fix-plan.md`; this is the orchestration
       Phase-B per-file fan-out (same mechanics, scoped to this milestone's files).
    b. Verify with `hooks/review-files.py --json` over **this milestone's files
       only**; max 2 re-fix passes per file, then `deferred(reason)`.
-   c. **Update the plan file first** — statuses, checkboxes, deferral notes — before
-      the commit and the chat line.
+   c. **Update the plan file first** — statuses, checkboxes, deferral notes, and any
+      promotion candidates from Phase-A step d (recorded under the plan's
+      `## Follow-ups` section, see `references/fix-plan.md`) — before the commit and
+      the chat line.
    d. Commit (when the policy allows):
       `fix(standards): <milestone scope> — <n> findings [M<k>/<total>]`.
    e. Emit **one chat line**:
@@ -215,8 +226,10 @@ and resume mechanics live in `references/fix-plan.md`; this is the orchestration
 
 5. **Final report.** When every milestone is terminal, report against the plan file:
    `N of M findings fixed across K files in T milestones; D deferred` — plus every
-   deferral with its reason. Same ledger-completeness rule as single-pass: an
-   incomplete run says exactly what remains and why; it never stops silently.
+   deferral with its reason, plus every `## Follow-ups` entry as a one-line offer
+   (promotion candidates from Phase-A step d). Same ledger-completeness rule as
+   single-pass: an incomplete run says exactly what remains and why; it never stops
+   silently.
 
 ### Resume
 
@@ -265,6 +278,9 @@ Files written: <list>. Hooks passed.
   first, coordinated by the orchestrator; file-local fixes fan out in parallel.
 - **Fix mode is ledger-complete.** Every finding ends `fixed` or `deferred(reason)`;
   a silent partial result is a failure. Max 2 re-fix passes per file.
+- **Fix mode never expands its own ledger.** A folder promotion earned by its own
+  ST-008 splits (Phase-A step d) is recorded and offered after the run — never
+  performed mid-run.
 - **Milestone fixes are disk-anchored.** Above the scope threshold the plan file
   (`references/fix-plan.md`) is the source of truth: written before any code write,
   updated after every milestone verify, one commit and one chat line per milestone,

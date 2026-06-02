@@ -150,9 +150,18 @@ For each file × each owned rule, place the rule in exactly one bucket:
 
 Never silently drop a rule. Every owned rule lands in one of the three buckets.
 
+**ST-008 has a per-folder direction — check it per folder, not per file.** Beyond file scope
+(god-files) and variants-as-branches, ST-008 says 3+ flat siblings sharing a theme have earned a
+sub-feature folder (Rule of Three). The per-file loop above never sees this, so run it separately:
+for each folder holding 2+ files of the review set, look at **all** its flat source siblings (a
+directory listing of that one folder — this is not a repo crawl; the folder is in scope because
+reviewed files live in it). If 3+ siblings share a theme and sit flat, emit **one finding for the
+folder** (`file` = the folder path, severity `should-fix`), naming the themed cluster and the
+sub-feature folder it has earned.
+
 **Severity (Worker 1):**
 - `must-fix` — deep imports past a folder's public API (ST-003), junk-drawer files (ST-005). The deterministic linter also catches these; report them anyway — the orchestrator dedupes.
-- `should-fix` — wrong / non-business-shaped placement (ST-001, ST-006), SRP violations / god-files (DP-001, ST-008), business logic depending on concretions instead of abstractions (DP-005), object-vs-data mismatch (OD-002).
+- `should-fix` — wrong / non-business-shaped placement (ST-001, ST-006), SRP violations / god-files (DP-001, ST-008), unpromoted themed siblings — 3+ flat files sharing a theme that have earned a sub-feature folder (ST-008, promotion direction), business logic depending on concretions instead of abstractions (DP-005), object-vs-data mismatch (OD-002).
 - `consider` — design tradeoffs: a structure that works but a simpler one exists (DP-006 KISS), arguable module boundaries.
 
 **Scope:** report misplacement only for files in the review set — never crawl the whole repo.

@@ -15,7 +15,7 @@ fix the violation before retrying — that's the enforcement.
 | `block-csharp-violations.py` | `.cs` | `dynamic` (var/list/dict); NM-006 Hungarian (`strName`, `m_field`, ...); FN-005 4+ params |
 | `block-php-violations.py` | `.php` | `mixed` type; NM-006 Hungarian (`$strName`, ...); FN-005 4+ params |
 | `block-jvm-violations.py` | `.java .kt .kts` | Star imports (`import com.foo.*`); FN-005 4+ params; Kotlin `Any` (annotation/generic) |
-| `warn-god-file.py` | All source languages (advisory — exit 0) | ST-008 god-file size advisory: warns when a non-test/non-schema source file exceeds the project threshold (default 400 lines / 10 top-level declarations). Never blocks. Reads `god-file`, `god-file-max-lines`, `god-file-max-decls` keys from `.coding-standards-structure`. Skips test, schema, fixture, story, and excluded/generated files. |
+| `warn-god-file.py` | All source languages (advisory — exit 0) | ST-008 advisories, both directions. (1) God-file size: warns when a non-test/non-schema source file exceeds the project threshold (default 400 lines / 10 top-level declarations). (2) Flat-folder promotion: warns when a NEW source file lands in a folder already past the flat-sibling threshold (default 12 source units; front doors and test/schema/fixture siblings don't count) — 3+ themed siblings have earned a sub-feature folder (Rule of Three). Never blocks. Reads `god-file`, `god-file-max-lines`, `god-file-max-decls`, `flat-folder`, `flat-folder-max-files` keys from `.coding-standards-structure`. Skips test, schema, fixture, story, and excluded/generated files. |
 
 ### What runs on every Write/Edit/MultiEdit
 

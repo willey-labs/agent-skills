@@ -100,15 +100,19 @@ from any rule: all seven `common/` rules still apply to every file, including ST
 a legacy repo full of `utils.ts` is no reason to relax ST-005 — the next edit to such a file is blocked
 until it's renamed.
 
-Only two checks are toggleable, each because a layout can genuinely lack the structure it checks for:
+Only three checks are toggleable — one because a layout can genuinely lack the structure it checks for,
+two because they are advisories that never block, so relaxing the *reminder* is fine:
 
 - `deep-import: off` — when the layout has no barrels by design (route-colocated, flat Go/Python). ST-003
   has nothing to check without barrels; left on it would flag every import.
-- `god-file: off` (or `god-file-max-lines` / `god-file-max-decls`) — an advisory that never blocks, so
-  relaxing the *reminder* is fine. ST-008 itself is still enforced when the skill writes and reviews.
-  Defaults: 400 lines / 10 declarations.
+- `god-file: off` (or `god-file-max-lines` / `god-file-max-decls`) — the ST-008 size advisory. ST-008
+  itself is still enforced when the skill writes and reviews. Defaults: 400 lines / 10 declarations.
+- `flat-folder: off` (or `flat-folder-max-files`) — the ST-008 promotion advisory: warns when a new
+  source file lands in a folder already holding more than the threshold of flat source units (3+ themed
+  siblings have earned a sub-feature folder, Rule of Three). Off for layouts that are flat by design
+  (a large idiomatic Go package). Default: 12 files.
 
-These two are the entire `hooks:` block; every other rule is mandatory and not listed there. The hooks read
+These three are the entire `hooks:` block; every other rule is mandatory and not listed there. The hooks read
 the toggles via `hooks/_structure.py` — a missing toggle stays on, an unrecognised key is ignored. Example:
 
 ```
