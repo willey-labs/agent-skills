@@ -115,8 +115,8 @@ resume it instead of starting over — see "Resume" below.
 **Scope threshold — the one place these numbers live:** a fix is **milestone-driven**
 when the report holds **more than 20 findings or more than 10 files with findings**,
 counted over must-fix + should-fix (the default scope — decidable before the approval
-gate exists; a `consider` opt-in at approval only adds work to an already-milestone-
-driven run). At or below that, run the single-pass fix. Review mode reuses the same
+gate exists; a `consider` opt-in at approval only adds work to a run that is already
+milestone-driven). At or below that, run the single-pass fix. Review mode reuses the same
 numbers — counted over the whole report — to trim its chat output (see
 `references/review-report.md`).
 
@@ -170,10 +170,11 @@ A big fix is chunked into **milestones**, persisted to a plan file, and worked t
 autonomously — approve once, then no more questions. The plan-file format, statuses,
 and resume mechanics live in `references/fix-plan.md`; this is the orchestration:
 
-1. **Build the plan.** Build the ledger and partition exactly as in single-pass steps
+1. **Build the plan.** Build the ledger and partition exactly as in Single-pass fix steps
    1–2, then group into milestones:
    - **M1 — structural** (only when structural findings exist): every ST-002 /
-     ST-003 / ST-008 / move-rename finding, in the Phase-A order.
+     ST-003 / ST-008 / move-rename finding, in the Phase-A order (barrels →
+     deep-import rewrites → ST-008 splits).
    - **M2…Mn — one per module:** group the file-local findings by the nearest
      feature/module folder per the resolved STRUCTURE (top-level directory as
      fallback). Order milestones by must-fix count descending, then total findings
@@ -200,14 +201,17 @@ and resume mechanics live in `references/fix-plan.md`; this is the orchestration
    d. Commit (when the policy allows):
       `fix(standards): <milestone scope> — <n> findings [M<k>/<total>]`.
    e. Emit **one chat line**:
-      `M<k>/<total> done — <scope>: <n> fixed, <d> deferred — <short-hash>`.
+      `M<k>/<total> done — <scope>: <n> fixed, <d> deferred — <short-hash>`
+      (`no commit` in place of the hash when the policy skips commits).
       Never re-print finding tables during the run.
 
 4. **Blockers.** A real blocker (a hook keeps rejecting past the re-fix budget, a fix
    needs a user decision, the host dies mid-run) stops the run: leave the milestone
    `in_progress`, write what blocked it into the plan header (`Status: blocked
    (M<k>: <reason>)`), tell the user in one line. "Continue the fix" resumes from
-   there.
+   there — per the blocked-plan rule in `references/fix-plan.md`: surface the
+   recorded reason first; a needed user decision is the sole exception to
+   no-repeated-questions.
 
 5. **Final report.** When every milestone is terminal, report against the plan file:
    `N of M findings fixed across K files in T milestones; D deferred` — plus every
@@ -219,8 +223,8 @@ and resume mechanics live in `references/fix-plan.md`; this is the orchestration
 "continue the fix" / "resume the fix" — from any session, including a fresh one:
 follow the resume procedure in `references/fix-plan.md` (newest non-done plan,
 re-verify any `in_progress` milestone's files, reconcile checkboxes against reality),
-then continue the milestone loop at step 3. **No re-approval** — the plan header
-records the original approval and scope.
+then continue at step 3 of "Milestone-driven fix" above. **No re-approval** — the
+plan header records the original approval and scope.
 
 **Fallback when `Agent` is unavailable** (Cursor/Codex/OpenCode): run the phases
 yourself in batches, one file at a time, still driven by the ledger — and by the plan
