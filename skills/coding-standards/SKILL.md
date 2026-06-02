@@ -202,7 +202,7 @@ first question, run-mode the second.
 | Single-file edit (≤30 lines), single-function refactor, or rule Q&A | **Inline** — you do it yourself. Step 1.6 → Step 2 → Step 3. |
 | 2+ files, a new feature, a diff/PR review, `--thorough`, or the `/coding-standards` command | **Orchestrator pipeline** — you dispatch workers. Continue with Step 2.O. |
 | `Agent` tool unavailable in this host (Cursor, Codex, OpenCode) | **Inline** regardless of scope — say so in your announcement. |
-| Apply review findings ("fix the findings", "continue the fix") | **Orchestrator pipeline, `MODE: fix`, always.** Per-file fan-out; milestone-driven above the scope threshold; no run-mode question. |
+| Apply review findings ("fix the findings", "continue the fix" / "resume the fix") | **Orchestrator pipeline, `MODE: fix`, always.** Per-file fan-out; milestone-driven above the scope threshold; no run-mode question. |
 
 The choice is made one of two ways and must be announced:
 

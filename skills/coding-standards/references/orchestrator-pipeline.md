@@ -98,7 +98,7 @@ For each worker N in {1, 2, 3}:
 
 7. **Run `hooks/review-files.py --json`** over the file set now — *after* the three workers, as the final deterministic pass. Its findings are must-fix (deterministic; never re-litigated).
 8. **Merge** every worker's `findings` array + the linter findings. **Dedupe** by `(file, line, rule)` — when a worker finding and a linter finding collide, keep one and mark it must-fix. Then **sort by severity** (must-fix → should-fix → consider) and group by file. The workers' `passed` / `skipped` arrays are the **coverage proof** — use them to state which rules were checked and clean, so the report is visibly comprehensive rather than a short list of hits.
-9. **Write the report file**, then **present** the same content to the user as a structured PASS/FAIL table. Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
+9. **Write the report file**, then **present** it to the user as a structured PASS/FAIL table — in full at or below the scope threshold; above it, chat gets the Summary line, the must-fix table, the should-fix/consider counts, and the report path (the file keeps everything). Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
 
 ## Fix mode (`MODE: fix`) — apply review findings at scale
 
