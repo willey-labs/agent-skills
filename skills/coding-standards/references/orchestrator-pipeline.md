@@ -1,6 +1,6 @@
 # Orchestrator pipeline
 
-The full protocol for the **orchestrator** execution shape. You arrive here from SKILL.md Step 1.5 — the task is a new feature, a 2+-file change, a diff/PR review, or the user picked "Multiple agents" / invoked `/coding-standards`. Read this file fully before dispatching Worker 1.
+The full protocol for the **orchestrator** execution shape. You arrive here from SKILL.md Step 5 — the task is a new feature, a 2+-file change, a diff/PR review, or the user picked "Multiple agents" / invoked `/coding-standards`. Read this file fully before dispatching Worker 1.
 
 > **Paths in this file** (`workers/…`, `hooks/…`, `references/…`) are relative to the **skill root** — the directory that holds `SKILL.md`, one level up from this `references/` folder.
 
@@ -62,8 +62,8 @@ For each worker N in {1, 2, 3}:
      ```
      === INPUT ===
      TASK: <user's original task verbatim>
-     FRAMEWORK: <detected framework key from Step 1>
-     STRUCTURE: <resolved structure from Step 1.4 — the chosen structures/<name>.md, the project's .coding-standards-structure custom layout, or the framework default structure.md>
+     FRAMEWORK: <detected framework key from SKILL.md Step 3>
+     STRUCTURE: <resolved structure from SKILL.md Step 4 — the chosen structures/<name>.md, the project's .coding-standards-structure custom layout, or the framework default structure.md>
      MODE: write | review
      WORKER_<N-1>_OUTPUT: <previous worker's JSON, omit for Worker 1>
      ```
@@ -79,7 +79,7 @@ For each worker N in {1, 2, 3}:
    - **Review mode:** every owned rule appears in exactly one of `findings` / `passed` / `skipped` — **reject (and re-dispatch) a review that silently drops owned rules**, since that is the thin-review failure mode. Each `findings` entry cites an owned rule and carries `file`, `line`, `severity`, and a concrete `fix`.
 6. **If validation fails**, redispatch the worker with the specific violation noted. After one retry, fall back to inline.
 
-> **TodoWrite (only if you seeded a list in SKILL.md Step 1.6):** mark worker N `in_progress` as you dispatch it and `completed` once its output validates (step 5 above). Tick the bracketing items the same way — the final write-and-hooks (Write mode), or the linter pass and merge-and-present (Review mode, where the linter runs *after* the three workers) — as you reach each. If you didn't seed a list (TodoWrite unavailable, or inline single-file work), ignore this.
+> **TodoWrite (only if you seeded a list in SKILL.md Step 6):** mark worker N `in_progress` as you dispatch it and `completed` once its output validates (step 5 above). Tick the bracketing items the same way — the final write-and-hooks (Write mode), or the linter pass and merge-and-present (Review mode, where the linter runs *after* the three workers) — as you reach each. If you didn't seed a list (TodoWrite unavailable, or inline single-file work), ignore this.
 
 ## After all workers complete (Write mode)
 
@@ -98,7 +98,7 @@ For each worker N in {1, 2, 3}:
 
 7. **Run `hooks/review-files.py --json`** over the file set now — *after* the three workers, as the final deterministic pass. Its findings are must-fix (deterministic; never re-litigated).
 8. **Merge** every worker's `findings` array + the linter findings. **Dedupe** by `(file, line, rule)` — when a worker finding and a linter finding collide, keep one and mark it must-fix. Then **sort by severity** (must-fix → should-fix → consider) and group by file. The workers' `passed` / `skipped` arrays are the **coverage proof** — use them to state which rules were checked and clean, so the report is visibly comprehensive rather than a short list of hits.
-9. **Write the report file**, then **present** it to the user as a structured PASS/FAIL table — in full at or below the scope threshold; above it, chat gets the Summary line, the must-fix table, the should-fix/consider counts, and the report path (the file keeps everything). Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
+9. **Write the report file**, then **present** it to the user as a structured PASS/FAIL table — in full at or below the scope threshold; above it, trim chat to the shape defined in `references/review-report.md` (the file keeps everything). Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
 
 ## Fix mode (`MODE: fix`) — apply review findings at scale
 

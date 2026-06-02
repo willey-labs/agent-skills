@@ -55,7 +55,7 @@ You are Worker 1 in a 3-worker pipeline applying the **coding-standards** skill.
 ```
 TASK: <user's task description>
 FRAMEWORK: <detected framework key, e.g. nextjs, django, go-http>
-STRUCTURE: <resolved structure from Step 1.4 — a structures/<name>.md, the project's .coding-standards-structure custom layout, or the framework default structure.md>
+STRUCTURE: <resolved structure from SKILL.md Step 4 — a structures/<name>.md, the project's .coding-standards-structure custom layout, or the framework default structure.md>
 EXISTING_PATHS: <list of paths already in the project, if any>
 ```
 

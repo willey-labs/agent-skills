@@ -24,25 +24,9 @@ surface verbatim and stop). Detail lives in SKILL.md Step 0 and `references/boot
 
 ## 2. Route by `$ARGUMENTS`
 
-**Empty** (`/coding-standards` alone) → invoke `AskUserQuestion` with this exact payload and wait. The
-**labels and header are the routing contract** — reproduce them verbatim (shared with SKILL.md Step 0.5);
-the descriptions may differ.
-
-```
-question:    "What do you want to do with the coding-standards skill?"
-header:      "Mode"
-multiSelect: false
-options:
-  - label:       "Write code that follows these rules"
-    description: "Detect the framework, load the matching references, and apply the
-                  rules as I write. Hard violations are blocked at write time."
-  - label:       "Check existing code against these rules"
-    description: "Point me at a file, folder, or diff; I report PASS / FAIL / SKIPPED
-                  per rule with file:line citations, grouped by severity."
-  - label:       "Show me the rules"
-    description: "A guided tour of the rule families plus the framework I detect for
-                  your project, with worked examples."
-```
+**Empty** (`/coding-standards` alone) → ask the mode-picker question and wait: invoke `AskUserQuestion`
+with the exact payload in `<skill-dir>/references/activation.md` (shared with SKILL.md Step 2 — one
+source, so the labels never drift).
 
 **Non-empty** → treat `$ARGUMENTS` as the task and skip the picker:
 
@@ -52,15 +36,15 @@ options:
 | `review this PR`, `audit this file`, `check this diff`, `is this clean?` (with a target) | Review |
 | `show me the naming rules`, `what's FN-005?` | Show me the rules / Q&A |
 
-Either way, hand off to SKILL.md from Step 1 (framework detection) onward.
+Either way, hand off to SKILL.md from Step 3 (framework detection) onward.
 
 ## 3. Explicit-invocation default: ask the run-mode question
 
-Because `/coding-standards` was invoked explicitly, use SKILL.md Step 1.5 **path A**: once the task is
-known (and it's Write or Review, not Q&A), ask the "Run mode" question (Multiple agents vs Single agent)
-and run the user's choice. Structure resolution (Step 1.4) still comes first; run-mode is the second
-question. Skip the run-mode question only when the `Agent` tool is unavailable in this host — then go
-inline and say so.
+Because `/coding-standards` was invoked explicitly, use SKILL.md Step 5 **path A**: once the task is
+known (and it's Write or Review, not Q&A), ask the "Run mode" question (payload in
+`<skill-dir>/references/activation.md`) and run the user's choice. Structure resolution (Step 4) still
+comes first; run-mode is the second question. Skip the run-mode question only when the `Agent` tool is
+unavailable in this host — then go inline and say so.
 
 ## Do not
 
