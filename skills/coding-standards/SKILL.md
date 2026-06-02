@@ -13,7 +13,7 @@ description: >
 license: MIT
 metadata:
   author: willey-labs
-  version: "4.4.0"
+  version: "4.6.0"
 ---
 
 # Coding Standards
@@ -119,7 +119,8 @@ Route the answer (the numbered steps run in order; these notes are just the per-
   rule index. No structure question, no run-mode question — nothing is written.
 
 There is no picker entry for **Fix** — it's triggered by phrasing ("fix the findings" / "apply the
-review"), which routes straight to Fix mode (the `MODE: fix` orchestrator pipeline, no run-mode question).
+review", or "continue the fix" / "resume the fix" to pick up a non-done milestone plan), which routes
+straight to Fix mode (the `MODE: fix` orchestrator pipeline, no run-mode question).
 
 Ask this at most once per session; once mode is set, it stays set. Never ask when the user already named a
 task — that's a false ask.
@@ -181,8 +182,8 @@ resolve it silently to know which `structure.md` to display, but don't ask or wr
 
 Read `references/structure-resolution.md` before acting on case 3, a monorepo, or a toggle. It has the
 full mechanics: monorepo file placement (the sub-project root, not the repo root), the
-single-vs-multi-structure question shapes, what "keep current" does and doesn't exempt, the two toggleable
-checks (`deep-import`, `god-file`), and the messy-project fallback.
+single-vs-multi-structure question shapes, what "keep current" does and doesn't exempt, the three toggleable
+checks (`deep-import`, `god-file`, `flat-folder`), and the messy-project fallback.
 
 The resolved structure is the **outer shell only** — it replaces `references/<framework>/structure.md` in
 Step 2's load list as the placement guide. The seven `common/` files (the inner-decomposition rules) always
@@ -201,7 +202,7 @@ first question, run-mode the second.
 | Single-file edit (≤30 lines), single-function refactor, or rule Q&A | **Inline** — you do it yourself. Step 1.6 → Step 2 → Step 3. |
 | 2+ files, a new feature, a diff/PR review, `--thorough`, or the `/coding-standards` command | **Orchestrator pipeline** — you dispatch workers. Continue with Step 2.O. |
 | `Agent` tool unavailable in this host (Cursor, Codex, OpenCode) | **Inline** regardless of scope — say so in your announcement. |
-| Apply review findings ("fix the findings") | **Orchestrator pipeline, `MODE: fix`, always.** Per-file fan-out; no run-mode question. |
+| Apply review findings ("fix the findings", "continue the fix" / "resume the fix") | **Orchestrator pipeline, `MODE: fix`, always.** Per-file fan-out; milestone-driven above the scope threshold; no run-mode question. |
 
 The choice is made one of two ways and must be announced:
 
@@ -243,6 +244,8 @@ Track the work the user cares about (fold in real file/feature names), keep exac
 `in_progress`, and complete it before starting the next. A typical write/review list runs: detect
 framework + resolve structure → load rules → apply / review → run hooks → write result. The
 orchestrator-pipeline and Fix shapes add their worker/ledger stages — see `orchestrator-pipeline.md`.
+A milestone-driven fix adds one item per milestone at plan approval — a display mirror only; the plan
+file on disk stays the source of truth.
 
 ---
 
@@ -324,19 +327,29 @@ it:
    *must-fix* (linter findings + correctness/security/broken contracts), *should-fix* (clean-code), and
    *consider* (judgement calls). Persist the merged result to a report file per `references/review-report.md`
    (`.coding-standards/reviews/<timestamp>.md`, gitignored) and tell the user the path — every review writes
-   one, inline included.
+   one, inline included. **Above the scope threshold** (defined once in `orchestrator-pipeline.md` → Fix
+   mode), chat gets the Summary line, the must-fix table, the should-fix/consider counts, and the report
+   path; the full tables live in the file only. At or below it, print everything as before.
 6. **Never silently skip a rule.** If you didn't check it, say so. A review with hidden gaps is worse than
    one that admits its scope.
 
 ### Fix
 
-Triggered by "fix the findings" / "apply the review" / fixes requested right after a Review. Fix mode
-**always runs as the orchestrator pipeline** (`MODE: fix`) — it's inherently multi-file: it fans out one
-fix-agent per file, tracked by a completeness ledger so nothing is silently half-fixed. Don't offer a
-"single agent" option. If `Agent` is unavailable, run the documented sequential-batch fallback and say so.
+Triggered by "fix the findings" / "apply the review" / fixes requested right after a Review — or by
+"continue the fix" / "resume the fix" to pick up a non-done milestone plan. Fix mode **always runs as
+the orchestrator pipeline** (`MODE: fix`) — it's inherently multi-file: it fans out one fix-agent per
+file, tracked by a completeness ledger so nothing is silently half-fixed. Don't offer a "single agent"
+option. If `Agent` is unavailable, run the documented sequential-batch fallback and say so.
 
-The full pipeline (ledger, structural-vs-file-local partition, per-file fan-out, verify, ledger report) is
-in `references/orchestrator-pipeline.md` under "Fix mode". The input is the most recent
+**Above the scope threshold** (defined once in `orchestrator-pipeline.md` → Fix mode), the fix is
+**milestone-driven**: build a persisted plan (`.coding-standards/fixes/<review-ts>.md`, format in
+`references/fix-plan.md`), get **one** approval (scope: must-fix + should-fix by default, `consider`
+only on opt-in), then run every milestone to done autonomously — fix, verify, update the plan file,
+commit per milestone, one chat status line each. The plan file survives session loss; any session
+resumes it without re-approval.
+
+The full pipeline (ledger, partition, per-file fan-out, milestone loop, verify, report) is in
+`references/orchestrator-pipeline.md` under "Fix mode". The input is the most recent
 `.coding-standards/reviews/<ts>.md`; if none exists, run Review first.
 
 ---

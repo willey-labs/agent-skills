@@ -1,6 +1,6 @@
 # Review report file
 
-Every review — orchestrator pipeline *and* inline single-agent — persists its merged result to a Markdown file so it's durable, diffable, and feedable to a later fix pass. The same content is also printed to the user; the file is an additional artifact, not a replacement for the chat summary.
+Every review — orchestrator pipeline *and* inline single-agent — persists its merged result to a Markdown file so it's durable, diffable, and feedable to a later fix pass. The same content is also printed to the user — except above the scope threshold (defined once in `orchestrator-pipeline.md` → Fix mode), where chat gets the Summary line, the must-fix table, the should-fix/consider counts, and the report path, and the full tables live here only. The file is always complete either way.
 
 ## Procedure
 
@@ -51,4 +51,6 @@ Each finding gets a stable id within the report: `F<NNN>` numbered in document o
 are unique across the whole report (not reset per section). Fix mode's completeness
 ledger keys on these ids, so every finding can be tracked to `fixed` or `deferred`.
 Keep ids stable for the life of the report file — never renumber after the report is
-written.
+written. A milestone-driven fix persists that ledger as a plan file —
+`.coding-standards/fixes/<review-ts>.md`, same timestamp as this report — see
+`references/fix-plan.md`.

@@ -190,6 +190,10 @@ to storage, that's three jobs in one file.
 promote them to a sub-feature folder with its own front door (Rule of Three). Never create a folder for one
 file, or a sub-feature folder for symmetry.
 
+The promotion applies to **any** flat folder, however it grew — siblings created by splits, by extraction,
+or by plain accretion all count toward the same three. A split that leaves its folder holding a themed
+cluster of 3+ flat files has finished only half the job.
+
 ```
 # Before — one file, three jobs
 <feature>/
@@ -216,9 +220,10 @@ then one new file; nothing else changes.
   <entry>
 ```
 
-> A write-time hook (`warn-god-file.py`) warns when a file crosses the size threshold; it never blocks (a
-> raw line count is too blunt to gate on). The judgement — "is this two jobs?" — stays with the author and
-> the review.
+> A write-time hook (`warn-god-file.py`) warns when a file crosses the size threshold, and when a new file
+> lands in a folder already past the flat-sibling threshold; it never blocks (raw counts are too blunt to
+> gate on). The judgement — "is this two jobs?", "do these siblings share a theme?" — stays with the author
+> and the review.
 
 ---
 
@@ -244,6 +249,7 @@ File scope (ST-008)
   □ Oversized files split into named siblings
   □ Variants split into one-interface + one-file-each, not branches in one file
   □ Sub-feature folders earned by 3+ related files, not made for symmetry
+  □ No 3+ themed siblings left flat — once they earn the folder, promote them (same Rule of Three, other direction)
 
 Boundaries & sharing
   □ Each multi-file folder has one front door

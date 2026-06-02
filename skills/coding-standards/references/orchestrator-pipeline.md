@@ -98,7 +98,7 @@ For each worker N in {1, 2, 3}:
 
 7. **Run `hooks/review-files.py --json`** over the file set now — *after* the three workers, as the final deterministic pass. Its findings are must-fix (deterministic; never re-litigated).
 8. **Merge** every worker's `findings` array + the linter findings. **Dedupe** by `(file, line, rule)` — when a worker finding and a linter finding collide, keep one and mark it must-fix. Then **sort by severity** (must-fix → should-fix → consider) and group by file. The workers' `passed` / `skipped` arrays are the **coverage proof** — use them to state which rules were checked and clean, so the report is visibly comprehensive rather than a short list of hits.
-9. **Write the report file**, then **present** the same content to the user as a structured PASS/FAIL table. Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
+9. **Write the report file**, then **present** it to the user as a structured PASS/FAIL table — in full at or below the scope threshold; above it, chat gets the Summary line, the must-fix table, the should-fix/consider counts, and the report path (the file keeps everything). Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
 
 ## Fix mode (`MODE: fix`) — apply review findings at scale
 
@@ -108,7 +108,19 @@ domain — so it **fans out one fix-agent per file**. This is the path that scal
 large finding set *triggers* fan-out instead of overflowing one context.
 
 **Input:** the most recent `.coding-standards/reviews/<ts>.md` report (or an
-in-session review's findings). If none exists, run Review first to produce one.
+in-session review's findings). If none exists, run Review first to produce one. If a
+non-done fix plan (`.coding-standards/fixes/<ts>.md`) already exists for that report,
+resume it instead of starting over — see "Resume" below.
+
+**Scope threshold — the one place these numbers live:** a fix is **milestone-driven**
+when the report holds **more than 20 findings or more than 10 files with findings**,
+counted over must-fix + should-fix (the default scope — decidable before the approval
+gate exists; a `consider` opt-in at approval only adds work to a run that is already
+milestone-driven). At or below that, run the single-pass fix. Review mode reuses the same
+numbers — counted over the whole report — to trim its chat output (see
+`references/review-report.md`).
+
+### Single-pass fix (at or below the threshold)
 
 1. **Build the completeness ledger.** One row per finding:
    `{ id, file, line, rule, severity, status }`, `status = pending`. The id is the
@@ -123,7 +135,13 @@ in-session review's findings). If none exists, run Review first to produce one.
    because later steps depend on earlier ones:
    a. create/extend barrel `index` files (ST-002);
    b. rewrite deep imports to the new public entries (ST-003);
-   c. apply ST-008 splits (create named sibling files, move declarations).
+   c. apply ST-008 splits (create named sibling files, move declarations);
+   d. **re-check each folder the splits added files to:** if 3+ flat siblings now
+      share a theme, the folder has earned a sub-feature promotion (ST-008's Rule
+      of Three) that is **not** in the ledger — record it as a *promotion
+      candidate* (folder + themed cluster). Don't perform it: fix mode never
+      expands its own ledger mid-run. Candidates surface as offers in the final
+      report.
    Each write goes through the orchestrator, so the hooks fire. Update the ledger.
    Independent barrels may fan out, but an import rewrite runs only after the barrel
    it targets exists.
@@ -150,11 +168,81 @@ in-session review's findings). If none exists, run Review first to produce one.
 
 6. **Report against the ledger.** State `N of M findings fixed across K files; D
    deferred`, and **list every deferred finding with its reason**. An incomplete run
-   says exactly what remains and why — it never stops silently.
+   says exactly what remains and why — it never stops silently. If Phase A recorded
+   promotion candidates, add one line per folder — `<folder> now holds <n> flat
+   files; <x, y, z> share a theme and have earned a sub-feature folder — want a
+   promotion pass?` — the same opt-in shape as the Write-mode migration offer.
 
-**Fallback when `Agent` is unavailable** (Cursor/Codex/OpenCode): run Phases A and B
-yourself in batches, one file at a time, still driven by the ledger, and report the
-same way. Announce that fan-out is unavailable in this host.
+### Milestone-driven fix (above the threshold)
+
+A big fix is chunked into **milestones**, persisted to a plan file, and worked to done
+autonomously — approve once, then no more questions. The plan-file format, statuses,
+and resume mechanics live in `references/fix-plan.md`; this is the orchestration:
+
+1. **Build the plan.** Build the ledger and partition exactly as in Single-pass fix steps
+   1–2, then group into milestones:
+   - **M1 — structural** (only when structural findings exist): every ST-002 /
+     ST-003 / ST-008 / move-rename finding, in the Phase-A order (barrels →
+     deep-import rewrites → ST-008 splits).
+   - **M2…Mn — one per module:** group the file-local findings by the nearest
+     feature/module folder per the resolved STRUCTURE (top-level directory as
+     fallback). Order milestones by must-fix count descending, then total findings
+     descending, then path.
+   Record the commit policy: commits happen only if the root is a git repo **and**
+   the working tree was clean (`git status --porcelain` empty) at run start;
+   otherwise the plan header notes why commits are skipped.
+
+2. **One approval, then autonomy.** Present the milestone list compactly — one line
+   per milestone: scope, finding count, severity breakdown — and ask **one** question:
+   scope. Default **must-fix + should-fix**; `consider` findings join only if the user
+   opts in here. Write the plan file with the approved scope **before any write to
+   user code**. If the host has a task-list tool, create one task per milestone now
+   (display mirror only — the plan file is the source of truth). After this point,
+   ask nothing until the run ends or blocks.
+
+3. **The milestone loop.** For each milestone in plan order:
+   a. Execute it — M1 via the Phase-A coordination, module milestones via the
+      Phase-B per-file fan-out (same mechanics, scoped to this milestone's files).
+   b. Verify with `hooks/review-files.py --json` over **this milestone's files
+      only**; max 2 re-fix passes per file, then `deferred(reason)`.
+   c. **Update the plan file first** — statuses, checkboxes, deferral notes, and any
+      promotion candidates from Phase-A step d (recorded under the plan's
+      `## Follow-ups` section, see `references/fix-plan.md`) — before the commit and
+      the chat line.
+   d. Commit (when the policy allows):
+      `fix(standards): <milestone scope> — <n> findings [M<k>/<total>]`.
+   e. Emit **one chat line**:
+      `M<k>/<total> done — <scope>: <n> fixed, <d> deferred — <short-hash>`
+      (`no commit` in place of the hash when the policy skips commits).
+      Never re-print finding tables during the run.
+
+4. **Blockers.** A real blocker (a hook keeps rejecting past the re-fix budget, a fix
+   needs a user decision, the host dies mid-run) stops the run: leave the milestone
+   `in_progress`, write what blocked it into the plan header (`Status: blocked
+   (M<k>: <reason>)`), tell the user in one line. "Continue the fix" resumes from
+   there — per the blocked-plan rule in `references/fix-plan.md`: surface the
+   recorded reason first; a needed user decision is the sole exception to
+   no-repeated-questions.
+
+5. **Final report.** When every milestone is terminal, report against the plan file:
+   `N of M findings fixed across K files in T milestones; D deferred` — plus every
+   deferral with its reason, plus every `## Follow-ups` entry as a one-line offer
+   (promotion candidates from Phase-A step d). Same ledger-completeness rule as
+   single-pass: an incomplete run says exactly what remains and why; it never stops
+   silently.
+
+### Resume
+
+"continue the fix" / "resume the fix" — from any session, including a fresh one:
+follow the resume procedure in `references/fix-plan.md` (newest non-done plan,
+re-verify any `in_progress` milestone's files, reconcile checkboxes against reality),
+then continue at step 3 of "Milestone-driven fix" above. **No re-approval** — the
+plan header records the original approval and scope.
+
+**Fallback when `Agent` is unavailable** (Cursor/Codex/OpenCode): run the phases
+yourself in batches, one file at a time, still driven by the ledger — and by the plan
+file when milestone-driven — and report the same way. Announce that fan-out is
+unavailable in this host.
 
 ## Tell the user what happened
 
@@ -190,3 +278,11 @@ Files written: <list>. Hooks passed.
   first, coordinated by the orchestrator; file-local fixes fan out in parallel.
 - **Fix mode is ledger-complete.** Every finding ends `fixed` or `deferred(reason)`;
   a silent partial result is a failure. Max 2 re-fix passes per file.
+- **Fix mode never expands its own ledger.** A folder promotion earned by its own
+  ST-008 splits (Phase-A step d) is recorded and offered after the run — never
+  performed mid-run.
+- **Milestone fixes are disk-anchored.** Above the scope threshold the plan file
+  (`references/fix-plan.md`) is the source of truth: written before any code write,
+  updated after every milestone verify, one commit and one chat line per milestone,
+  finding tables never re-dumped to chat. Approval happens exactly once, at plan
+  time; resume never re-asks.
