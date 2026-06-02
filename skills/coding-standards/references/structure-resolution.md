@@ -1,6 +1,6 @@
 # Structure resolution — full mechanics
 
-Step 1.4 of `SKILL.md` resolves the **folder layout** a project follows. The body of SKILL.md
+Step 4 of `SKILL.md` resolves the **folder layout** a project follows. The body of SKILL.md
 carries the decision skeleton; this file carries the details you only need when you actually hit
 each branch.
 
@@ -156,7 +156,7 @@ new file only, with the placement noted.
 
 ## How this feeds the rest of the run
 
-The resolved structure replaces `references/<framework>/structure.md` in Step 2's load list. The seven
+The resolved structure replaces `references/<framework>/structure.md` in SKILL.md's Step 7b load list. The seven
 `common/` files always load and apply unchanged, whatever structure is chosen. In the orchestrator
 pipeline the resolved structure is passed to Worker 1 as its `STRUCTURE` input (see
 `orchestrator-pipeline.md`) — Worker 1 checks placement against the resolved layout, never a default it

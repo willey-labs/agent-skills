@@ -12,7 +12,7 @@ A CUSTOM layout writes this file with its learned layout and an optional
 `hooks:` block. A custom project that instead *adopts* a standard writes the
 same file carrying a `follows: <standard>` line. A project whose folders already
 match a standard has no file at all — its structure is recognised from its
-folders (per SKILL.md Step 1.4).
+folders (per SKILL.md Step 4).
 
 This module reads only the `hooks:` toggles below; it ignores `follows:` and any
 layout body. A `follows:`-only file therefore yields no toggles, so every check
