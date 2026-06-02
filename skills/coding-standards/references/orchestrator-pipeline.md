@@ -108,7 +108,19 @@ domain — so it **fans out one fix-agent per file**. This is the path that scal
 large finding set *triggers* fan-out instead of overflowing one context.
 
 **Input:** the most recent `.coding-standards/reviews/<ts>.md` report (or an
-in-session review's findings). If none exists, run Review first to produce one.
+in-session review's findings). If none exists, run Review first to produce one. If a
+non-done fix plan (`.coding-standards/fixes/<ts>.md`) already exists for that report,
+resume it instead of starting over — see "Resume" below.
+
+**Scope threshold — the one place these numbers live:** a fix is **milestone-driven**
+when the report holds **more than 20 findings or more than 10 files with findings**,
+counted over must-fix + should-fix (the default scope — decidable before the approval
+gate exists; a `consider` opt-in at approval only adds work to an already-milestone-
+driven run). At or below that, run the single-pass fix. Review mode reuses the same
+numbers — counted over the whole report — to trim its chat output (see
+`references/review-report.md`).
+
+### Single-pass fix (at or below the threshold)
 
 1. **Build the completeness ledger.** One row per finding:
    `{ id, file, line, rule, severity, status }`, `status = pending`. The id is the
@@ -152,9 +164,68 @@ in-session review's findings). If none exists, run Review first to produce one.
    deferred`, and **list every deferred finding with its reason**. An incomplete run
    says exactly what remains and why — it never stops silently.
 
-**Fallback when `Agent` is unavailable** (Cursor/Codex/OpenCode): run Phases A and B
-yourself in batches, one file at a time, still driven by the ledger, and report the
-same way. Announce that fan-out is unavailable in this host.
+### Milestone-driven fix (above the threshold)
+
+A big fix is chunked into **milestones**, persisted to a plan file, and worked to done
+autonomously — approve once, then no more questions. The plan-file format, statuses,
+and resume mechanics live in `references/fix-plan.md`; this is the orchestration:
+
+1. **Build the plan.** Build the ledger and partition exactly as in single-pass steps
+   1–2, then group into milestones:
+   - **M1 — structural** (only when structural findings exist): every ST-002 /
+     ST-003 / ST-008 / move-rename finding, in the Phase-A order.
+   - **M2…Mn — one per module:** group the file-local findings by the nearest
+     feature/module folder per the resolved STRUCTURE (top-level directory as
+     fallback). Order milestones by must-fix count descending, then total findings
+     descending, then path.
+   Record the commit policy: commits happen only if the root is a git repo **and**
+   the working tree was clean (`git status --porcelain` empty) at run start;
+   otherwise the plan header notes why commits are skipped.
+
+2. **One approval, then autonomy.** Present the milestone list compactly — one line
+   per milestone: scope, finding count, severity breakdown — and ask **one** question:
+   scope. Default **must-fix + should-fix**; `consider` findings join only if the user
+   opts in here. Write the plan file with the approved scope **before any write to
+   user code**. If the host has a task-list tool, create one task per milestone now
+   (display mirror only — the plan file is the source of truth). After this point,
+   ask nothing until the run ends or blocks.
+
+3. **The milestone loop.** For each milestone in plan order:
+   a. Execute it — M1 via the Phase-A coordination, module milestones via the
+      Phase-B per-file fan-out (same mechanics, scoped to this milestone's files).
+   b. Verify with `hooks/review-files.py --json` over **this milestone's files
+      only**; max 2 re-fix passes per file, then `deferred(reason)`.
+   c. **Update the plan file first** — statuses, checkboxes, deferral notes — before
+      the commit and the chat line.
+   d. Commit (when the policy allows):
+      `fix(standards): <milestone scope> — <n> findings [M<k>/<total>]`.
+   e. Emit **one chat line**:
+      `M<k>/<total> done — <scope>: <n> fixed, <d> deferred — <short-hash>`.
+      Never re-print finding tables during the run.
+
+4. **Blockers.** A real blocker (a hook keeps rejecting past the re-fix budget, a fix
+   needs a user decision, the host dies mid-run) stops the run: leave the milestone
+   `in_progress`, write what blocked it into the plan header (`Status: blocked
+   (M<k>: <reason>)`), tell the user in one line. "Continue the fix" resumes from
+   there.
+
+5. **Final report.** When every milestone is terminal, report against the plan file:
+   `N of M findings fixed across K files in T milestones; D deferred` — plus every
+   deferral with its reason. Same ledger-completeness rule as single-pass: an
+   incomplete run says exactly what remains and why; it never stops silently.
+
+### Resume
+
+"continue the fix" / "resume the fix" — from any session, including a fresh one:
+follow the resume procedure in `references/fix-plan.md` (newest non-done plan,
+re-verify any `in_progress` milestone's files, reconcile checkboxes against reality),
+then continue the milestone loop at step 3. **No re-approval** — the plan header
+records the original approval and scope.
+
+**Fallback when `Agent` is unavailable** (Cursor/Codex/OpenCode): run the phases
+yourself in batches, one file at a time, still driven by the ledger — and by the plan
+file when milestone-driven — and report the same way. Announce that fan-out is
+unavailable in this host.
 
 ## Tell the user what happened
 
@@ -190,3 +261,8 @@ Files written: <list>. Hooks passed.
   first, coordinated by the orchestrator; file-local fixes fan out in parallel.
 - **Fix mode is ledger-complete.** Every finding ends `fixed` or `deferred(reason)`;
   a silent partial result is a failure. Max 2 re-fix passes per file.
+- **Milestone fixes are disk-anchored.** Above the scope threshold the plan file
+  (`references/fix-plan.md`) is the source of truth: written before any code write,
+  updated after every milestone verify, one commit and one chat line per milestone,
+  finding tables never re-dumped to chat. Approval happens exactly once, at plan
+  time; resume never re-asks.
