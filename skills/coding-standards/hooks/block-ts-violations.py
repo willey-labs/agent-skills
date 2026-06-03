@@ -39,7 +39,11 @@ from _hook_run import block, cited_rules, read_payload, resolve_target  # noqa: 
 # ast_ran=False, which `collect_violations` handles via the regex fallback.
 # The Express error-middleware carve-out is shared from there so the AST path
 # and this file's regex fallback agree on FN-005.
-from _ts_ast import is_express_error_middleware_params, iter_ts_ast_violations  # noqa: E402
+from _ts_ast import (  # noqa: E402
+    ast_backend_available,
+    is_express_error_middleware_params,
+    iter_ts_ast_violations,
+)
 
 TS_EXTENSIONS = {".ts", ".tsx", ".mts", ".cts"}
 JS_EXTENSIONS = {".js", ".jsx", ".mjs", ".cjs"}
@@ -213,8 +217,20 @@ def main() -> int:
     if target is None:
         return 0
     file_path, new_content = target
+    ext = Path(file_path).suffix
 
-    violations = collect_violations(new_content, file_path, Path(file_path).suffix)
+    # Surface degraded enforcement: FN-001 (body length) and OD-004 (hybrid class)
+    # are AST-only, so without tree-sitter they silently no-op while the regex
+    # checks still run. Fires only on a broken/bypassed bootstrap. (.vue/.svelte
+    # never run the AST path.)
+    if not ast_backend_available() and ext in (TS_EXTENSIONS | JS_EXTENSIONS):
+        sys.stderr.write(
+            "coding-standards: tree-sitter unavailable — FN-001/OD-004 AST checks "
+            "skipped for this write (regex checks still ran); re-run bootstrap.py "
+            "to restore them.\n"
+        )
+
+    violations = collect_violations(new_content, file_path, ext)
     if not violations:
         return 0
 

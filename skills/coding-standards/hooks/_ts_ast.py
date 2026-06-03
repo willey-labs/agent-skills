@@ -91,6 +91,13 @@ OD_005_BOUNDARY_PARENTS = {
 }
 
 
+def ast_backend_available() -> bool:
+    """True when the tree-sitter grammars loaded — i.e. the AST checks (FN-001,
+    OD-004, precise FN-005) can run. False means tree-sitter is missing, so those
+    AST-only checks silently no-op and only the regex checks run."""
+    return _AST_AVAILABLE
+
+
 def _pick_ts_language(ext: str):
     """Pick the right grammar for the file extension. Returns None if no
     grammar is installed for this extension.

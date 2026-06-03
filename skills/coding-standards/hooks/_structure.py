@@ -42,7 +42,7 @@ Rules:
 - No file, or the file does not mention a given check → the check is ENABLED
   (the hook's normal behaviour). Absence NEVER silently disables a check.
 - Only an explicit `<check>: off` (or false/no/disabled) on a recognised key
-  (`deep-import`, `god-file`) turns that check off.
+  (`deep-import`, `god-file`, `flat-folder`) turns that check off.
 
 This is the deterministic half of the structure feature: the choice recorded
 in the file actually changes what the hooks block at write time, instead of

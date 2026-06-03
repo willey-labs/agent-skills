@@ -44,6 +44,10 @@ Flags:
   --auto-install   Install the missing required packages without the
                    interactive confirm. Implied in non-TTY (agent) contexts —
                    the install is required, so it always proceeds there.
+  --verify         Fast read-only check (SKILL.md Step 0 runs this first): exit 0
+                   if the skill is already wired for this scope AND the hooks'
+                   interpreter can import the required packages; non-zero if a
+                   full --auto-install run is needed. Wires/installs nothing.
 """
 
 from __future__ import annotations

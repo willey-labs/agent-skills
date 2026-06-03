@@ -206,4 +206,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as exc:  # noqa: BLE001
+        # Never let an unexpected internal error block a legitimate write. Fail
+        # OPEN: exit 0 so Claude Code proceeds, and note it on stderr for debugging.
+        sys.stderr.write(f"coding-standards: block-py-violations internal error, skipped ({exc})\n")
+        sys.exit(0)

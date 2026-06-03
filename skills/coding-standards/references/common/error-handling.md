@@ -2,7 +2,7 @@
 
 Language-agnostic rules for separating the happy path from failure handling.
 
-See also `functions.md` FN-010 (prefer exceptions over error codes).
+See also `functions.md` FN-010 (signal failure the *idiomatic* way for your language, not error codes ported from another).
 
 ---
 

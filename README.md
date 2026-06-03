@@ -74,7 +74,8 @@ of the skill runs `bootstrap.py`. That script:
 1. Detects the install scope from its own path (`~/.claude/skills/` → global,
    `<project>/.claude/skills/` → project) and targets the correct
    `settings.json`.
-2. Adds a single PreToolUse entry registering all 7 enforcement hooks.
+2. Adds a single PreToolUse entry registering all 8 enforcement hooks
+   (1 path-checker, 6 language content-checkers, 1 advisory size-checker).
    Existing unrelated `PreToolUse` entries and other settings are
    preserved byte-for-byte.
 3. Is idempotent: re-running is a noop unless the skill was upgraded, in
@@ -83,7 +84,7 @@ of the skill runs `bootstrap.py`. That script:
 After the first run you'll see something like:
 
 ```
-coding-standards: Wired 7 PreToolUse hooks into /path/.claude/settings.json (project).
+coding-standards: Wired 8 PreToolUse hooks into /path/.claude/settings.json (project).
 ```
 
 **Restart the agent session once** for Claude Code to pick up the new
@@ -134,15 +135,20 @@ immediately instead of waiting, run `python3 <skill-dir>/bootstrap.py` and resta
 ## Status
 
 The structure rules have been self-reviewed against representative project
-layouts. Seven PreToolUse hooks (one universal path-checker plus six
-language content-checkers) in `skills/coding-standards/hooks/`
-hard-block the high-precision violations regex can catch reliably
-(`any`/`Any`/`interface{}`/`dynamic`/`mixed`, Hungarian notation, 4+ argument
-functions, junk-drawer paths, dot/star imports, deep imports, parent
-traversal). Everything else relies on the agent reading the references and
-applying judgement during write/review. For mechanical checks beyond regex
-(function length, hybrid class detection), pair with your project's linter
-(ESLint, PHPStan, Roslyn analyzers, etc.).
+layouts. Eight PreToolUse hooks (one universal path-checker, six language
+content-checkers, and one advisory size-checker) in
+`skills/coding-standards/hooks/` enforce what they can detect reliably.
+The regex checks hard-block `any`/`Any`/`interface{}`/`dynamic`/`mixed`,
+Hungarian notation, 4+ argument functions, junk-drawer paths, dot/star imports,
+deep imports, and parent traversal. On TypeScript/JavaScript (via tree-sitter)
+and Python (via the stdlib `ast`), an AST layer additionally hard-blocks the
+structural rules a real parse is needed for: FN-001 (function body length),
+FN-005 (precise argument count), and OD-004 (hybrid classes). The advisory hook
+warns — never blocks — on god-file size and flat-folder growth. Everything else
+relies on the agent reading the references and applying judgement during
+write/review. For mechanical checks beyond these (dead code, complexity
+metrics, etc.), pair with your project's linter (ESLint, PHPStan, Roslyn
+analyzers, etc.).
 
 ## License
 

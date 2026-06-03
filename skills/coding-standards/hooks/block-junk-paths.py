@@ -34,10 +34,9 @@ JUNK_DRAWER_EXTS = {
     ".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs",
     ".py", ".go", ".cs", ".java", ".kt", ".php", ".rb", ".rs",
 }
-# Path segments that legitimately host purpose-named files (`shared/lib/currency.ts`).
-# A junk-drawer *stem* inside one of these is still wrong (`shared/lib/utils.ts`),
-# but the rest of these parents are fine — we don't flag those.
-JUNK_DRAWER_ALLOWED_PARENTS = ("shared/lib", "internal/platform", "shared/utils")
+# ST-005 is absolute — a junk-drawer stem is wrong in every directory, including
+# shared-utility homes like shared/lib/. A project that must keep such a file uses
+# `.coding-standards-ignore`, not a hard-coded global whitelist.
 
 # ST-005 corollary — generic mega-files directly under a `src/` directory
 # (root-level `src/types.ts` OR a nested one like `apps/web/src/constants.ts` —
@@ -54,22 +53,11 @@ def check_path_violations(file_path: str) -> list[str]:
     p = Path(file_path)
     normalized = file_path.replace("\\", "/")
 
-    if p.suffix.lower() in JUNK_DRAWER_EXTS:
-        stem = p.stem.lower()
-        if stem in JUNK_DRAWER_STEMS:
-            # Segment-boundary match — `shared/lib` must be a real directory
-            # path, not a substring of e.g. `shared/library`. Wrap both sides in
-            # `/` so the parent matches only at directory boundaries.
-            bounded = f"/{normalized}"
-            allowed = any(
-                f"/{allowed_parent}/" in bounded
-                for allowed_parent in JUNK_DRAWER_ALLOWED_PARENTS
-            )
-            if not allowed:
-                violations.append(
-                    f"{file_path} — ST-005: junk-drawer filename `{p.name}`; "
-                    f"name files by what they do (e.g. format-currency.ts, parse-date.ts)"
-                )
+    if p.suffix.lower() in JUNK_DRAWER_EXTS and p.stem.lower() in JUNK_DRAWER_STEMS:
+        violations.append(
+            f"{file_path} — ST-005: junk-drawer filename `{p.name}`; "
+            f"name files by what they do (e.g. format-currency.ts, parse-date.ts)"
+        )
 
     if TOP_LEVEL_MEGAFILE_PATTERN.search(normalized):
         violations.append(
@@ -127,4 +115,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as exc:  # noqa: BLE001
+        # Never let an unexpected internal error block a legitimate write. Fail
+        # OPEN: exit 0 so Claude Code proceeds, and note it on stderr for debugging.
+        sys.stderr.write(f"coding-standards: block-junk-paths internal error, skipped ({exc})\n")
+        sys.exit(0)

@@ -124,7 +124,7 @@ Look at the file you're acting on and match the signals below. **Stop at the fir
 | `csharp` | `*.csproj`, `*.sln`, `*.cs` files |
 | `spring-boot` | `pom.xml` with `spring-boot-starter-*` **or** Gradle with the Spring Boot plugin **or** `@SpringBootApplication` |
 | `django` | `manage.py` + a settings module **or** `django` in `pyproject.toml` / `requirements.txt` |
-| `fastapi` | `fastapi` in deps **or** `from fastapi import FastAPI` |
+| `fastapi` | `fastapi` in deps **or** `from fastapi import FastAPI` **and** not Django |
 | `flask` | `flask` in deps **or** `from flask import Flask` **and** not Django/FastAPI |
 | `go-http` | `go.mod` + a router (`gin`, `echo`, `fiber`, `chi`, `mux`) or net/http handler routing |
 | `vanilla-js` | Plain `.ts` / `.js` that fits none of the above (libraries, CLIs, scripts, browserless projects) |
