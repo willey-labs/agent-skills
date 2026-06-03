@@ -55,42 +55,17 @@ The second form hides whether fuel is in gallons, liters, kilowatt-hours, or kil
 
 Every class is a bet on what kind of change comes next. The two extremes have opposite tradeoffs.
 
-**Procedural with data structures** — shapes have no behavior; a separate `Geometry` module computes `area`, `perimeter`, etc.
+Some types come in variants — a set of named kinds, each with its own behavior. There are two ways to model them, and the choice is about where the next change lands.
 
-| Adding a new operation (e.g. `centroid`) | Easy — one new function. Shapes unchanged. |
-| Adding a new shape (e.g. `Triangle`) | Hard — every function in `Geometry` needs a new case. |
+**Behavior in the type** — one class or module per variant, each owning its own logic. Adding a variant is one new unit; nothing else moves. Adding an operation touches every variant.
 
-**Object-oriented with polymorphic objects** — each shape owns its own `area()`, `perimeter()`.
+**Data plus central functions** — variants are plain data; functions elsewhere `switch` on a tag to decide what to do. Adding an operation is one new function; adding a variant means editing every function that switches.
 
-| Adding a new operation | Hard — every shape needs the new method. |
-| Adding a new shape | Easy — one new class. Nothing else changes. |
+Pick the form that makes the *expected* change the small one. Variants keep arriving over time → behavior in the type. The set is fixed and new operations keep arriving → data plus functions.
 
-**The rule:** procedural code makes it easy to add functions; object-oriented code makes it easy to add types. What is easy for one is hard for the other.
+**If the task already names the variants and each carries its own behavior, put the behavior in the type.** That is modeling what you were given, not a speculative abstraction — don't talk yourself out of it with "keep it simple."
 
-**Apply:** look at the change history (or your honest forecast). If new operations on a closed set of types are common, use data structures and procedures. If new types with a closed set of operations are common, use polymorphic objects. Pick the form that makes the *expected change* the small change.
-
-Not everything needs to be an object.
-
-**The sum-type escape hatch.** Languages with discriminated unions / sum types (Rust enums, TypeScript discriminated unions, Kotlin sealed classes, Swift enums-with-associated-values, OCaml/F# variants, Scala ADTs) partially escape this tradeoff: pattern matching on a closed type union lets you add *both* new types *and* new operations cheaply, because the compiler tells you everywhere a missing case lives.
-
-```ts
-type Shape =
-  | { kind: 'circle'; radius: number }
-  | { kind: 'rectangle'; width: number; height: number }
-  | { kind: 'triangle'; base: number; height: number }
-
-function area(shape: Shape): number {
-  switch (shape.kind) {
-    case 'circle':    return Math.PI * shape.radius ** 2
-    case 'rectangle': return shape.width * shape.height
-    case 'triangle':  return 0.5 * shape.base * shape.height
-  }
-}
-```
-
-Adding `Pentagon` adds one entry to the union; the compiler then flags every `switch` that doesn't handle it. Adding `perimeter` adds one function that pattern-matches the same closed set. **Both axes become the small change**, provided the type set stays *closed* (sum types do not extend across module boundaries the way subclass hierarchies do).
-
-The classic Martin tradeoff (objects vs data structures) holds when the type set is *open* (new types arrive from third-party plugins, separately deployed services, external integrations). Sum types only help inside one closed domain.
+**Data plus a tag is the narrow case, not the default.** Use it only when the variants are near-pure data, the set is closed, and the matching happens in one or two places. Even then, every `switch` must be exhaustive — a missing variant must fail to compile. An `if/else` chain, or a `default` that returns a fallback, silently mishandles a new variant; that is a defect. Once three or more places switch on the same tag, the behavior is scattered — move it into the type.
 
 ---
 

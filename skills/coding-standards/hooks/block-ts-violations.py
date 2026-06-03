@@ -37,7 +37,9 @@ from _hook_run import block, cited_rules, read_payload, resolve_target  # noqa: 
 # this file stays focused on the regex checks + orchestration (ST-008). The
 # import never fails: _ts_ast guards its own tree-sitter import and degrades to
 # ast_ran=False, which `collect_violations` handles via the regex fallback.
-from _ts_ast import iter_ts_ast_violations  # noqa: E402
+# The Express error-middleware carve-out is shared from there so the AST path
+# and this file's regex fallback agree on FN-005.
+from _ts_ast import is_express_error_middleware_params, iter_ts_ast_violations  # noqa: E402
 
 TS_EXTENSIONS = {".ts", ".tsx", ".mts", ".cts"}
 JS_EXTENSIONS = {".js", ".jsx", ".mjs", ".cjs"}
@@ -73,6 +75,13 @@ HUNGARIAN_PARAM = re.compile(
 # FN-005 — function signature with 4+ positional arguments.
 # Catches: function foo(a, b, c, d) / const foo = (a, b, c, d) => ...
 # Allows the object-param escape hatch: function foo({ a, b, c, d }).
+# Carve-out: the Express error-middleware shape (err, req, res, next) is
+# exempt — Express dispatches error middleware by arity, so those 4 params
+# are the framework's contract, not an API-design choice. The shape check
+# lives in _ts_ast.is_express_error_middleware_params (shared with the AST
+# path). Trade-off: a deliberately mis-named 4-arg function aping that exact
+# shape slips through; that costs less than blocking the one error handler
+# every Express project must have.
 FUNCTION_ARG_COUNT_PATTERNS = [
     re.compile(
         r"\b(?:function|async\s+function)\s+\w+\s*"
@@ -139,13 +148,14 @@ def iter_hungarian_violations(clean_lines: list[str], file_path: str) -> Iterabl
 
 def iter_arg_count_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
     for idx, line in enumerate(clean_lines, start=1):
-        for pattern in FUNCTION_ARG_COUNT_PATTERNS:
-            if pattern.search(line):
-                yield (
-                    f"{file_path}:{idx} — FN-005: function takes 4+ positional arguments; "
-                    f"group them into a typed object parameter"
-                )
-                break
+        if not any(pattern.search(line) for pattern in FUNCTION_ARG_COUNT_PATTERNS):
+            continue
+        if is_express_error_middleware_params(line):
+            continue
+        yield (
+            f"{file_path}:{idx} — FN-005: function takes 4+ positional arguments; "
+            f"group them into a typed object parameter"
+        )
 
 
 def iter_import_violations(

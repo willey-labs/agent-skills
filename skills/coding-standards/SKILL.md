@@ -309,12 +309,15 @@ a concern. During real work Step 7 already loads everything, so the index is jus
 
 ---
 
-## On conflict — KISS wins
+## On conflict — the simpler *correct* design wins
 
-When two rules pull apart, **DP-006 (KISS)** is the tiebreaker. A simpler design that mildly bends another
-principle beats a complex one that satisfies them all. If you're adding patterns (Strategy, Visitor, a
-fifth layer of indirection) just to satisfy a rule, stop and check whether the simple version is actually
-wrong — usually it isn't.
+When two designs are **both correct** and pull apart on other principles, **DP-006 (KISS)** breaks the
+tie: the simpler one wins, even if it mildly bends DRY or another rule. KISS is a tiebreaker, not a trump
+card — it never overrides correctness, a real requirement, or SOLID. You cannot invoke it to skip a class
+per variant you were handed (OD-002), swallow an error, or ship a silent fallback. Adding a pattern
+(Strategy, Visitor, a fifth layer of indirection) just to satisfy a rule? Stop — the simple version is
+usually right. Defending a god-file or a duplicated `switch` as "simple" to avoid the structure? Also stop
+— that's not simpler, just smaller.
 
 ---
 

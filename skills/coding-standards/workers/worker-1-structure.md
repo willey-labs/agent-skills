@@ -192,5 +192,5 @@ Before considering any file, the orchestrator has already filtered out paths exc
 - **Never modify code outside your owned rules.** If a name is bad, leave it for Worker 2. If error handling is missing, leave it for Worker 3.
 - **Output JSON only.** No commentary before or after. If you have notes for downstream workers, put them in `notes_for_worker_2` / `notes_for_worker_3`.
 - **No empty folders.** Don't create a folder until you write a file into it.
-- **No speculative abstractions.** No `BaseEntity`, no generic `Repository<T>`, no "for future use" interfaces (per DP-006 KISS — and keep generic names confined to the design-system layer per ST-006).
+- **No speculative abstractions.** No `BaseEntity`, no generic `Repository<T>`, no "for future use" interfaces (per DP-006 KISS — and keep generic names confined to the design-system layer per ST-006). But variants the task already names aren't speculation — a class or module per variant models what exists. When several features would each switch on the same variant tag, default to that over a tag-switched union (OD-002).
 - **If you cannot decide a path** (e.g., the framework signal is ambiguous), put your best guess in `files` and explain in `notes_for_worker_2`.

@@ -15,6 +15,7 @@ crashing every Write/Edit.
 
 from __future__ import annotations
 
+import re
 from typing import Iterable
 
 try:
@@ -40,6 +41,33 @@ except Exception:
 
 FN_001_MAX_STATEMENTS = 20
 FN_005_MAX_POSITIONAL = 3
+
+# FN-005 carve-out — Express error middleware. Express dispatches error
+# middleware BY ARITY: a handler registered with app.use() is treated as an
+# error handler only when it declares exactly four parameters, so the
+# (err, req, res, next) signature is the framework's contract, not an API
+# choice — and the node-express structure reference mandates exactly one such
+# handler per app. Grouping the params into an object would silently turn the
+# middleware into a regular request handler. Matched by param shape: exactly
+# four params named (e|err|error, req|request, res|response, next), each
+# allowing leading underscores for intentionally-unused params and inline
+# type annotations / defaults without commas or parens. A fifth param breaks
+# the match, so a genuine 5-arg violation still blocks. Shared by the AST
+# path here and the regex fallback in block-ts-violations.py so both paths
+# agree.
+EXPRESS_ERROR_MIDDLEWARE_PARAMS = re.compile(
+    r"\(\s*"
+    r"_*(?:e|err|error)\b[^,()]*,\s*"
+    r"_*(?:req|request)\b[^,()]*,\s*"
+    r"_*(?:res|response)\b[^,()]*,\s*"
+    r"_*next\b[^,()]*"
+    r"\)"
+)
+
+
+def is_express_error_middleware_params(params_text: str) -> bool:
+    """True when a parameter list has the Express 4-arg error-middleware shape."""
+    return EXPRESS_ERROR_MIDDLEWARE_PARAMS.search(params_text) is not None
 
 # Tree-sitter node types that represent a function-like declaration we want to check.
 TS_FUNCTION_NODE_TYPES = {
@@ -220,7 +248,10 @@ def _check_function_node(func_node, file_path: str) -> list[str]:
     )
     if params_node is not None:
         count = _count_ts_params(params_node)
-        if count > FN_005_MAX_POSITIONAL:
+        params_text = params_node.text.decode("utf-8", errors="replace")
+        if count > FN_005_MAX_POSITIONAL and not is_express_error_middleware_params(
+            params_text
+        ):
             violations.append(
                 f"{file_path}:{line} — FN-005: `{name}` takes {count} "
                 f"positional parameters; group into a typed object"

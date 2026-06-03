@@ -98,19 +98,17 @@ Business logic (high level) should depend on an abstraction of its infrastructur
 
 ## DP-006 — KISS (Keep It Simple, Stupid)
 
-> Choose the simplest design that satisfies the current, stated requirements.
+> Choose the design with the fewest moving parts across the whole system over its life — not the one with the least code right now.
 
-Every layer of abstraction, every configuration option, every "what if" branch has a cost: more code, more decisions for the reader, more places to break. If removing the complexity would not break anything real, the complexity should not exist.
+Every layer of abstraction, option, and "what if" branch has a cost: more code, more for the reader to hold, more places to break. If removing it breaks nothing real, it shouldn't exist. But "fewer files today" is not the measure — the same `switch` copied into three features, or one god-file doing five jobs, looks smaller yet has *more* moving parts than the classes or modules that would replace it.
 
-**Apply as the tiebreaker.** When two designs both satisfy the rules above, the simpler one wins. When in doubt about whether a pattern (Strategy, Visitor, Observer) is justified, omit it until the second case appears.
+**A tiebreaker between correct designs — not a trump card.** When two designs are both correct and both follow the rules above, the simpler one wins. KISS never overrides correctness, SOLID, or a real requirement: you cannot cite it to skip a class per variant you were handed, swallow an error, or ship a silent fallback. Unsure whether a pattern (Strategy, Visitor, Observer) is justified? Omit it until the second case appears.
 
-**Smells:**
-- Configuration options no caller actually uses.
-- A generic abstraction with only one concrete implementation.
-- Pluggability for variations you cannot name.
-- "We might need this later" — usually later never comes, and if it does, the shape isn't what you predicted.
+**Smells in both directions:**
+- *Invented complexity:* a generic abstraction with one implementation; config options no caller uses; pluggability for variations you cannot name; "we might need this later."
+- *Falsely "simple":* one `switch` / `if-else` on the same tag duplicated across modules; a god-file or god-function defended as "fewer files"; copy-paste instead of one shared unit. Each looks smaller and isn't.
 
-**Trade-off honesty:** simpler is not always better. Sometimes a pattern *is* justified by current requirements (multiple payment providers, real polymorphism). KISS says don't *invent* complexity; it doesn't say strip out complexity you genuinely need.
+**Trade-off honesty:** simpler is not always smaller. Real polymorphism, multiple providers, the variants the task already names — these are justified by current requirements. KISS forbids *inventing* complexity, not keeping what you genuinely need.
 
 ---
 
