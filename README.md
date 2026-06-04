@@ -74,17 +74,18 @@ of the skill runs `bootstrap.py`. That script:
 1. Detects the install scope from its own path (`~/.claude/skills/` → global,
    `<project>/.claude/skills/` → project) and targets the correct
    `settings.json`.
-2. Adds a single PreToolUse entry registering all 8 enforcement hooks
-   (1 path-checker, 6 language content-checkers, 1 advisory size-checker).
-   Existing unrelated `PreToolUse` entries and other settings are
-   preserved byte-for-byte.
+2. Adds a single PreToolUse entry registering all 9 enforcement hooks
+   (1 path-checker, 6 language content-checkers, 1 ST-008 god-file checker
+   that blocks on declaration count and advises on size, 1 checker that keeps
+   `.coding-standards-structure` to placement only). Existing unrelated
+   `PreToolUse` entries and other settings are preserved byte-for-byte.
 3. Is idempotent: re-running is a noop unless the skill was upgraded, in
    which case the entry is replaced with the new hook list.
 
 After the first run you'll see something like:
 
 ```
-coding-standards: Wired 8 PreToolUse hooks into /path/.claude/settings.json (project).
+coding-standards: Wired 9 PreToolUse hooks into /path/.claude/settings.json (project).
 ```
 
 **Restart the agent session once** for Claude Code to pick up the new
@@ -135,9 +136,11 @@ immediately instead of waiting, run `python3 <skill-dir>/bootstrap.py` and resta
 ## Status
 
 The structure rules have been self-reviewed against representative project
-layouts. Eight PreToolUse hooks (one universal path-checker, six language
-content-checkers, and one advisory size-checker) in
-`skills/coding-standards/hooks/` enforce what they can detect reliably.
+layouts. Nine PreToolUse hooks (one universal path-checker, six language
+content-checkers, one ST-008 god-file checker that blocks on declaration count
+and advises on size, and one checker that keeps `.coding-standards-structure`
+to placement only) in `skills/coding-standards/hooks/` enforce what they can
+detect reliably.
 The regex checks hard-block `any`/`Any`/`interface{}`/`dynamic`/`mixed`,
 Hungarian notation, 4+ argument functions, junk-drawer paths, dot/star imports,
 deep imports, and parent traversal. On TypeScript/JavaScript (via tree-sitter)

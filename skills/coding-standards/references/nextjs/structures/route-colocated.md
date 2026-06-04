@@ -32,19 +32,19 @@ src/
 - **Barrels:** none — routes import what they need directly.
 - **Tests:** colocated (`*.test.tsx`) next to the file under test.
 
-## Hooks this variant implies
+## How the rules apply to this variant
 
-```yaml
-deep-import (ST-003): OFF      # no index.ts barrels in this layout — the only variant-driven toggle (god-file is a separate project-level advisory)
-universal rules:      ON       # ST-005 junk-drawer, no-any, naming, arg-count, ST-008 tiers — mandatory, never per-variant
-```
+This layout is **barrel-less** — routes import what they need directly, no `index.ts` public API. ST-003
+deep-import therefore has nothing to enforce, and `block-ts-violations.py` works that out on its own: it
+flags `@/a/b/c` only when capability `a/b` exposes a barrel, and here none do. No toggle, no configuration
+— the absence of barrels *is* the signal. Every other rule (ST-005 junk-drawer, no-`any`, naming,
+arg-count, ST-008 tiers) applies unchanged, as in every layout.
 
 ## `.coding-standards-structure` written when chosen
 
-Recording the choice is a single `follows:` line — the layout above stays the reference, so it isn't copied into the file. This variant is barrel-less, so it also sets the `deep-import` toggle off:
+A single `follows:` line — the layout above stays the reference, so it isn't copied into the file. Nothing
+else: deep-import is derived from the missing barrels, not declared.
 
 ```yaml
 follows: route-colocated
-hooks:
-  deep-import: off               # barrel-less layout — ST-003 has nothing to check
 ```

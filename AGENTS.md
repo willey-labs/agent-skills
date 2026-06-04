@@ -31,7 +31,7 @@ agent-skills/
       SKILL.md                       ← skill entrypoint; Step 0 runs bootstrap.py
       bootstrap.py                   ← installer entry point + orchestrator (stays at root: SKILL.md + the slash command invoke it by this exact path)
       _bootstrap/                    ← installer internals (ST-001/ST-004 package): paths, dependencies (REQUIRED_PACKAGES registry + presence checks), readiness, install (mandatory deps + venv fallback), scope (detection + ignore template), settings (settings.json wiring + command + permissions)
-      hooks/                         ← 8 PreToolUse hooks (1 path-checker + 6 language content-checkers + 1 advisory size-checker); block-ts/block-py delegate AST checks to _ts_ast.py / _py_ast.py, and all 6 language hooks share the gate/emit plumbing in _hook_run.py
+      hooks/                         ← 9 PreToolUse hooks (1 path-checker + 6 language content-checkers + block-god-file [ST-008: blocks on behavioral-decl count, advises on size/flat-folder] + block-structure-file-violations [keeps .coding-standards-structure to placement only]); block-ts/block-py delegate AST checks to _ts_ast.py / _py_ast.py, and all 6 language hooks share the gate/emit plumbing in _hook_run.py
       references/
         common/                      ← language-agnostic rules (FN-*, NM-*, OD-*, ST-*, EH-*, FMT-*, DP-*)
         <framework>/structure.md     ← per-framework architecture rules

@@ -183,8 +183,14 @@ to storage, that's three jobs in one file.
 
 - the file already does two or more unrelated things,
 - you're about to add a job to a file that already owns a different one,
-- it has grown past roughly **400 lines / 10 top-level declarations** (a nudge, not a hard gate; tunable
-  per project).
+- it carries **more than 10 behavioral top-level declarations** (functions / classes / methods — things
+  that *do* something): that's the hard line for "does many jobs", and a write-time hook blocks on it,
+- it has grown past roughly **400 lines** — a softer nudge (a cohesive file can be long), warned but never
+  blocked.
+
+These thresholds are fixed by the standard; there is no per-project tuning. A data-only file (a wall of
+`const`/`type`/`enum`) carries zero *behavioral* declarations, so length alone never blocks it — the gate
+is "how many jobs", not "how big".
 
 **Then** move the new job into its own named file beside the original. Once 3 such siblings share a theme,
 promote them to a sub-feature folder with its own front door (Rule of Three). Never create a folder for one
@@ -220,10 +226,11 @@ then one new file; nothing else changes.
   <entry>
 ```
 
-> A write-time hook (`warn-god-file.py`) warns when a file crosses the size threshold, and when a new file
-> lands in a folder already past the flat-sibling threshold; it never blocks (raw counts are too blunt to
-> gate on). The judgement — "is this two jobs?", "do these siblings share a theme?" — stays with the author
-> and the review.
+> A write-time hook (`block-god-file.py`) **blocks** when a file has more than 10 behavioral top-level
+> declarations — the least-blunt mechanical proxy for "does many jobs". Raw line count and flat-sibling
+> count are blunter, so they **warn but never block** (a long cohesive file is legitimate; a flat folder
+> may be fine). The judgement past the count — "is this two jobs?", "do these siblings share a theme?" —
+> stays with the author and the review, which enforce ST-008 in full regardless of the mechanical line.
 
 ---
 

@@ -99,9 +99,9 @@ def main() -> int:
         return 0
 
     # ST-005 is mandatory in every layout — a `utils.ts` is a junk-drawer name
-    # regardless of architecture — so there is no toggle for it. The structure
-    # file cannot switch this off (see hooks/_structure.py: `junk-drawer` is not
-    # a recognised toggle key).
+    # regardless of architecture. No rule has a per-project off switch: the
+    # `.coding-standards-structure` file records placement only (follows: / layout:),
+    # never a rule toggle.
     violations = check_path_violations(file_path)
     if not violations:
         return 0

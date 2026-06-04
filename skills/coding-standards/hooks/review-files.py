@@ -32,9 +32,14 @@ from pathlib import Path
 
 HOOK_DIR = Path(__file__).resolve().parent
 
-# Every content/path hook. Each self-filters by file extension and exits 0 when
-# the file isn't its language — so running them all against every file mirrors
-# how they are registered as PreToolUse hooks (all run; each picks its own).
+# Every content/path hook that applies to source files. Each self-filters by
+# file extension and exits 0 when the file isn't its language — so running them
+# all against every file mirrors how they register as PreToolUse hooks (all run;
+# each picks its own). Severity is read from the EXIT CODE per run, not from a
+# fixed list: a hook may block (exit 2 → must-fix) on one signal and advise
+# (exit 0 + stderr → should-fix) on another. block-god-file does both — it blocks
+# on too many behavioral declarations and advises on raw size / flat folders.
+# block-structure-file-violations is omitted: it guards the config file, not source.
 HOOK_FILES = (
     "block-junk-paths.py",
     "block-ts-violations.py",
@@ -43,15 +48,25 @@ HOOK_FILES = (
     "block-csharp-violations.py",
     "block-php-violations.py",
     "block-jvm-violations.py",
+    "block-god-file.py",
 )
 
-# Advisory hooks exit 0 and write to stderr regardless — never blocked, but
-# surfaced as should-fix findings tagged "[advisory]" in review output.
-WARN_HOOKS = ("warn-god-file.py",)
+
+def _bullets(stderr: str) -> list[str]:
+    """The `- ` bullet lines of a hook's stderr, headers dropped."""
+    out = []
+    for line in stderr.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- "):
+            out.append(stripped[2:].strip())
+    return out
 
 
 def check_file(path: str) -> list[str]:
-    """Return the hook-level violations for one existing file (empty if clean)."""
+    """Return the hook-level violations for one existing file (empty if clean).
+
+    Exit 2 → would have blocked at write time → must-fix. Exit 0 with stderr →
+    advisory → tagged "[advisory]" so the merge step files it as should-fix."""
     try:
         content = Path(path).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
@@ -68,27 +83,12 @@ def check_file(path: str) -> list[str]:
             capture_output=True,
             text=True,
         )
-        # Exit 2 == the hook would have blocked this content at write time.
-        if proc.returncode == 2 and proc.stderr.strip():
-            for line in proc.stderr.splitlines():
-                stripped = line.strip()
-                if stripped.startswith("- "):  # keep the bullet lines, drop the header
-                    violations.append(stripped[2:].strip())
-
-    # Advisory hooks exit 0 and write to stderr regardless. Capture them as
-    # warnings, tagged so the merge step files them as should-fix, not must-fix.
-    for hook in WARN_HOOKS:
-        proc = subprocess.run(
-            [sys.executable, str(HOOK_DIR / hook)],
-            input=payload,
-            capture_output=True,
-            text=True,
-        )
-        if proc.stderr.strip():
-            for line in proc.stderr.splitlines():
-                stripped = line.strip()
-                if stripped.startswith("- "):
-                    violations.append("[advisory] " + stripped[2:].strip())
+        if not proc.stderr.strip():
+            continue
+        if proc.returncode == 2:
+            violations.extend(_bullets(proc.stderr))
+        else:
+            violations.extend("[advisory] " + b for b in _bullets(proc.stderr))
     return violations
 
 

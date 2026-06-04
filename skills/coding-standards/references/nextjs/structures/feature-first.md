@@ -47,16 +47,16 @@ shared  →  features  →  app
 - Shared modules (`components`, `hooks`, `lib`, `types`, `utils`) may not import from `features` or `app`.
 - Enforce with ESLint `import/no-restricted-paths`.
 
-## Hooks this variant implies
+## How the rules apply to this variant
 
-```yaml
-deep-import (ST-003): ON       # enforce the per-feature index.ts boundary — the only variant-driven toggle (god-file is a separate project-level advisory)
-universal rules:      ON       # ST-005 junk-drawer, no-any, naming, arg-count, ST-008 tiers — mandatory, never per-variant
-```
+This variant keeps a per-feature `index.ts` barrel, so ST-003 deep-import is enforced automatically:
+`block-ts-violations.py` flags `@/a/b/c` because capability `a/b` exposes that barrel. Nothing to
+configure — the presence of the barrel *is* the signal. Every other rule (ST-005 junk-drawer, no-`any`,
+naming, arg-count, ST-008 tiers) applies unchanged, as in every layout.
 
 ## `.coding-standards-structure` written when chosen
 
-Recording the choice is a single `follows:` line — the layout above stays the reference, so it isn't copied into the file. This variant keeps per-feature barrels, so `deep-import` stays on (the default) and needs no toggle:
+A single `follows:` line — the layout above stays the reference, so it isn't copied into the file:
 
 ```yaml
 follows: feature-first

@@ -7,7 +7,9 @@ detectable via regex or AST.
 Regex checks (always on — work on any content, including partial Edit snippets):
 - `any` type (TS only): `: any`, `<any>`, `as any`, `any[]`, ...
 - Hungarian notation (NM-006): `strName`, `arrItems`, ...
-- Deep imports past public API (ST-003): `@/foo/bar/baz`
+- Deep imports past public API (ST-003): `@/foo/bar/baz` — flagged only when the
+  capability folder `foo/bar` actually exposes an index barrel (a barrel-less
+  layout has no public API to reach past, so the import is the only option)
 - Parent traversal `../../../` (universal smell)
 
 AST checks (REQUIRED — bootstrap.py installs `tree-sitter` and the grammars
@@ -30,7 +32,10 @@ from pathlib import Path
 from typing import Iterable
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _structure import is_check_enabled  # noqa: E402
+# ST-003 deep-import is structure-derived, not toggled: we flag `@/a/b/c` only
+# when capability `a/b` exposes an index barrel. find_project_root locates the
+# root the `@/` alias is relative to.
+from _exclusions import find_project_root  # noqa: E402
 # Shared PreToolUse lifecycle (gate, payload read, block emit) — see _hook_run.
 from _hook_run import block, cited_rules, read_payload, resolve_target  # noqa: E402
 # The tree-sitter AST checks (FN-001/FN-005/OD-004) live in a sibling unit so
@@ -99,11 +104,38 @@ FUNCTION_ARG_COUNT_PATTERNS = [
 
 # ST-003 — deep imports past a folder's public entry.
 # `@/foo/bar` is fine (capability + use case). `@/foo/bar/baz` reaches past.
+# `cap` captures the capability folder (`foo/bar`) so we can check whether it
+# actually exposes a barrel before flagging — see _capability_has_barrel.
 DEEP_IMPORT_PATTERN = re.compile(
-    r"""from\s+['"]@/[a-z][a-z0-9-]*/[a-z][a-z0-9-]*/[a-z][a-z0-9-]*"""
+    r"""from\s+['"]@/(?P<cap>[a-z][a-z0-9-]*/[a-z][a-z0-9-]*)/[a-z][a-z0-9-]*"""
 )
 
 PARENT_TRAVERSAL_PATTERN = re.compile(r"""from\s+['"](\.\./){3,}""")
+
+# A folder's public API is its index barrel. No barrel → no public API → a deep
+# import is the only way in, so ST-003 does not apply (barrel-less layouts:
+# route-colocated, flat packages). This is derived per import, never configured.
+BARREL_NAMES = (
+    "index.ts", "index.tsx", "index.js", "index.jsx",
+    "index.mts", "index.cts", "index.mjs", "index.cjs",
+)
+
+
+def _alias_base(project_root: Path) -> Path:
+    """Where the `@/` path alias resolves to — `src/` when present, else the
+    project root. Covers the dominant convention; an unusual tsconfig mapping
+    just means a barrel isn't found and the import isn't flagged (fail open)."""
+    src = project_root / "src"
+    return src if src.is_dir() else project_root
+
+
+def _capability_has_barrel(project_root: Path | None, capability: str) -> bool:
+    """True when the capability folder (`foo/bar`) exists and exposes an index
+    barrel — i.e. it has a public API a deep import would be reaching past."""
+    if project_root is None:
+        return False
+    folder = _alias_base(project_root) / capability
+    return folder.is_dir() and any((folder / name).is_file() for name in BARREL_NAMES)
 
 
 def strip_strings_and_comments(source: str) -> str:
@@ -162,11 +194,13 @@ def iter_arg_count_violations(clean_lines: list[str], file_path: str) -> Iterabl
         )
 
 
-def iter_import_violations(
-    clean_lines: list[str], file_path: str, check_deep: bool = True
-) -> Iterable[str]:
+def iter_import_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
+    # Resolve the project root once; deep-import only applies where the imported
+    # capability exposes a barrel (a public API to reach past).
+    project_root = find_project_root(Path(file_path))
     for idx, line in enumerate(clean_lines, start=1):
-        if check_deep and DEEP_IMPORT_PATTERN.search(line):
+        match = DEEP_IMPORT_PATTERN.search(line)
+        if match and _capability_has_barrel(project_root, match.group("cap")):
             yield (
                 f"{file_path}:{idx} — ST-003: deep import past folder's public API; "
                 f"import from the capability's index.ts instead"
@@ -193,13 +227,10 @@ def collect_violations(new_content: str, file_path: str, ext: str) -> list[str]:
     if is_ts:
         violations.extend(iter_any_violations(clean_lines, file_path))
     violations.extend(iter_hungarian_violations(clean_lines, file_path))
-    # ST-003 deep-import is structure-dependent: a custom project with no barrels
-    # turns it off via `.coding-standards-structure`. Parent-traversal stays on.
-    violations.extend(
-        iter_import_violations(
-            raw_lines, file_path, check_deep=is_check_enabled("deep-import", file_path)
-        )
-    )
+    # ST-003 deep-import is structure-derived: a deep import is flagged only when
+    # the imported capability exposes a barrel (no barrel → no public API → not a
+    # violation). Derived per import inside iter_import_violations; never configured.
+    violations.extend(iter_import_violations(raw_lines, file_path))
     # AST checks supersede regex arg-count when tree-sitter is available and the
     # content parses. Otherwise fall back to regex.
     ast_iter, ast_ran = iter_ts_ast_violations(new_content, file_path, ext)

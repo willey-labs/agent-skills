@@ -40,18 +40,18 @@ src/
 
 `app → pages → widgets → features → entities → shared`. This is the methodology's core invariant; it prevents cycles and keeps changes localized. Enforce with `@feature-sliced/eslint-config` or the **Steiger** linter.
 
-## Hooks this variant implies
+## How the rules apply to this variant
 
-```yaml
-deep-import (ST-003): ON       # cross-slice / public-API boundaries enforced — the only variant-driven toggle (god-file is a separate project-level advisory)
-universal rules:      ON       # ST-005 junk-drawer, no-any, naming, arg-count, ST-008 tiers — mandatory, never per-variant
-```
+FSD's public-API segments are barrels, so ST-003 deep-import is enforced automatically across slice and
+public-API boundaries: `block-ts-violations.py` flags a deep import because the capability exposes that
+segment. Nothing to configure — the barrel *is* the signal. Every other rule (ST-005 junk-drawer,
+no-`any`, naming, arg-count, ST-008 tiers) applies unchanged, as in every layout.
 
 > Note: FSD's `app/` layer is the whole application shell (routing + providers), which in a Next.js App Router project overlaps with the framework's own `app/` directory. Teams typically keep Next.js's `app/` as the route layer and place FSD layers under `src/` — confirm this mapping with the user when this variant is chosen.
 
 ## `.coding-standards-structure` written when chosen
 
-Recording the choice is a single `follows:` line — the layout above stays the reference, so it isn't copied into the file. FSD's public-API segments mean `deep-import` stays on (the default) and needs no toggle:
+A single `follows:` line — the layout above stays the reference, so it isn't copied into the file:
 
 ```yaml
 follows: feature-sliced-design

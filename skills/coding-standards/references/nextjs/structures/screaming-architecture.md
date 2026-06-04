@@ -44,16 +44,16 @@ app  →  capabilities  →  shared        # downward only
 - Cross-capability imports go through the capability's `index.ts` **only** — no deep imports.
 - Enforce with ESLint `import/no-restricted-paths`.
 
-## Hooks this variant implies
+## How the rules apply to this variant
 
-```yaml
-deep-import (ST-003): ON       # the index.ts public API is mandatory — the only variant-driven toggle (god-file is a separate project-level advisory)
-universal rules:      ON       # ST-005 junk-drawer, no-any, naming, arg-count, ST-008 tiers — mandatory, never per-variant
-```
+The mandatory `index.ts` public API is a barrel, so ST-003 deep-import is enforced automatically:
+`block-ts-violations.py` flags `@/a/b/c` because capability `a/b` exposes its barrel. Nothing to
+configure — the barrel *is* the signal. Every other rule (ST-005 junk-drawer, no-`any`, naming,
+arg-count, ST-008 tiers) applies unchanged, as in every layout.
 
 ## `.coding-standards-structure` written when chosen
 
-Recording the choice is a single `follows:` line — the layout above stays the reference, so it isn't copied into the file. The mandatory `index.ts` public API means `deep-import` stays on (the default) and needs no toggle:
+A single `follows:` line — the layout above stays the reference, so it isn't copied into the file:
 
 ```yaml
 follows: screaming-architecture

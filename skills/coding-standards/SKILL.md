@@ -149,15 +149,21 @@ so the user is asked at most once.
 The decision in brief:
 
 1. **File exists** at the framework project root → read it and follow it (a `follows: <standard>` target,
-   or a described custom layout). No question.
+   or a described custom layout). No question. If the file is non-canonical — carries comments, a `hooks:`
+   block, or any rule toggle — **normalise it in place** (keep only the `follows:` line / `layout:` body),
+   write it back, and report it.
 2. **No file, folders match a standard** → use that standard's reference. No question, no file.
 3. **No file, custom layout** → ask the user once with `AskUserQuestion` (recommended structure first,
    "keep current" last), then write the file recording their choice.
 
-Read `references/structure-resolution.md` before acting on case 3, a monorepo, or a toggle. It has the
-full mechanics: monorepo file placement (the sub-project root, not the repo root), the question shapes,
-what "keep current" does and doesn't exempt, the three toggleable checks (`deep-import`, `god-file`,
-`flat-folder`), and the messy-project fallback.
+The file records **placement only** — a `follows:` line or a `layout:` body. It never carries rule
+toggles: every rule is always enforced, deep-import is derived from whether a barrel exists, and the
+ST-008 size/folder checks run at fixed thresholds. `block-structure-file-violations.py` enforces this.
+
+Read `references/structure-resolution.md` before acting on case 3, a monorepo, or a non-canonical file.
+It has the full mechanics: monorepo file placement (the sub-project root, not the repo root), the question
+shapes, what "keep current" does and doesn't exempt, the self-heal normalisation, and the messy-project
+fallback.
 
 The resolved structure replaces `references/<framework>/structure.md` in the Step 7b load list, and the
 pipeline passes it to Worker 1 as `STRUCTURE`. For "Show me the rules" / pure Q&A, resolve silently —

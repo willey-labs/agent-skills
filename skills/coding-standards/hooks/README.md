@@ -15,7 +15,8 @@ fix the violation before retrying — that's the enforcement.
 | `block-csharp-violations.py` | `.cs` | `dynamic` (var/list/dict); NM-006 Hungarian (`strName`, `m_field`, ...); FN-005 4+ params |
 | `block-php-violations.py` | `.php` | `mixed` type; NM-006 Hungarian (`$strName`, ...); FN-005 4+ params |
 | `block-jvm-violations.py` | `.java .kt .kts` | Star imports (`import com.foo.*`); FN-005 4+ params; Kotlin `Any` (annotation/generic) |
-| `warn-god-file.py` | All source languages (advisory — exit 0) | ST-008 advisories, both directions. (1) God-file size: warns when a non-test/non-schema source file exceeds the project threshold (default 400 lines / 10 top-level declarations). (2) Flat-folder promotion: warns when a NEW source file lands in a folder already past the flat-sibling threshold (default 12 source units; front doors and test/schema/fixture siblings don't count) — 3+ themed siblings have earned a sub-feature folder (Rule of Three). Never blocks. Reads `god-file`, `god-file-max-lines`, `god-file-max-decls`, `flat-folder`, `flat-folder-max-files` keys from `.coding-standards-structure`. Skips test, schema, fixture, story, and excluded/generated files. |
+| `block-god-file.py` | All source languages | ST-008, both directions. **Blocks (exit 2)** when a non-test/non-schema source file has more than 10 *behavioral* top-level declarations (functions/classes/methods) — the least-blunt proxy for "does many jobs" (a data-only file of consts/types/enums has zero, so it never blocks; a 1.7k-line single class is one, so length alone never blocks). **Advises (exit 0)** on raw size (> 400 lines) and flat-folder promotion (a NEW source file landing in a folder already past 12 flat source units — 3+ themed siblings have earned a sub-feature folder, Rule of Three). Thresholds are fixed by the standard — no per-project tuning. Skips test, schema, fixture, story, and excluded/generated files. |
+| `block-structure-file-violations.py` | `.coding-standards-structure` only | Keeps the structure file to placement only. **Blocks (exit 2)** a write that introduces a comment line, a `hooks:` block, or any legacy rule toggle (`deep-import`, `god-file*`, `flat-folder*`). Allows `follows:` and a `layout:` body. Rules are never tunable per project, so the file never carries an on/off. |
 
 ### What runs on every Write/Edit/MultiEdit
 
@@ -72,10 +73,10 @@ paste anything into settings.json by hand.**
 After the first activation you'll see:
 
 ```
-coding-standards: Wired 8 PreToolUse hooks into <path>/settings.json (<scope>).
+coding-standards: Wired 9 PreToolUse hooks into <path>/settings.json (<scope>).
 ```
 
-(7 blocking hooks + 1 advisory `warn-god-file.py` that exits 0 with a warning instead of blocking.)
+(All 9 can block on exit 2. `block-god-file.py` additionally exits 0 with an advisory on raw size / flat folders; `block-structure-file-violations.py` only fires on the `.coding-standards-structure` config file.)
 
 Restart the agent session once for Claude Code to pick up the hooks; from
 the next session on, blocking is automatic on every Write/Edit/MultiEdit.

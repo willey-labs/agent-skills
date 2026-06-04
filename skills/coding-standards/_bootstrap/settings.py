@@ -28,6 +28,15 @@ HOOK_FILES = [
     "block-csharp-violations.py",
     "block-php-violations.py",
     "block-jvm-violations.py",
+    "block-god-file.py",
+    "block-structure-file-violations.py",
+]
+
+# Basenames shipped by PAST versions and since retired/renamed. Listed ONLY so
+# is_our_entry still recognises (and replaces) an older wired block on upgrade —
+# never wired anew. warn-god-file.py was renamed to block-god-file.py when the
+# god-file check gained a blocking path.
+RETIRED_HOOK_FILES = [
     "warn-god-file.py",
 ]
 
@@ -90,9 +99,10 @@ def is_our_entry(entry: dict) -> bool:
     hooks = entry.get("hooks") or []
     if not hooks:
         return False
+    known = HOOK_FILES + RETIRED_HOOK_FILES  # recognise older wired blocks too
     for hook in hooks:
         cmd = (hook or {}).get("command", "")
-        if not any(name in cmd for name in HOOK_FILES):
+        if not any(name in cmd for name in known):
             return False
     return True
 
