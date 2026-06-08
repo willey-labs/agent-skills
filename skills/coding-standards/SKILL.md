@@ -280,8 +280,12 @@ it:
    # pipeline: add --json and parse per file
    ```
    It applies the same write-time contract (`any`, Hungarian, 4+ args, junk-drawer paths, deep imports, the
-   TS/Python AST checks) and skips excluded files. **Every finding it returns is a must-fix** —
-   deterministic, never re-litigated.
+   TS/Python AST checks) and skips excluded files. **Every finding it returns is must-fix:** the
+   *existence* of the finding is deterministic and never re-litigated (an `any` is an `any`). For the
+   ST-008 decl-count block, the *remedy* is the reviewer's judgement — a cohesive split, OR a recorded
+   exemption (`.coding-standards-ignore` + reason, logged `accepted`) when the file is one cohesive job the
+   proxy miscounts. A split that creates scatter or copies a sibling's machinery is itself an ST-008 +
+   DP-007 violation, not a fix.
 5. **Merge, write the report, summarize.** Combine judgement + linter findings, grouped by severity:
    *must-fix* (linter findings + correctness/security/broken contracts), *should-fix* (clean-code), and
    *consider* (judgement calls). Persist the merged result to a report file per `references/review-report.md`

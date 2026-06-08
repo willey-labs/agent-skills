@@ -200,6 +200,20 @@ The promotion applies to **any** flat folder, however it grew — siblings creat
 or by plain accretion all count toward the same three. A split that leaves its folder holding a themed
 cluster of 3+ flat files has finished only half the job.
 
+**Splitting to beat the counter is not decomposition — it's scatter, and fails ST-008 worse than the
+original.** A split is valid only when each file is one genuine job that stands on its own. Two scatter
+signals, both violations:
+
+- **Fragments that only make sense together** — pieces carved purely to drop the declaration count,
+  unreadable apart. The count improved; cohesion got worse.
+- **A copy of a sibling's machinery** — a split reproducing logic another feature already has (see DP-007).
+  That multiplies duplication across more files, each individually passing the count.
+
+So the remedy for a decl-count block is a **cohesive** split — or, when the file is genuinely one job the
+column-0 proxy miscounts (e.g. a thin feature router that is many small route registrations = one routing
+job), a **recorded exemption** in `.coding-standards-ignore` with a one-line reason, logged `accepted` (see
+`references/fix-plan.md`). Never a cosmetic scatter.
+
 ```
 # Before — one file, three jobs
 <feature>/
