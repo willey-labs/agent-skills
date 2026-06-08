@@ -35,6 +35,11 @@ service, repository, schemas, and internal types stay private. Other folders imp
 (`@/<feature>`) and never reach past it into a sibling file (`common/structure.md`, ST-002/003). The
 composition file is the one place every feature's router is mounted.
 
+- **A nested feature must build on its parent (ST-009).** A `chat-sessions/` nested under `sessions/`
+  is a sub-feature only if it imports from `sessions/`'s front door and is part of it. One that ships
+  its own registry + service + routes and shares only a helper is a **peer misfiled as a child** — give
+  it its own top-level feature folder.
+
 ## Express / Fastify specifics
 
 - **Routes are thin; services own the use cases.** A route maps the HTTP path to a handler that

@@ -30,6 +30,14 @@ false positive: a file that is genuinely a flat dispatch table of 11+ tiny relat
 functions — caught by the line/sibling warnings and the reviewer's judgement, never
 silently. Length and sibling count stay advisory precisely because they are blunt.
 
+**Two contexts, one rule.** At WRITE time this block is absolute — a new/edited file
+over the threshold is rejected, no negotiation. At REVIEW/FIX time the *remedy* is the
+reviewer's call: a cohesive split, OR a recorded exemption (.coding-standards-ignore +
+a one-line reason, logged `accepted`) when the file is the one cohesive job the
+column-0 proxy miscounts. That cohesion judgement is the backstop the residual false
+positive relies on. See references/common/structure.md#st-008 "scatter": a split that
+fragments cohesion or copies a sibling's machinery is itself a violation, not a fix.
+
 Every rule here is fixed by the standard — there is NO per-project on/off or
 threshold override. A project adopts a structure (placement), never a relaxed rule.
 

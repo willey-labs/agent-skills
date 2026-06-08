@@ -20,7 +20,7 @@ The rules are organized by **what kind of question you're asking**, not by langu
 **SOLID, KISS, DRY, dependency inversion, single responsibility**
 → `references/common/code-principles.md`
 
-**Folder-as-module, no deep imports, Rule of Three, no junk-drawer files (universal)**
+**Folder-as-module, no deep imports, Rule of Three, nesting legitimacy (nested peer vs sub-feature, ST-009), no junk-drawer files (universal)**
 → `references/common/structure.md`
 
 **Folder structure for the specific framework (Next.js routes, NestJS modules, Laravel skeleton, etc.)**

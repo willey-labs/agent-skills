@@ -24,11 +24,11 @@ You (the main agent) are now the **orchestrator**. You do not apply rules yourse
 
 | Worker | Owns | Brief file |
 |---|---|---|
-| **Worker 1 — Structure & Architecture** | ST-*, OD-001, OD-002, OD-004, OD-005, DP-001 to DP-005, `<framework>/structure.md` | `workers/worker-1-structure.md` |
+| **Worker 1 — Structure & Architecture** | ST-*, OD-001, OD-002, OD-004, OD-005, DP-001 to DP-005, DP-007, `<framework>/structure.md` | `workers/worker-1-structure.md` |
 | **Worker 2 — Code Quality (line level)** | FN-001 to FN-009, NM-*, OD-003, FMT-* | `workers/worker-2-quality.md` |
 | **Worker 3 — Failure Handling** | EH-*, FN-010 | `workers/worker-3-failure.md` |
 
-Cross-cutting principles (DP-006 KISS, DP-007 DRY / FN-011 — the same idea in two families, and FN-012 "rewrite the draft, don't ship it") are applied **per-domain** by each worker as a lens — no single worker owns them. (FN-010, the idiomatic-failure-mechanism rule, is Worker 3's, not cross-cutting.)
+DP-006 (KISS) is a per-worker lens. **DP-007 (DRY) is owned by Worker 1 at module/cross-feature scale** (its function-level twin FN-011 stays Worker 2's). Worker 1 also owns ST-009. FN-012 ("rewrite the draft, don't ship it") stays a shared lens. (FN-010, the idiomatic-failure-mechanism rule, is Worker 3's, not cross-cutting.)
 
 ## Pipeline shape
 
@@ -44,9 +44,10 @@ User task
 **Review mode:**
 ```
 User task (diff/PR/file)
-  → Worker 1 outputs findings JSON (no code changes)
-  → Worker 2 outputs findings JSON
-  → Worker 3 outputs findings JSON
+  → Phase 0 (Comprehend): orchestrator builds the structure map (references/structure-map.md) over the
+    tree, confirms it with the user once (large reviews), persists it. Skipped below the scope threshold.
+  → Worker 1 (Structure) — receives the MAP; reports structural findings as deltas against it + its rules
+  → Worker 2 (Quality) → Worker 3 (Failure)
   → Orchestrator runs hooks/review-files.py --json over the file set (deterministic pass, runs LAST)
   → Orchestrator merges all worker findings + linter findings, sorts by severity, presents unified report
 ```
@@ -64,9 +65,13 @@ For each worker N in {1, 2, 3}:
      TASK: <user's original task verbatim>
      FRAMEWORK: <detected framework key from SKILL.md Step 3>
      STRUCTURE: <resolved structure from SKILL.md Step 4 — the chosen structures/<name>.md, the project's .coding-standards-structure custom layout, or the framework default structure.md>
+     STRUCTURE_MAP: <the comprehension map from Phase 0 — the confirmed B→F→SF→U model + relationship deltas; omitted below the scope threshold>
      MODE: write | review
      WORKER_<N-1>_OUTPUT: <previous worker's JSON, omit for Worker 1>
      ```
+   - When Phase 0 produced a map, include `STRUCTURE_MAP`. Workers treat it as the intended shape: a
+     file's placement, a folder's promotion, a feature's duplication are judged against the map, not
+     re-derived per file.
 3. **Call the `Agent` tool** with:
    - `subagent_type: "general-purpose"`
    - `description: "coding-standards worker <N>"`
@@ -96,7 +101,7 @@ For each worker N in {1, 2, 3}:
 
 ## After all workers complete (Review mode)
 
-7. **Run `hooks/review-files.py --json`** over the file set now — *after* the three workers, as the final deterministic pass. Its findings are must-fix (deterministic; never re-litigated).
+7. **Run `hooks/review-files.py --json`** over the file set now — *after* the three workers, as the final deterministic pass. Every finding it returns is must-fix: the *existence* of the finding is deterministic and never re-litigated (an `any` is an `any`). For the ST-008 decl-count block, the *remedy* is the reviewer's judgement — a cohesive split, OR a recorded exemption (`.coding-standards-ignore` + reason, logged `accepted`) when the file is one cohesive job the proxy miscounts. A split that creates scatter or copies a sibling's machinery is itself an ST-008 + DP-007 violation, not a fix.
 8. **Merge** every worker's `findings` array + the linter findings. **Dedupe** by `(file, line, rule)` — when a worker finding and a linter finding collide, keep one and mark it must-fix. Then **sort by severity** (must-fix → should-fix → consider) and group by file. The workers' `passed` / `skipped` arrays are the **coverage proof** — use them to state which rules were checked and clean, so the report is visibly comprehensive rather than a short list of hits.
 9. **Write the report file**, then **present** it to the user as a structured PASS/FAIL table — in full at or below the scope threshold; above it, trim chat to the shape defined in `references/review-report.md` (the file keeps everything). Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
 
@@ -166,8 +171,11 @@ numbers — counted over the whole report — to trim its chat output (see
    re-dispatch that one file (max **2** re-fix passes per file; then
    `deferred(reason="re-fix failed")`).
 
-6. **Report against the ledger.** State `N of M findings fixed across K files; D
-   deferred`, and **list every deferred finding with its reason**. An incomplete run
+6. **Report against the ledger.** State `N fixed · A accepted (not violations — each
+   with reason) · D deferred (OPEN BREACHES — each with reason)`, across K files. If
+   D > 0 the run reports `done-with-open-breaches (D unresolved)`, lists every open
+   breach, asks the user to resolve each, and never prints `done` until they are. An
+   `accepted` finding's reason must say why it is not a violation. An incomplete run
    says exactly what remains and why — it never stops silently. If Phase A recorded
    promotion candidates, add one line per folder — `<folder> now holds <n> flat
    files; <x, y, z> share a theme and have earned a sub-feature folder — want a
@@ -183,7 +191,12 @@ and resume mechanics live in `references/fix-plan.md`; this is the orchestration
    1–2, then group into milestones:
    - **M1 — structural** (only when structural findings exist): every ST-002 /
      ST-003 / ST-008 / move-rename finding, in the Phase-A order (barrels →
-     deep-import rewrites → ST-008 splits).
+     deep-import rewrites → ST-008 splits). M1 is derived from the structure map's
+     relationship deltas as well as the report's ST-* findings — de-nest a misfiled
+     peer (ST-009), consolidate a split feature (ST-001), route duplicate machinery to
+     its shared home (DP-007), promote a themed cluster (ST-008). The map is read from
+     `.coding-standards/structure-map.md`; if absent (review predated this), build it
+     first.
    - **M2…Mn — one per module:** group the file-local findings by the nearest
      feature/module folder per the resolved STRUCTURE (top-level directory as
      fallback). Order milestones by must-fix count descending, then total findings
@@ -225,11 +238,13 @@ and resume mechanics live in `references/fix-plan.md`; this is the orchestration
    no-repeated-questions.
 
 5. **Final report.** When every milestone is terminal, report against the plan file:
-   `N of M findings fixed across K files in T milestones; D deferred` — plus every
-   deferral with its reason, plus every `## Follow-ups` entry as a one-line offer
-   (promotion candidates from Phase-A step d). Same ledger-completeness rule as
-   single-pass: an incomplete run says exactly what remains and why; it never stops
-   silently.
+   `N fixed · A accepted (not violations — each with reason) · D deferred (OPEN
+   BREACHES — each with reason)`, across K files in T milestones. If D > 0 the run
+   reports `done-with-open-breaches (D unresolved)`, lists every open breach, asks
+   the user to resolve each, and never prints `done` until they are — plus every
+   `## Follow-ups` entry as a one-line offer (promotion candidates from Phase-A step
+   d). Same ledger-completeness rule as single-pass: an incomplete run says exactly
+   what remains and why; it never stops silently.
 
 ### Resume
 
@@ -276,8 +291,10 @@ Files written: <list>. Hooks passed.
 - **Fix mode fans out by file, not by rule domain.** One fix-agent per file, each
   given only that file's content + its findings. Structural (cross-file) fixes run
   first, coordinated by the orchestrator; file-local fixes fan out in parallel.
-- **Fix mode is ledger-complete.** Every finding ends `fixed` or `deferred(reason)`;
-  a silent partial result is a failure. Max 2 re-fix passes per file.
+- **Fix mode is ledger-complete.** Every finding ends `fixed`, `accepted`, or
+  `deferred` (with reason); a silent partial result is a failure. A run with any
+  `deferred` (open-breach) finding reports `done-with-open-breaches`, never `done`,
+  until the user resolves them. Max 2 re-fix passes per file.
 - **Fix mode never expands its own ledger.** A folder promotion earned by its own
   ST-008 splits (Phase-A step d) is recorded and offered after the run — never
   performed mid-run.

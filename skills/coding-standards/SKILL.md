@@ -226,8 +226,12 @@ Write yourself, so the hooks fire exactly once on the complete code. **Read
 `references/orchestrator-pipeline.md` and follow it** — that's the full protocol (worker roster,
 Write/Review/Fix pipeline shapes, dispatch loop, validation, retry/fallback, summary).
 
-Three invariants, true even before you open the reference:
+Invariants, true even before you open the reference:
 
+- **Comprehend before you check.** Above the scope threshold, build and confirm the structure map
+  (`references/structure-map.md`) before dispatching Worker 1; pass it as `STRUCTURE_MAP`. Cross-feature
+  structure (duplication, mislabeled nesting, split features, themed-cluster promotion) is found by diffing
+  the real tree against this map — a per-file worker cannot see it.
 - **Workers never call `Write`/`Edit`.** They emit code/findings as JSON; only you write to disk.
 - **Sequential, not parallel.** Worker 1 (Structure) → Worker 2 (Quality) → Worker 3 (Failure); each one's
   output is the next one's input.
@@ -266,6 +270,12 @@ just wrote, fix it before moving on. Don't ship a violation plus a "TODO: fix th
 Walk the rules systematically — don't freelance. Seed the Step 6 list first; the numbered steps map onto
 it:
 
+0. **Comprehend the structure (above the scope threshold).** Build the structure map
+   (`references/structure-map.md`) over the tree, confirm it with the user once, and persist it to
+   `.coding-standards/structure-map.md`. Hand it to the structure worker as `STRUCTURE_MAP`: cross-feature
+   findings (duplication, misnested peers, split features, themed-cluster promotion) are diffs against this
+   map, which a per-file pass can't see. Skipped below the threshold — say that cross-feature structural
+   checks were not run.
 1. **Scope + resolve structure.** List each file in the diff; detect its framework (Step 3) and resolve
    structure (Step 4).
 2. **Load references.** Every `common/` file, plus the resolved structure for each framework in the diff.
@@ -280,8 +290,12 @@ it:
    # pipeline: add --json and parse per file
    ```
    It applies the same write-time contract (`any`, Hungarian, 4+ args, junk-drawer paths, deep imports, the
-   TS/Python AST checks) and skips excluded files. **Every finding it returns is a must-fix** —
-   deterministic, never re-litigated.
+   TS/Python AST checks) and skips excluded files. **Every finding it returns is must-fix:** the
+   *existence* of the finding is deterministic and never re-litigated (an `any` is an `any`). For the
+   ST-008 decl-count block, the *remedy* is the reviewer's judgement — a cohesive split, OR a recorded
+   exemption (`.coding-standards-ignore` + reason, logged `accepted`) when the file is one cohesive job the
+   proxy miscounts. A split that creates scatter or copies a sibling's machinery is itself an ST-008 +
+   DP-007 violation, not a fix.
 5. **Merge, write the report, summarize.** Combine judgement + linter findings, grouped by severity:
    *must-fix* (linter findings + correctness/security/broken contracts), *should-fix* (clean-code), and
    *consider* (judgement calls). Persist the merged result to a report file per `references/review-report.md`
@@ -298,6 +312,10 @@ Triggered by "fix the findings" / "apply the review" / fixes requested right aft
 the orchestrator pipeline** (`MODE: fix`) — it's inherently multi-file: it fans out one fix-agent per
 file, tracked by a completeness ledger so nothing is silently half-fixed. Don't offer a "single agent"
 option; if `Agent` is unavailable, run the documented sequential-batch fallback and say so.
+
+Every finding ends `fixed` (violation removed), `accepted` (judged not a violation — reason required), or
+`deferred` (real breach, not fixed — an open breach). A run with open breaches reports
+`done-with-open-breaches`, never `done`, until the user resolves them — see `references/fix-plan.md`.
 
 The input is the most recent `.coding-standards/reviews/<ts>.md`; if none exists, run Review first.
 Everything else — the ledger, the per-file fan-out, the scope threshold, and the milestone-driven plan
