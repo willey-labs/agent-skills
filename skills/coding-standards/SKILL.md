@@ -299,6 +299,10 @@ the orchestrator pipeline** (`MODE: fix`) — it's inherently multi-file: it fan
 file, tracked by a completeness ledger so nothing is silently half-fixed. Don't offer a "single agent"
 option; if `Agent` is unavailable, run the documented sequential-batch fallback and say so.
 
+Every finding ends `fixed` (violation removed), `accepted` (judged not a violation — reason required), or
+`deferred` (real breach, not fixed — an open breach). A run with open breaches reports
+`done-with-open-breaches`, never `done`, until the user resolves them — see `references/fix-plan.md`.
+
 The input is the most recent `.coding-standards/reviews/<ts>.md`; if none exists, run Review first.
 Everything else — the ledger, the per-file fan-out, the scope threshold, and the milestone-driven plan
 file for big fixes (`references/fix-plan.md`) — lives in `references/orchestrator-pipeline.md` under

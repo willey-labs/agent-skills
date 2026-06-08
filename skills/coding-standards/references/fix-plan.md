@@ -25,9 +25,10 @@ A milestone-driven fix run (`orchestrator-pipeline.md` → Fix mode) persists it
 - [x] F004 — src/auth/index.ts — ST-002 — add barrel
 - [x] F011 — src/billing/invoice.ts:3 — ST-003 — rewrite deep import
 
-## M2 — src/auth (5 findings) — done-with-deferrals — commit d4e5f6a
+## M2 — src/auth (5 findings) — done-with-open-breaches — commit d4e5f6a
 - [x] F001 — src/auth/login.ts:42 — FN-005 — group args into options object
-- [ ] F002 — src/auth/session.ts:18 — EH-002 — **deferred: re-fix failed after 2 passes**
+- [ ] F002 — src/auth/session.ts:18 — DP-001 — **accepted: one cohesive state machine; methods share private session state, no clean seam**
+- [ ] F003 — src/auth/token.ts — DP-007 — **deferred (OPEN BREACH): refresh logic duplicated in billing/; shared home needs a cross-team decision**
 
 ## M3 — src/billing (8 findings) — in_progress
 - [ ] F015 — src/billing/invoice.ts:77 — NM-003 — rename Hungarian prefix
@@ -41,9 +42,16 @@ A milestone-driven fix run (`orchestrator-pipeline.md` → Fix mode) persists it
 
 ## Statuses
 
-- **Milestone:** `pending` → `in_progress` → `done` | `done-with-deferrals`.
-- **Finding:** checked = fixed; unchecked with a bold `**deferred: <reason>**` suffix = deferred; unchecked plain = pending. Finding IDs are the report's `F<NNN>` ids — never renumber or drop them.
-- **Header `Status:`** mirrors the run: `in_progress (M<k> of <total>)` while looping; `done` / `done-with-deferrals` when every milestone is terminal; `blocked (M<k>: <one-line reason>)` when a blocker stopped the run.
+- **Milestone:** `pending` → `in_progress` → `done` | `done-with-open-breaches`.
+- **Finding terminal states — exactly one, and `fixed` is reserved for a removed violation:**
+  - `fixed` — checkbox `[x]`. The violation is **gone**, verified (re-run `review-files.py` for mechanical findings; the reviewer confirms for judgement findings). A cosmetic change that leaves the violation is NOT `fixed`.
+  - `accepted` — unchecked `[ ]` + bold `**accepted: <reason>**`. Reviewed and judged **not a real violation** here (rule N/A, genuinely cohesive, proxy false positive). Closes clean; the reason must name *why* it isn't a violation — `by design` alone is not a reason.
+  - `deferred` — unchecked `[ ]` + bold `**deferred (OPEN BREACH): <reason>**`. A **real violation deliberately not fixed** this pass. An open breach, not a closed item.
+  - `pending` — unchecked `[ ]`, plain. Not yet reached.
+  - Finding IDs are the report's `F<NNN>` ids — never renumber or drop them.
+- **Header `Status:`** — `in_progress (M<k> of <total>)` while looping; `blocked (M<k>: <reason>)` when stopped. Terminal:
+  - `done` — every in-scope finding ended `fixed` or `accepted`. **No `deferred` (open-breach) findings remain.**
+  - `done-with-open-breaches (<D> unresolved)` — finished but `D` real violations were deferred. NOT `done`. The final report lists every one and asks the user to resolve each (fix later / accept with reason / explicitly waive). `done` may only print after the user resolves them.
 
 ## Follow-ups
 
@@ -53,11 +61,13 @@ Work the run *discovered* but must not *do*. Phase-A step d (`orchestrator-pipel
 
 Triggered by "continue the fix" / "resume the fix", or by Fix mode finding a non-done plan for the requested report.
 
-1. Find the newest `.coding-standards/fixes/*.md` whose header `Status:` is not terminal (`done` / `done-with-deferrals`). A `blocked` plan IS resumable: surface the recorded blocker reason first and resolve it — if it needs a user decision, ask that one question (the recorded blocker is the sole exception to no-repeated-questions).
+1. Find the newest `.coding-standards/fixes/*.md` whose header `Status:` is not terminal (`done` / `done-with-open-breaches`). A `blocked` plan IS resumable: surface the recorded blocker reason first and resolve it — if it needs a user decision, ask that one question (the recorded blocker is the sole exception to no-repeated-questions).
 2. For any milestone marked `in_progress`, re-run `hooks/review-files.py --json` over that milestone's files and reconcile: a finding that no longer trips and whose fix is visibly applied → check it; a finding still tripping → leave pending. (Crash protection — a write may have landed without its ledger update.)
 3. Continue the milestone loop from the first non-done milestone. **No re-approval, no repeated questions** — the header records the original approval and scope.
 
 ## Invariants
 
 - Disk is the source of truth; harness task lists (`TaskCreate`/`TodoWrite`) only mirror it and are never read back as state.
-- Every finding in approved scope ends checked or deferred-with-reason — the same ledger-completeness rule as the single-pass fix. Silence is failure.
+- Every finding in approved scope ends `fixed`, `accepted`, or `deferred` (with reason) — the same ledger-completeness rule as the single-pass fix. Silence is failure.
+- **`fixed` means the violation is gone — not "touched".** Trimming a god class by 30 lines, or renaming around a duplication, is `accepted` (genuinely not a violation) or `deferred` (it is) — never `fixed`. "Done" must reflect the standard, not the diff.
+- **A god-class / SRP concern is its own finding.** When a file trips only the ST-008 *size* advisory but the reviewer suspects DP-001, raise an explicit DP-001 finding and adjudicate it. Never let "size advisory, by design" stand in for an unmade SRP judgement.

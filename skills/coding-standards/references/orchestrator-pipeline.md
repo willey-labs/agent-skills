@@ -166,8 +166,11 @@ numbers — counted over the whole report — to trim its chat output (see
    re-dispatch that one file (max **2** re-fix passes per file; then
    `deferred(reason="re-fix failed")`).
 
-6. **Report against the ledger.** State `N of M findings fixed across K files; D
-   deferred`, and **list every deferred finding with its reason**. An incomplete run
+6. **Report against the ledger.** State `N fixed · A accepted (not violations — each
+   with reason) · D deferred (OPEN BREACHES — each with reason)`, across K files. If
+   D > 0 the run reports `done-with-open-breaches (D unresolved)`, lists every open
+   breach, asks the user to resolve each, and never prints `done` until they are. An
+   `accepted` finding's reason must say why it is not a violation. An incomplete run
    says exactly what remains and why — it never stops silently. If Phase A recorded
    promotion candidates, add one line per folder — `<folder> now holds <n> flat
    files; <x, y, z> share a theme and have earned a sub-feature folder — want a
@@ -225,11 +228,13 @@ and resume mechanics live in `references/fix-plan.md`; this is the orchestration
    no-repeated-questions.
 
 5. **Final report.** When every milestone is terminal, report against the plan file:
-   `N of M findings fixed across K files in T milestones; D deferred` — plus every
-   deferral with its reason, plus every `## Follow-ups` entry as a one-line offer
-   (promotion candidates from Phase-A step d). Same ledger-completeness rule as
-   single-pass: an incomplete run says exactly what remains and why; it never stops
-   silently.
+   `N fixed · A accepted (not violations — each with reason) · D deferred (OPEN
+   BREACHES — each with reason)`, across K files in T milestones. If D > 0 the run
+   reports `done-with-open-breaches (D unresolved)`, lists every open breach, asks
+   the user to resolve each, and never prints `done` until they are — plus every
+   `## Follow-ups` entry as a one-line offer (promotion candidates from Phase-A step
+   d). Same ledger-completeness rule as single-pass: an incomplete run says exactly
+   what remains and why; it never stops silently.
 
 ### Resume
 
@@ -276,8 +281,10 @@ Files written: <list>. Hooks passed.
 - **Fix mode fans out by file, not by rule domain.** One fix-agent per file, each
   given only that file's content + its findings. Structural (cross-file) fixes run
   first, coordinated by the orchestrator; file-local fixes fan out in parallel.
-- **Fix mode is ledger-complete.** Every finding ends `fixed` or `deferred(reason)`;
-  a silent partial result is a failure. Max 2 re-fix passes per file.
+- **Fix mode is ledger-complete.** Every finding ends `fixed`, `accepted`, or
+  `deferred` (with reason); a silent partial result is a failure. A run with any
+  `deferred` (open-breach) finding reports `done-with-open-breaches`, never `done`,
+  until the user resolves them. Max 2 re-fix passes per file.
 - **Fix mode never expands its own ledger.** A folder promotion earned by its own
   ST-008 splits (Phase-A step d) is recorded and offered after the run — never
   performed mid-run.
