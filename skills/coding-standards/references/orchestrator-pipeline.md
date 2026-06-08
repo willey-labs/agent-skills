@@ -44,9 +44,10 @@ User task
 **Review mode:**
 ```
 User task (diff/PR/file)
-  → Worker 1 outputs findings JSON (no code changes)
-  → Worker 2 outputs findings JSON
-  → Worker 3 outputs findings JSON
+  → Phase 0 (Comprehend): orchestrator builds the structure map (references/structure-map.md) over the
+    tree, confirms it with the user once (large reviews), persists it. Skipped below the scope threshold.
+  → Worker 1 (Structure) — receives the MAP; reports structural findings as deltas against it + its rules
+  → Worker 2 (Quality) → Worker 3 (Failure)
   → Orchestrator runs hooks/review-files.py --json over the file set (deterministic pass, runs LAST)
   → Orchestrator merges all worker findings + linter findings, sorts by severity, presents unified report
 ```
@@ -64,9 +65,13 @@ For each worker N in {1, 2, 3}:
      TASK: <user's original task verbatim>
      FRAMEWORK: <detected framework key from SKILL.md Step 3>
      STRUCTURE: <resolved structure from SKILL.md Step 4 — the chosen structures/<name>.md, the project's .coding-standards-structure custom layout, or the framework default structure.md>
+     STRUCTURE_MAP: <the comprehension map from Phase 0 — the confirmed B→F→SF→U model + relationship deltas; omitted below the scope threshold>
      MODE: write | review
      WORKER_<N-1>_OUTPUT: <previous worker's JSON, omit for Worker 1>
      ```
+   - When Phase 0 produced a map, include `STRUCTURE_MAP`. Workers treat it as the intended shape: a
+     file's placement, a folder's promotion, a feature's duplication are judged against the map, not
+     re-derived per file.
 3. **Call the `Agent` tool** with:
    - `subagent_type: "general-purpose"`
    - `description: "coding-standards worker <N>"`
@@ -186,7 +191,12 @@ and resume mechanics live in `references/fix-plan.md`; this is the orchestration
    1–2, then group into milestones:
    - **M1 — structural** (only when structural findings exist): every ST-002 /
      ST-003 / ST-008 / move-rename finding, in the Phase-A order (barrels →
-     deep-import rewrites → ST-008 splits).
+     deep-import rewrites → ST-008 splits). M1 is derived from the structure map's
+     relationship deltas as well as the report's ST-* findings — de-nest a misfiled
+     peer (ST-009), consolidate a split feature (ST-001), route duplicate machinery to
+     its shared home (DP-007), promote a themed cluster (ST-008). The map is read from
+     `.coding-standards/structure-map.md`; if absent (review predated this), build it
+     first.
    - **M2…Mn — one per module:** group the file-local findings by the nearest
      feature/module folder per the resolved STRUCTURE (top-level directory as
      fallback). Order milestones by must-fix count descending, then total findings
