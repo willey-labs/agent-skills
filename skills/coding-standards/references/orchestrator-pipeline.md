@@ -24,11 +24,11 @@ You (the main agent) are now the **orchestrator**. You do not apply rules yourse
 
 | Worker | Owns | Brief file |
 |---|---|---|
-| **Worker 1 — Structure & Architecture** | ST-*, OD-001, OD-002, OD-004, OD-005, DP-001 to DP-005, `<framework>/structure.md` | `workers/worker-1-structure.md` |
+| **Worker 1 — Structure & Architecture** | ST-*, OD-001, OD-002, OD-004, OD-005, DP-001 to DP-005, DP-007, `<framework>/structure.md` | `workers/worker-1-structure.md` |
 | **Worker 2 — Code Quality (line level)** | FN-001 to FN-009, NM-*, OD-003, FMT-* | `workers/worker-2-quality.md` |
 | **Worker 3 — Failure Handling** | EH-*, FN-010 | `workers/worker-3-failure.md` |
 
-Cross-cutting principles (DP-006 KISS, DP-007 DRY / FN-011 — the same idea in two families, and FN-012 "rewrite the draft, don't ship it") are applied **per-domain** by each worker as a lens — no single worker owns them. (FN-010, the idiomatic-failure-mechanism rule, is Worker 3's, not cross-cutting.)
+DP-006 (KISS) is a per-worker lens. **DP-007 (DRY) is owned by Worker 1 at module/cross-feature scale** (its function-level twin FN-011 stays Worker 2's). Worker 1 also owns ST-009. FN-012 ("rewrite the draft, don't ship it") stays a shared lens. (FN-010, the idiomatic-failure-mechanism rule, is Worker 3's, not cross-cutting.)
 
 ## Pipeline shape
 

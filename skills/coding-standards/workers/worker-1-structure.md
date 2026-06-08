@@ -10,6 +10,7 @@ owns_rules:
   - ST-006
   - ST-007
   - ST-008
+  - ST-009
   - OD-001
   - OD-002
   - OD-004
@@ -19,10 +20,10 @@ owns_rules:
   - DP-003
   - DP-004
   - DP-005
+  - DP-007
   - "<framework>/* (all rules in references/<framework>/structure.md)"
 applies_as_lens:
   - DP-006 (KISS) — at architectural scale
-  - DP-007 (DRY) — at module/data scale
 must_not_touch:
   - Function bodies (Worker 2 fills them)
   - Variable / parameter / local names beyond placeholders (Worker 2 names them)
@@ -56,14 +57,17 @@ You are Worker 1 in a 3-worker pipeline applying the **coding-standards** skill.
 TASK: <user's task description>
 FRAMEWORK: <detected framework key, e.g. nextjs, django, go-http>
 STRUCTURE: <resolved structure from SKILL.md Step 4 — a structures/<name>.md, the project's .coding-standards-structure custom layout, or the framework default structure.md>
+STRUCTURE_MAP: <the confirmed comprehension map, if provided>
 EXISTING_PATHS: <list of paths already in the project, if any>
 ```
 
 `STRUCTURE` is the layout the project follows — already resolved (and confirmed with the user when custom). **Check placement against it, not against a default you pick yourself.**
 
+When given, check the real tree against the map; each relationship delta is a candidate finding you confirm and severity-grade.
+
 ## References to load (only these — keep context lean)
 
-1. `references/common/structure.md` — your primary rule set (ST-001 to ST-008).
+1. `references/common/structure.md` — your primary rule set (ST-001 to ST-009).
 2. `references/common/objects-and-data.md` — for OD-001, OD-002, OD-004, OD-005.
 3. `references/common/code-principles.md` — for DP-001 (SRP), DP-002 (OCP), DP-003 (LSP), DP-004 (ISP), DP-005 (DIP), DP-006 (KISS), DP-007 (DRY).
 4. The **resolved structure from your `STRUCTURE` input** — the project's actual layout. If it names a `structures/<name>.md`, load that. If it's a `.coding-standards-structure` file, load it — and when that file carries a `follows: <standard>` line, load the named standard's reference (`structures/<name>.md` or `references/<framework>/structure.md`) instead of a layout body. Otherwise fall back to `references/<framework>/structure.md`. Check placement against the resolved layout, never a default.
@@ -159,9 +163,25 @@ reviewed files live in it). If 3+ siblings share a theme and sit flat, emit **on
 folder** (`file` = the folder path, severity `should-fix`), naming the themed cluster and the
 sub-feature folder it has earned.
 
+**Diff against the structure map (when provided).** For each relationship delta in `STRUCTURE_MAP`,
+confirm it against the code and emit a finding (or mark it resolved). These are the cross-feature checks
+a per-file pass misses:
+
+- **DP-007 cross-feature.** Sibling features each carrying their own copy of the same non-trivial
+  machinery (a stream/pump loop, a request-options builder, a response shaper, an error map) when a
+  shared home exists or is earnable at their common parent (ST-004). One finding, `file` = the common
+  parent, `should-fix`, naming the duplicated concept + each copy + the shared home.
+- **ST-009 nesting legitimacy.** A nested sub-feature that imports nothing (or only an incidental
+  helper) from its parent's front door AND reimplements the parent's own shape is a misfiled peer. One
+  finding, `file` = the nested folder, `should-fix`: re-file as a sibling.
+- **ST-008 promotion by cohesion, not count.** A feature folder holding 3+ units that share a theme
+  (name stem, domain, imports) but sit flat has earned a sub-feature folder — *regardless of the total
+  file count* (the 12-file hook advisory is only a coarse backstop and misses clusters in small
+  folders). One finding per cluster, `file` = the folder, `should-fix`.
+
 **Severity (Worker 1):**
 - `must-fix` — deep imports past a folder's public API (ST-003), junk-drawer files (ST-005). The deterministic linter also catches these; report them anyway — the orchestrator dedupes.
-- `should-fix` — wrong / non-business-shaped placement (ST-001, ST-006), SRP violations / god-files (DP-001, ST-008), unpromoted themed siblings — 3+ flat files sharing a theme that have earned a sub-feature folder (ST-008, promotion direction), business logic depending on concretions instead of abstractions (DP-005), object-vs-data mismatch (OD-002).
+- `should-fix` — wrong / non-business-shaped placement (ST-001, ST-006), SRP violations / god-files (DP-001, ST-008), unpromoted themed siblings — 3+ flat files sharing a theme that have earned a sub-feature folder (ST-008, promotion direction), business logic depending on concretions instead of abstractions (DP-005), object-vs-data mismatch (OD-002), cross-feature duplication with an earnable shared home (DP-007/ST-004), a nested folder that reimplements its parent (ST-009), a themed 3+ cluster left flat in any folder, count regardless (ST-008 promotion).
 - `consider` — design tradeoffs: a structure that works but a simpler one exists (DP-006 KISS), arguable module boundaries.
 
 **Scope:** report misplacement only for files in the review set — never crawl the whole repo.
