@@ -18,7 +18,7 @@ The rule, everywhere:
 > has interchangeable forms, define one shared interface and one file per form. Shared code rises only to
 > the lowest level that covers everything using it.
 
-The codes (ST-001…008) below are labels so reviews and tools can point at a rule.
+The codes (ST-001…009) below are labels so reviews and tools can point at a rule.
 
 ---
 
@@ -198,7 +198,10 @@ file, or a sub-feature folder for symmetry.
 
 The promotion applies to **any** flat folder, however it grew — siblings created by splits, by extraction,
 or by plain accretion all count toward the same three. A split that leaves its folder holding a themed
-cluster of 3+ flat files has finished only half the job.
+cluster of 3+ flat files has finished only half the job. Promotion is earned by **cohesion, not folder
+size** — 3+ units sharing a theme have earned a sub-feature folder even in an otherwise small folder. The
+flat-sibling line count is only a coarse backstop; a themed cluster in a 6-file folder still earns
+promotion.
 
 **Splitting to beat the counter is not decomposition — it's scatter, and fails ST-008 worse than the
 original.** A split is valid only when each file is one genuine job that stands on its own. Two scatter
@@ -248,6 +251,25 @@ then one new file; nothing else changes.
 
 ---
 
+## ST-009 — Nesting means *part-of*; a nested peer is misfiled
+
+Putting folder B inside folder A asserts B is a *piece of* A and builds on A's front door. The Rule of
+Three earns a sub-feature by *count*; ST-009 governs *where* it nests — a cluster is a sub-feature only
+of the parent it actually depends on.
+
+A nested folder is a **misfiled peer** when both hold:
+- it imports nothing (or only an incidental helper) from the parent's front door, **and**
+- it reimplements the parent's own shape — its own registry/service/routes/store mirroring the parent's.
+
+That is a sibling feature wearing a child's folder. File peers as siblings, not nested. Two distinct
+features are peers even when they share a name prefix.
+
+**Test:** does the child import from the parent's front door and represent a part the parent delegates
+to? Yes → legitimate sub-feature. No, and it duplicates the parent's structure → misfiled peer; move it
+out. (Structural companion to DP-007: a nested peer is usually also a parallel-family duplication.)
+
+---
+
 ## How framework files build on this
 
 Each `references/<framework>/structure.md` adds only what's specific to that framework: what the front door
@@ -271,6 +293,8 @@ File scope (ST-008)
   □ Variants split into one-interface + one-file-each, not branches in one file
   □ Sub-feature folders earned by 3+ related files, not made for symmetry
   □ No 3+ themed siblings left flat — once they earn the folder, promote them (same Rule of Three, other direction)
+  □ Nested sub-feature folders build on their parent (import its front door, are part-of it) — a nested peer that reimplements the parent is misfiled (ST-009)
+  □ Themed 3+ clusters promoted regardless of total folder size (ST-008 promotion by cohesion)
 
 Boundaries & sharing
   □ Each multi-file folder has one front door

@@ -122,6 +122,11 @@ Already covered at the function level in `functions.md` (FN-011). Repeated here 
 - **Type shapes** — a `User` type belongs in one place. Don't redefine it in the frontend and the backend; share or generate it.
 - **Configuration** — a single source of truth for environment values. Not three `.env` files with slightly different copies.
 - **Component structures** — if you find yourself copying a pattern (e.g. a list with empty state + loading + error), extract the pattern.
+- **Parallel feature families** — the most expensive DRY breach: N sibling features each reimplementing
+  the same pipeline (same stream loop, options builder, response shaper) instead of building on one
+  shared module. The shared part rises to their lowest common parent (ST-004); each feature keeps only
+  what genuinely differs. Inverse trap: an ST-008 split that *copies* a sibling's machinery is
+  duplication wearing a decomposition costume (see structure.md ST-008 "scatter").
 
 The same *accidental-duplication* caveat from FN-011 applies at this scale: deduplicate shared
 **knowledge**, not code that merely looks alike today. Two services both formatting currency share
