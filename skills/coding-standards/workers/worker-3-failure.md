@@ -10,6 +10,7 @@ owns_rules:
 applies_as_lens:
   - DP-006 (KISS) — at error-path scale
   - DP-007 (DRY) — for repeated boundary translation patterns
+  - FN-012 (rewrite the draft, don't ship it) — at error-path scale
 must_not_touch:
   - File paths (Worker 1)
   - Class API shape (Worker 1)

@@ -24,6 +24,7 @@ owns_rules:
   - "<framework>/* (all rules in references/<framework>/structure.md)"
 applies_as_lens:
   - DP-006 (KISS) — at architectural scale
+  - FN-012 (rewrite the draft, don't ship it) — at structural scale (the first decomposition is a draft; revise it)
 must_not_touch:
   - Function bodies (Worker 2 fills them)
   - Variable / parameter / local names beyond placeholders (Worker 2 names them)

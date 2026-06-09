@@ -11,6 +11,7 @@ owns_rules:
   - FN-007
   - FN-008
   - FN-009
+  - FN-011
   - NM-001
   - NM-002
   - NM-003
@@ -28,6 +29,7 @@ owns_rules:
 applies_as_lens:
   - DP-006 (KISS) — at function-body scale
   - DP-007 (DRY) — at function / file scale
+  - FN-012 (rewrite the draft, don't ship it) — at function-body scale
 must_not_touch:
   - File paths / folder structure (Worker 1 owns)
   - Class API exposure or class identity (object vs data — Worker 1 owns)
@@ -47,6 +49,7 @@ You are Worker 2 in a 3-worker pipeline. You **receive Worker 1's skeleton** and
 3. **Function size and decomposition** — extract helpers per FN-001 / FN-002 / FN-003.
 4. **Argument shapes** — group 4+ args into a typed object per FN-005.
 5. **Side-effect discipline** — ensure functions don't lie about what they do (FN-008, FN-009).
+   - **Function-scale DRY** — collapse repeated logic inside a file/function into one source (FN-011); the module/cross-feature twin (DP-007) is Worker 1's.
 6. **Method call shapes** — fix Law of Demeter violations (OD-003) at call sites.
 7. **Formatting** — newspaper rule (FMT-001), vertical spacing (FMT-002), declaration placement (FMT-003), team conventions (FMT-004).
 
@@ -67,7 +70,7 @@ WORKER_1_OUTPUT: <JSON from Worker 1 — files with placeholder bodies, decision
 
 ## References to load
 
-1. `references/common/functions.md` — your primary rule set (FN-001 to FN-009; FN-010, FN-011, FN-012 are NOT yours).
+1. `references/common/functions.md` — your primary rule set (FN-001 to FN-009 and FN-011, function-scale DRY). FN-010 is Worker 3's. FN-012 (rewrite the draft) you apply as a lens, not as an owned check.
 2. `references/common/naming.md` — NM-001 to NM-009.
 3. `references/common/formatting.md` — FMT-001 to FMT-004.
 4. `references/common/objects-and-data.md` — but ONLY OD-003 (Law of Demeter). Skip OD-001, OD-002, OD-004, OD-005 — those are Worker 1's.
