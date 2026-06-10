@@ -37,15 +37,15 @@ A function doing multiple things has multiple reasons to change, multiple tests 
 
 ## FN-003 — One level of abstraction per function
 
-Mixing high-level intent ("process the order") with low-level detail ("call `stripe.charges.create` with these headers") obscures the code's purpose.
+Mixing high-level intent ("process the order") with low-level detail ("call the payment API with these headers") obscures the code's purpose.
 
-**The rule:** a function should read as a top-down narrative, descending one layer of abstraction at a time. The CEO doesn't pack boxes. The order processor doesn't know Stripe's raw API.
+**The rule:** a function should read as a top-down narrative, descending one layer of abstraction at a time. The CEO doesn't pack boxes. The order processor doesn't know the payment provider's raw API.
 
 **How to apply:** each function reads like a two-sentence paragraph at one level:
 - *To process an order, we validate stock, calculate the bill, charge the customer, and notify the warehouse.*
 - *To calculate the bill, we sum the items, apply discounts, and add tax.*
 
-If you see an HTTP call sitting next to a domain concept like `applyLoyaltyDiscount`, the levels are mixed — push the HTTP call down a layer.
+If you see an HTTP call sitting next to a domain concept like `applyDiscount`, the levels are mixed — push the HTTP call down a layer.
 
 ---
 
@@ -77,7 +77,15 @@ Arguments carry mental weight. Each one is something the reader must remember, s
 
 **Languages with named arguments** (Python, Swift, Kotlin, Dart, C#) soften this rule a little: `placeOrder(customerId=..., items=..., discount=..., shippingAddress=...)` reads fine at the call site because each argument is labeled. The mental-load problem (which arg is which) goes away. Even so, when you reach 5+ named arguments the parameter list is usually a missing object — extract a `PlaceOrderRequest` and the function signature describes the *operation* (`placeOrder(request)`), not its data layout.
 
-**Languages without named arguments** (JavaScript pre-objects, Go, Rust without builder) hit the rule harder — a positional 4-tuple at the call site (`createUser(a, b, c, d)`) is genuinely unreadable. Group earlier.
+**Languages without named arguments** (JavaScript/TypeScript, Go, Java, PHP, Rust without builder) hit the rule harder — a positional 4-tuple at the call site (`createUser(a, b, c, d)`) is genuinely unreadable. Group earlier. So the enforced line is **4+ for positional languages (JS/TS, Go, Java, PHP) and 5+ for the named-argument ones (Python, C#, Kotlin, Swift, Dart)**.
+
+**Carve-outs — shapes that are not call sites.** The threshold counts *arguments a caller must pass*. Some 4+/5+ parameter lists aren't that, and are exempt (the write-time hooks encode these, and review treats them the same):
+
+- **Constructors that the framework calls, not you** — a dependency-injected constructor (TypeScript/NestJS parameter properties `constructor(private a: A, …)`, PHP promoted `__construct`, Spring/Java and C# constructors, Go `New…` wiring functions). The container is the caller; the parameters *are* the object's fields. Group them only when the wiring genuinely hurts, not because of the count.
+- **Record / data-class declarations** (`record OrderResponse(…)`, Kotlin `data class`, the DTO carriers the framework structure refs mandate). The components are fields, not arguments.
+- **Framework parameter bindings** — FastAPI `Depends()`/`Query()`/… parameters, the Express `(err, req, res, next)` error-middleware shape, pytest fixture parameters. Each parameter is a framework binding, not an argument you chose.
+
+These are exemptions by *shape*, not a license to raise the count: an ordinary function or method with 4+/5+ real arguments still groups them into an object.
 
 ---
 

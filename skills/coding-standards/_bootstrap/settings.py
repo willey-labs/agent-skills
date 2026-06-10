@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Wire the skill into the agent's settings.json + commands directory.
+"""Wire the skill into the agent's settings.json.
 
 Owns the PreToolUse hook entry (build, recognize, merge), the settings.json
-read/write with a rolling backup, the skill-permission grants, the slash-command
-symlink, and the interpreter-choice helpers. The list of hook scripts to wire
-(HOOK_FILES) lives here too — it's the identity of "our" entry on re-run.
+read/write with a rolling backup, the skill-permission grants, and the
+interpreter-choice helpers. The list of hook scripts to wire (HOOK_FILES) lives
+here too — it's the identity of "our" entry on re-run. The `/coding-standards`
+slash-command install lives in the sibling `command.py` (ST-008: one job per file).
 """
 
 from __future__ import annotations
@@ -29,6 +30,8 @@ HOOK_FILES = [
     "block-php-violations.py",
     "block-jvm-violations.py",
     "block-god-file.py",
+    "block-swallowed-errors.py",
+    "block-debug-artifacts.py",
     "block-structure-file-violations.py",
 ]
 
@@ -215,40 +218,6 @@ def ensure_skill_permissions(settings: dict) -> bool:
                 changed = True
 
     return changed
-
-
-def install_slash_command(commands_dir: Path) -> str:
-    """Symlink the slash command into the agent's commands/ directory.
-
-    Returns the action taken: 'noop', 'created', or 'refreshed'.
-    """
-    source = (SKILL_DIR / "commands" / "coding-standards.md").resolve()
-    if not source.exists():
-        # No command file shipped (older skill version). Skip silently.
-        return "noop"
-
-    commands_dir.mkdir(parents=True, exist_ok=True)
-    target = commands_dir / "coding-standards.md"
-
-    if target.is_symlink():
-        if target.resolve() == source:
-            return "noop"
-        target.unlink()
-        target.symlink_to(source)
-        return "refreshed"
-
-    if target.exists():
-        # Plain file lives there — don't clobber. The user may have
-        # customized it; warn rather than overwrite.
-        print(
-            f"coding-standards: skipped /coding-standards command — {target} "
-            f"exists and is not a symlink. Remove it manually if you want the "
-            f"bootstrap-managed version."
-        )
-        return "noop"
-
-    target.symlink_to(source)
-    return "created"
 
 
 def interpreter_note(scope: str, venv_python: Path | None) -> str:

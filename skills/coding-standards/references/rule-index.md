@@ -8,7 +8,7 @@ The rules are organized by **what kind of question you're asking**, not by langu
 **Naming** — intention-revealing, no Hungarian, meaningful distinctions, pronounceable, searchable
 → `references/common/naming.md`
 
-**Classes, objects, data structures** — getters vs behavior, Law of Demeter, hybrid classes, DTOs
+**Classes, objects, data structures** — getters vs behavior, Law of Demeter, hybrid classes, DTOs, no type-system escape hatch (`any`/`Any`/`interface{}`/`dynamic`/`mixed`, OD-006)
 → `references/common/objects-and-data.md`
 
 **File layout, vertical spacing, declaration placement, team conventions**

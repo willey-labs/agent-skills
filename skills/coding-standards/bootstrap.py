@@ -17,7 +17,8 @@ This file is the orchestrator and the public entry point. The work lives in the
   _bootstrap/readiness     host detection + the readiness report
   _bootstrap/install       the mandatory dependency install flow (+ venv fallback)
   _bootstrap/scope         project/global scope detection + the ignore-file template
-  _bootstrap/settings      settings.json wiring + slash command + permissions
+  _bootstrap/settings      settings.json wiring (hook entry + permissions)
+  _bootstrap/command       /coding-standards slash-command install (symlink or copy)
 
 `bootstrap.py` stays at the skill root because SKILL.md Step 0 and the slash
 command invoke it by that exact path; `_bootstrap/paths` anchors scope detection
@@ -63,6 +64,7 @@ from _bootstrap.dependencies import (
     interpreter_has_packages,
     required_packages_available,
 )
+from _bootstrap.command import install_slash_command
 from _bootstrap.install import ensure_global_venv, ensure_required_packages
 from _bootstrap.paths import HOOKS_DIR
 from _bootstrap.readiness import find_compatible_python, print_readiness, readiness_report
@@ -72,7 +74,6 @@ from _bootstrap.settings import (
     build_hook_entry,
     ensure_skill_permissions,
     hook_interpreter,
-    install_slash_command,
     interpreter_note,
     is_our_entry,
     load_settings,

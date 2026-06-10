@@ -45,7 +45,7 @@ A name lies when it promises something it doesn't deliver. The two main forms:
 **Wrong noun for the structure.** Calling a `Map` "accountList" is disinformation — *list* has a specific meaning to programmers (indexed sequence). The reader writes `accountList[0]` and gets the wrong thing. If it's a map, call it `accountsByEmail` or `accountIndex`.
 
 **Names that differ by one character or look identical.**
-- `XYZControllerForEfficientHandlingOfStrings` vs `XYZControllerForEfficientStorageOfStrings` — auto-complete picks the wrong one half the time.
+- `getActiveUsers` vs `getActivatedUsers` — one word apart; auto-complete picks the wrong one half the time.
 - Lowercase `l` and number `1`. Uppercase `O` and number `0`. Visually indistinguishable in many fonts.
 
 **Apply:**
@@ -163,8 +163,6 @@ for (const transaction of transactions) {
   }
 }
 ```
-
-The professional understands that clarity is king. Stop making readers decode names — be clear.
 
 **Apply:**
 - Spell things out. `manager` over `mgr`. `controller` over `ctrl`. `transaction` over `tx`. The IDE will auto-complete; the readers will thank you.

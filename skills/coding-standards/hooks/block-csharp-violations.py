@@ -22,7 +22,7 @@ from typing import Iterable
 
 sys.path.insert(0, str(Path(__file__).parent))
 # Shared PreToolUse lifecycle (gate, payload read, block emit) — see _hook_run.
-from _hook_run import block, read_payload, resolve_target  # noqa: E402
+from _hook_run import block, join_wrapped_signatures, read_payload, resolve_target  # noqa: E402
 
 CS_EXTENSIONS = {".cs"}
 
@@ -50,12 +50,34 @@ HUNGARIAN_DECL = re.compile(
 # C# member-field convention `_field` is fine; `m_field` is the smell.
 M_PREFIX_FIELD = re.compile(r"\b(?:private|protected|public|internal)\b[^=;]*\bm_[a-z]\w*")
 
-# FN-005 — C# method signature with 4+ params. C# uses commas to separate
-# typed params: `public void Foo(int a, int b, int c, int d)`.
+# FN-005 — C# method signature. C# has named arguments, so the line sits at 5+
+# (functions.md:78). `public void Foo(int a, int b, int c, int d, int e)`.
 METHOD_SIG = re.compile(
     r"\b(?:public|private|protected|internal|static|async|override|virtual|abstract|sealed)"
     r"[\w<>,\s\[\]?]*?\s+\w+\s*\(([^)]*)\)"
 )
+CS_MAX_PARAMS = 5  # named-arg language → block at 5+
+
+# Tokens that are modifiers/keywords, not a return type or name. Used to tell a
+# constructor (`public Foo(...)` — no return type, one core token) from a method
+# (`public void Foo(...)` — two core tokens).
+CS_MODIFIER_TOKENS = frozenset({
+    "public", "private", "protected", "internal", "static", "async", "override",
+    "virtual", "abstract", "sealed", "readonly", "partial", "new", "extern",
+    "unsafe", "ref", "record", "required", "file", "init",
+})
+
+
+def _cs_signature_kind(head: str) -> str:
+    """Classify the text before the param `(` as record | constructor | method.
+
+    Records (DTOs the structure refs mandate) and constructors (DI — the container
+    is the caller, not a hot call site) are FN-005-exempt; methods are counted.
+    """
+    if re.search(r"\brecord\b", head):
+        return "record"
+    core = [t for t in re.findall(r"[A-Za-z_]\w*", head) if t not in CS_MODIFIER_TOKENS]
+    return "constructor" if len(core) <= 1 else "method"
 
 
 def strip_strings_and_comments(source: str) -> str:
@@ -77,8 +99,8 @@ def iter_dynamic_violations(clean_lines: list[str], file_path: str) -> Iterable[
         for pattern, label in DYNAMIC_RULES:
             if pattern.search(line):
                 yield (
-                    f"{file_path}:{idx} — `dynamic` is banned ({label}); "
-                    f"use a concrete type or generic"
+                    f"{file_path}:{idx} — OD-006: `dynamic` is banned ({label}); "
+                    f"use a concrete type, `object` + pattern matching, or a generic"
                 )
                 break
 
@@ -117,16 +139,19 @@ def _count_cs_params(param_list: str) -> int:
 
 
 def iter_arg_count_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
-    for idx, line in enumerate(clean_lines, start=1):
-        # Skip lines that look like method *invocations* (no return type before the
-        # name). The METHOD_SIG regex requires an access/modifier keyword as anchor.
-        match = METHOD_SIG.search(line)
+    for lineno, text in join_wrapped_signatures(clean_lines):
+        # The METHOD_SIG regex requires an access/modifier keyword as anchor, so
+        # plain invocations don't match.
+        match = METHOD_SIG.search(text)
         if not match:
             continue
+        head = text[match.start():text.index("(", match.start())]
+        if _cs_signature_kind(head) in ("record", "constructor"):
+            continue
         count = _count_cs_params(match.group(1))
-        if count >= 4:
+        if count >= CS_MAX_PARAMS:
             yield (
-                f"{file_path}:{idx} — FN-005: method takes {count} parameters; "
+                f"{file_path}:{lineno} — FN-005: method takes {count} parameters; "
                 f"group them into a request/options record"
             )
 

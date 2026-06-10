@@ -18,7 +18,7 @@ rest of the project — so keep every change local to it.
 ```
 FILE_PATH:       <absolute path of the one file you fix>
 CURRENT_CONTENT: <the file's current full content>
-FINDINGS:        <JSON array; each: { id, rule, line, severity, fix } — ONLY this file's findings>
+FINDINGS:        <JSON array; each: { id, rule, line, fix } — ONLY this file's findings>
 FRAMEWORK:       <detected framework key>
 STRUCTURE:       <resolved project structure>
 ```

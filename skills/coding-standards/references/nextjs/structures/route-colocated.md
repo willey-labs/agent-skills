@@ -17,7 +17,7 @@ src/
     layout.tsx  page.tsx  globals.css
   components/                  # shared UI — reused by 2+ routes
     ui/                        # design system / UI primitives (shadcn/ui) — owned by the generator
-    <domain>/                  # optional domain buckets (e.g. chat/, settings/)
+    <domain>/                  # optional domain buckets, grouped by area
   lib/                         # shared utility + infrastructure code, not tied to one feature
     <domain>/                  #   domain-scoped helpers
     utils/  config/  clients/  #   cross-feature helpers, config, external clients

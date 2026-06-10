@@ -16,7 +16,7 @@ A milestone-driven fix run (`orchestrator-pipeline.md` → Fix mode) persists it
 # Fix plan — from reviews/2026-06-02-141503.md
 
 - **Source report:** .coding-standards/reviews/2026-06-02-141503.md
-- **Scope:** must-fix + should-fix (consider: excluded)
+- **Scope:** all findings (no severity tiers — every finding is in scope)
 - **Commit policy:** commit per milestone (tree clean at start: yes)
 - **Approved:** 2026-06-02-142010
 - **Status:** in_progress (M3 of 4)

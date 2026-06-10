@@ -5,8 +5,7 @@
 This file adds only what's specific to Cocos Creator (2.x and 3.x, TypeScript games). The decomposition
 model — business → feature → sub-feature → unit, one job per file, front door, Rule of Three, all the ST
 rules — lives in `common/structure.md`, loaded alongside this. Cocos diverges from a web framework on
-several engine-specific points, so this delta is longer than most; everything below is a genuine addition,
-not a restatement.
+several engine-specific points, so this delta is longer than most.
 
 ## Outer shell
 

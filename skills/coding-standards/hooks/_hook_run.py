@@ -85,6 +85,29 @@ def resolve_target(payload: dict, extensions: set[str]) -> tuple[str, str] | Non
     return file_path, new_content
 
 
+def join_wrapped_signatures(lines: list[str]) -> list[tuple[int, str]]:
+    """Yield (start_lineno, text) where a line with unbalanced parens is extended
+    with following lines until the parens close. A signature split across lines —
+    the natural shape for a long parameter list — is then matched as one unit, so
+    the arg-count checks can't be evaded by wrapping. Over-merging is harmless: the
+    arg-count regexes only fire on `func`/`def`/method patterns, so a merged
+    non-signature run simply doesn't match. Line number is the first physical line.
+    """
+    joined: list[tuple[int, str]] = []
+    i, n = 0, len(lines)
+    while i < n:
+        start = i
+        buf = lines[i]
+        depth = buf.count("(") - buf.count(")")
+        while depth > 0 and i + 1 < n:
+            i += 1
+            buf += " " + lines[i]
+            depth += lines[i].count("(") - lines[i].count(")")
+        joined.append((start + 1, buf))
+        i += 1
+    return joined
+
+
 def cited_rules(violations: list[str]) -> str:
     """The sorted set of rule codes that fired, for the citation line.
 

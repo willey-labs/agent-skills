@@ -26,19 +26,74 @@ Stdlib only.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 HOOK_DIR = Path(__file__).resolve().parent
+SKILL_DIR = HOOK_DIR.parent
+
+
+def _imports_tree_sitter(interpreter: str) -> bool:
+    try:
+        proc = subprocess.run(
+            [interpreter, "-c", "import tree_sitter, tree_sitter_typescript"],
+            capture_output=True, timeout=20,
+        )
+        return proc.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def resolve_interpreter() -> tuple[str, bool]:
+    """Pick an interpreter that can run the TS/JS AST checks, returning
+    (interpreter, has_tree_sitter).
+
+    The write-time hooks are wired to the interpreter tree-sitter was installed
+    into (often a dedicated `<skill>/.venv` on PEP-668 hosts). A review launched
+    with a bare `python3` that lacks the grammars would silently skip FN-001 /
+    OD-004 / precise FN-005 and report the file CLEAN — the exact write-blocks /
+    review-passes split this driver exists to prevent. So prefer, in order: the
+    launching interpreter, the skill's sibling venv, then PATH python — and use
+    the first that actually imports the grammars. If none can, run anyway but
+    report the gap as a finding (never silently)."""
+    candidates = [sys.executable]
+    for name in ("python", "python3"):
+        for sub in ("bin", "Scripts"):
+            venv_py = SKILL_DIR / ".venv" / sub / name
+            if venv_py.exists():
+                candidates.append(str(venv_py))
+    for name in ("python3", "python"):
+        found = shutil.which(name)
+        if found:
+            candidates.append(found)
+
+    seen: set[str] = set()
+    for interpreter in candidates:
+        if interpreter in seen:
+            continue
+        seen.add(interpreter)
+        if _imports_tree_sitter(interpreter):
+            return interpreter, True
+    return sys.executable, False
+
+
+INTERPRETER, HAS_TREE_SITTER = resolve_interpreter()
+DEGRADED_FINDING = (
+    "[degraded] tree-sitter unavailable to this review — FN-001 (length), OD-004 "
+    "(hybrid class) and precise FN-005 were NOT checked on TS/JS files. Run "
+    "bootstrap.py to restore them, then re-review."
+)
 
 # Every content/path hook that applies to source files. Each self-filters by
 # file extension and exits 0 when the file isn't its language — so running them
 # all against every file mirrors how they register as PreToolUse hooks (all run;
-# each picks its own). Severity is read from the EXIT CODE per run, not from a
-# fixed list: a hook may block (exit 2 → must-fix) on one signal and advise
-# (exit 0 + stderr → should-fix) on another. block-god-file does both — it blocks
-# on too many behavioral declarations and advises on raw size / flat folders.
+# each picks its own). All findings are violations to fix (no severity tiers); the
+# EXIT CODE only distinguishes a hard block (exit 2) from an advisory (exit 0 +
+# stderr, tagged "[advisory]" so the reviewer knows it's the blunt size/flat-folder
+# proxy to adjudicate). block-god-file does both — it blocks on too many behavioral
+# declarations and advises on raw size / flat folders.
 # block-structure-file-violations is omitted: it guards the config file, not source.
 HOOK_FILES = (
     "block-junk-paths.py",
@@ -49,6 +104,8 @@ HOOK_FILES = (
     "block-php-violations.py",
     "block-jvm-violations.py",
     "block-god-file.py",
+    "block-swallowed-errors.py",
+    "block-debug-artifacts.py",
 )
 
 
@@ -65,8 +122,9 @@ def _bullets(stderr: str) -> list[str]:
 def check_file(path: str) -> list[str]:
     """Return the hook-level violations for one existing file (empty if clean).
 
-    Exit 2 → would have blocked at write time → must-fix. Exit 0 with stderr →
-    advisory → tagged "[advisory]" so the merge step files it as should-fix."""
+    Exit 2 → would have blocked at write time. Exit 0 with stderr → advisory,
+    tagged "[advisory]" so the reviewer knows it's the blunt size/flat-folder proxy
+    to adjudicate. Both are violations to fix — there are no severity tiers."""
     try:
         content = Path(path).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
@@ -76,9 +134,15 @@ def check_file(path: str) -> list[str]:
         {"tool_name": "Write", "tool_input": {"file_path": path, "content": content}}
     )
     violations: list[str] = []
+    # Surface degraded enforcement instead of letting a TS/JS file report clean
+    # when no interpreter could load the grammars (the silent write/review split).
+    if not HAS_TREE_SITTER and Path(path).suffix in {
+        ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"
+    }:
+        violations.append(DEGRADED_FINDING)
     for hook in HOOK_FILES:
         proc = subprocess.run(
-            [sys.executable, str(HOOK_DIR / hook)],
+            [INTERPRETER, str(HOOK_DIR / hook)],
             input=payload,
             capture_output=True,
             text=True,

@@ -20,7 +20,7 @@ from typing import Iterable
 
 sys.path.insert(0, str(Path(__file__).parent))
 # Shared PreToolUse lifecycle (gate, payload read, block emit) — see _hook_run.
-from _hook_run import block, read_payload, resolve_target  # noqa: E402
+from _hook_run import block, join_wrapped_signatures, read_payload, resolve_target  # noqa: E402
 
 PHP_EXTENSIONS = {".php"}
 
@@ -42,6 +42,11 @@ HUNGARIAN_VAR = re.compile(
 FUNCTION_SIG = re.compile(
     r"\bfunction\s+\w+\s*\(([^)]*)\)"
 )
+# FN-005 carve-out — the constructor. Laravel/Symfony inject dependencies through
+# `__construct` (often with promoted properties: `private OrdersRepo $orders`):
+# the container calls it, not a hot call site. A 4+ dep constructor is grouped
+# only when it genuinely hurts. A regular method with 4+ args still blocks.
+PHP_CONSTRUCTOR = re.compile(r"\bfunction\s+__construct\s*\(")
 
 
 def strip_strings_and_comments(source: str) -> str:
@@ -62,8 +67,8 @@ def iter_mixed_violations(clean_lines: list[str], file_path: str) -> Iterable[st
         for pattern, label in MIXED_RULES:
             if pattern.search(line):
                 yield (
-                    f"{file_path}:{idx} — `mixed` is banned ({label}); "
-                    f"use a concrete type or union"
+                    f"{file_path}:{idx} — OD-006: `mixed` is banned ({label}); "
+                    f"use a concrete type or a union"
                 )
                 break
 
@@ -96,14 +101,16 @@ def _count_php_params(param_list: str) -> int:
 
 
 def iter_arg_count_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
-    for idx, line in enumerate(clean_lines, start=1):
-        match = FUNCTION_SIG.search(line)
+    for lineno, text in join_wrapped_signatures(clean_lines):
+        match = FUNCTION_SIG.search(text)
         if not match:
+            continue
+        if PHP_CONSTRUCTOR.search(text):
             continue
         count = _count_php_params(match.group(1))
         if count >= 4:
             yield (
-                f"{file_path}:{idx} — FN-005: function takes {count} parameters; "
+                f"{file_path}:{lineno} — FN-005: function takes {count} parameters; "
                 f"group them into a DTO / Form Request / data object"
             )
 

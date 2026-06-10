@@ -4,7 +4,8 @@
 Hard-blocks Write/Edit/MultiEdit when the target path itself violates
 universal structural rules from references/common/structure.md:
 
-- ST-005:           junk-drawer filenames (utils.ts, helpers.py, common.go, ...).
+- ST-005:           junk-drawer filenames (utils.ts, helpers.py, common.go, ...)
+                    AND junk-drawer folders (a source file under utils/helpers/common/misc).
 - ST-005 corollary: top-level mega-files (src/types.ts, src/constants.ts, ...).
 
 Path-only. Does not read file content. Runs for every language the rules
@@ -34,6 +35,11 @@ JUNK_DRAWER_EXTS = {
     ".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs",
     ".py", ".go", ".cs", ".java", ".kt", ".php", ".rb", ".rs",
 }
+# ST-005 applies to FOLDERS too ("a file or folder named utils/helpers/common/misc").
+# `lib`/`util`/`helper` singular stems stay file-only — `lib/` is a conventional
+# infrastructure folder and blocking it would be noise. A junk-drawer *folder*
+# collects everything because nothing has to live there; name it by what it holds.
+JUNK_DRAWER_FOLDERS = {"utils", "helpers", "common", "misc"}
 # ST-005 is absolute — a junk-drawer stem is wrong in every directory, including
 # shared-utility homes like shared/lib/. A project that must keep such a file uses
 # `.coding-standards-ignore`, not a hard-coded global whitelist.
@@ -53,11 +59,24 @@ def check_path_violations(file_path: str) -> list[str]:
     p = Path(file_path)
     normalized = file_path.replace("\\", "/")
 
-    if p.suffix.lower() in JUNK_DRAWER_EXTS and p.stem.lower() in JUNK_DRAWER_STEMS:
+    is_source = p.suffix.lower() in JUNK_DRAWER_EXTS
+
+    if is_source and p.stem.lower() in JUNK_DRAWER_STEMS:
         violations.append(
             f"{file_path} — ST-005: junk-drawer filename `{p.name}`; "
             f"name files by what they do (e.g. format-currency.ts, parse-date.ts)"
         )
+
+    # ST-005 for folders — a source file living under a utils/helpers/common/misc
+    # directory. Exact segment match (so `commons/`, `utilities/` don't trip), and
+    # only the directory part (the filename is handled above).
+    if is_source:
+        junk_dirs = [seg for seg in p.parent.parts if seg.lower() in JUNK_DRAWER_FOLDERS]
+        if junk_dirs:
+            violations.append(
+                f"{file_path} — ST-005: junk-drawer folder `{junk_dirs[0]}/`; "
+                f"name folders by the part of the product they serve, not by kind"
+            )
 
     if TOP_LEVEL_MEGAFILE_PATTERN.search(normalized):
         violations.append(
@@ -83,11 +102,10 @@ def main() -> int:
     if tool_name not in {"Write", "Edit", "MultiEdit"}:
         return 0
 
-    # Path checks only fire on Write — Edit/MultiEdit operate on existing files
-    # whose path was already accepted, so we only police newly-created paths.
-    if tool_name != "Write":
-        return 0
-
+    # Fire on Edit/MultiEdit as well as Write: a junk-drawer name is a violation
+    # however the file got there, and structure-resolution.md promises the *next
+    # edit* to such a file is blocked until it's renamed. The `.coding-standards-ignore`
+    # file is the escape for a legacy file a team isn't ready to rename yet.
     file_path = tool_input.get("file_path", "")
     if not file_path:
         return 0

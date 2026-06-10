@@ -51,9 +51,17 @@ python3 <skill-dir>/bootstrap.py --auto-install
 ```
 
 - `Wired` / `Updated` / `Install OK` → tell the user to **restart the session** so hooks activate.
+  **Until they do, the PreToolUse hooks are NOT active in *this* session** (Claude Code reads
+  `settings.json` at session start), so a Write here won't be blocked. This is the unenforced-first-session
+  gap. Close it: for any code you write or review in this session, run the linter yourself over the touched
+  files as a compensating check before reporting done —
+  `python3 <skill-dir>/hooks/review-files.py <file> …` works immediately, no restart needed — and fix what
+  it finds. Tell the user write-time blocking starts next session; this session is covered by the manual
+  linter pass.
 - `Blocking issues:` → surface it verbatim and **stop** until the user resolves it.
 - `cannot determine install scope` → the skill is outside a `.claude/skills/` tree; point at `README.md`
-  and continue without write-time blocking — the rules still apply.
+  and continue without write-time blocking — the rules still apply, and `review-files.py` still runs as a
+  manual linter over what you touch.
 
 The install self-detects project vs global scope and auto-installs the skill's required packages. Flags,
 the venv/PEP-668 fallback, and the readiness breakdown live in `references/bootstrap.md` — read it only
@@ -127,13 +135,21 @@ Look at the file you're acting on and match the signals below. **Stop at the fir
 | `fastapi` | `fastapi` in deps **or** `from fastapi import FastAPI` **and** not Django |
 | `flask` | `flask` in deps **or** `from flask import Flask` **and** not Django/FastAPI |
 | `go-http` | `go.mod` + a router (`gin`, `echo`, `fiber`, `chi`, `mux`) or net/http handler routing |
-| `vanilla-js` | Plain `.ts` / `.js` that fits none of the above (libraries, CLIs, scripts, browserless projects) |
+| `unsupported` | A framework the skill recognizes but has **no structure reference** for — Angular (`@angular/core` / `angular.json`), Svelte / SvelteKit (`.svelte` files, `svelte` in `package.json`, `svelte.config.*`), Astro (`astro` dep / `astro.config.*` / `.astro`), Remix (`@remix-run/*`), Ember, SolidStart, Qwik, … |
+| `vanilla-js` | Plain `.ts` / `.js` that fits none of the above **and is not one of the recognized-unsupported frameworks** (libraries, CLIs, scripts, browserless projects) |
 
 - **If two could apply**, pick the more specific one (a `.tsx` in a Next.js repo is `nextjs`, not
   `react-native`).
 - **Monorepos** pick the framework **per file**, not per repo — walk up from the file until a signal
   matches. `apps/web/...` → `nextjs`; `apps/api/...` → `nestjs`.
 - **Plain libraries** with no framework signal default to `vanilla-js` (JS/TS) or `common/` only (Python).
+- **Recognized but unsupported** (the `unsupported` row): **say so and do NOT fall back to `vanilla-js`** —
+  imposing vanilla-js's business-folder + barrel layout on an Angular or SvelteKit app actively fights the
+  framework's own conventions, which is worse than declining. Instead: apply all of `common/` (it's
+  universal — the line-level rules and the write-time hooks still enforce on the language), keep the
+  project's **existing** layout for placement, and tell the user the skill has no structure reference for
+  this framework yet so structural/placement review is limited to `common/structure.md` (ST-*), not a
+  framework-specific shape. Skip the Step 4 structure question (there's no catalog to offer).
 - **If you can't tell**, ask once — don't guess across frameworks.
 
 ---
@@ -253,8 +269,8 @@ functions small" misapplies FN-001; the examples show where the line actually si
 
 Then apply each rule at its scope: **common governs the inside of code; the resolved structure governs the
 outside** (file placement, folder names, public APIs). When the two seem to conflict, that scope split is
-the answer — a Next.js `page.tsx` is both thin (framework) *and* its `export default function Page()` is
-short (common).
+the answer — a framework entry file is both thin (the framework rule) *and* the function it exports is
+short (the common rule).
 
 ---
 
@@ -264,6 +280,13 @@ short (common).
 
 Apply the rules **proactively** — write compliant code the first time. If you catch a violation in code you
 just wrote, fix it before moving on. Don't ship a violation plus a "TODO: fix this".
+
+**Always author and modify code through the `Write` / `Edit` / `MultiEdit` tools — never by shell
+redirection** (`> file`, `>>`, `tee`, `sed -i`, `cat <<EOF > file`). The enforcement hooks fire **only** on
+Write/Edit/MultiEdit; a file written through the shell silently bypasses every one of them. This is a real
+hole in the enforcement perimeter, and the only thing closing it for shell writes is this instruction — so
+honor it. If some tool genuinely must generate a source file outside the Write path, run
+`python3 <skill-dir>/hooks/review-files.py <file>` over the result and fix what it reports.
 
 ### Review
 
@@ -289,19 +312,24 @@ it:
    # diff:   git diff --name-only | python3 <skill-dir>/hooks/review-files.py --stdin
    # pipeline: add --json and parse per file
    ```
-   It applies the same write-time contract (`any`, Hungarian, 4+ args, junk-drawer paths, deep imports, the
-   TS/Python AST checks) and skips excluded files. **Every finding it returns is must-fix:** the
-   *existence* of the finding is deterministic and never re-litigated (an `any` is an `any`). For the
-   ST-008 decl-count block, the *remedy* is the reviewer's judgement — a cohesive split, OR a recorded
-   exemption (`.coding-standards-ignore` + reason, logged `accepted`) when the file is one cohesive job the
-   proxy miscounts. A split that creates scatter or copies a sibling's machinery is itself an ST-008 +
-   DP-007 violation, not a fix.
-5. **Merge, write the report, summarize.** Combine judgement + linter findings, grouped by severity:
-   *must-fix* (linter findings + correctness/security/broken contracts), *should-fix* (clean-code), and
-   *consider* (judgement calls). Persist the merged result to a report file per `references/review-report.md`
-   (`.coding-standards/reviews/<timestamp>.md`, gitignored) and tell the user the path — every review writes
-   one, inline included. Above the scope threshold (defined once in `orchestrator-pipeline.md` → Fix mode),
-   trim the chat output to the shape in `review-report.md`; the report file always holds everything.
+   It applies the same write-time contract (`any`, Hungarian, 4+/5+ args, swallowed errors, junk-drawer
+   paths, deep imports, the TS/Python AST checks) and skips excluded files. `review-files.py` self-selects
+   an interpreter that can load the TS/JS grammars (its bundled venv if the launching `python3` lacks them)
+   and flags the gap loudly if none can — it never silently reports a TS file clean. **Every finding it
+   returns is a violation to fix:** the *existence* of the finding is deterministic and never re-litigated
+   (an `any` is an `any`). For the ST-008 decl-count block, the *remedy* is the reviewer's judgement — a
+   cohesive split, OR a recorded exemption (`.coding-standards-ignore` + reason, logged `accepted`) when the
+   file is one cohesive job the proxy miscounts. A split that creates scatter or copies a sibling's
+   machinery is itself an ST-008 + DP-007 violation, not a fix.
+5. **Merge, write the report, summarize.** Combine judgement + linter findings into one list, ordered by
+   file then rule code. **There are no severity tiers — every finding is a violation to fix.** A finding's
+   only non-fix exit is at Fix time: `accepted` (the reviewer judged it is not a violation here — reason
+   required) or `deferred` (a real breach left open). At review time the call is binary: a rule breaks
+   (file it) or it doesn't (it's a pass, not a soft "consider"). Persist the merged result to a report file
+   per `references/review-report.md` (`.coding-standards/reviews/<timestamp>.md`, gitignored) and tell the
+   user the path — every review writes one, inline included. Above the scope threshold (defined once in
+   `orchestrator-pipeline.md` → Fix mode), trim the chat output to the shape in `review-report.md`; the
+   report file always holds everything.
 6. **Never silently skip a rule.** If you didn't check it, say so. A review with hidden gaps is worse than
    one that admits its scope.
 

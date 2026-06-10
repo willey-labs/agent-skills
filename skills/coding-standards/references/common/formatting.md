@@ -121,3 +121,18 @@ A pile of "style" decisions has no objectively correct answer:
 - When the file has no clear convention, follow the most recent commits in the area; if still ambiguous, follow the language's community default.
 
 **Line length is a team convention with sensible defaults.** There is no universal right number, but every mainstream formatter lands inside the same window: Prettier 80, Black 88, gofmt has no hard limit but the community lives at ~100, rustfmt 100, dotnet format 120, csharpier 100. **If a project has no formatter and no documented stance, default to 100 columns.** That keeps two files comfortably side-by-side on a modern monitor while leaving room for descriptive names. Lines past ~120 are a smell regardless of preference — they almost always indicate a missing extraction or a name that's secretly two concerns.
+
+---
+
+## FMT-005 — No debug residue, no commented-out code
+
+Two kinds of noise that AI-generated and hand-written code both accumulate, and that no reader should have to wade through.
+
+**Debug residue.** Anything left over from working a problem out: a `debugger` statement, a `breakpoint()` / `pdb.set_trace()`, a Laravel `dd()` / `var_dump()`, a stray `console.log` / `print` / `fmt.Println` / `Console.WriteLine`.
+
+- The **interactive-debugger** forms (`debugger`, `breakpoint()`, `pdb.set_trace()`, `dd()`, `var_dump()`) are never meant to ship — they halt or hijack execution. The hooks **hard-block** them.
+- The **print-style** forms are usually residue too, but a CLI or a real logger uses them legitimately, so the hooks **flag them to confirm** (advisory), not hard-block. The fix: route real output through the project's logger and delete the rest. Don't leave `console.log(user)` in a request handler.
+
+**Commented-out code.** Code commented "in case we need it later" is dead weight — version control already remembers it. It rots while the live code around it moves on, and the next reader can't tell a deliberate note from an abandoned experiment. Delete it; `git log` is the archive.
+
+The line for both: a comment that *explains why* the code does what it does stays; a disabled *copy* of code, or output left from debugging, goes.

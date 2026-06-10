@@ -87,7 +87,7 @@ Skip everything else.
    - For parallel composition, pick the right shape: `Promise.all` (all-or-nothing), `Promise.allSettled` (best-effort, return all outcomes), `Promise.any` (first success), `Promise.race` (rare; first settle).
    - For resources (files, connections, transactions, locks): acquire and schedule release on the next line (`try/finally`, `using`, `with`, RAII, `defer`).
 5. **Apply KISS lens.** If you find yourself building an error-translation framework when one try/catch would do, back it out.
-6. **Apply DRY lens.** If three functions in the file all wrap a SQL error to `TransactionFailed` with the same shape, extract a `wrapPersistence(fn)` helper.
+6. **Apply DRY lens.** When several functions translate the same failure to the same domain error with the same shape, that boundary-translation is duplicated — extract one helper they share instead of repeating the try/catch (e.g. a single `wrapPersistence(fn)` around the repeated pattern).
 7. **Never swallow.** No `catch (e) {}`, no `_ = err`, no `.unwrap_or_default()` on a real error without an explicit reason comment.
 
 ## Output format
@@ -106,7 +106,7 @@ Return **ONLY valid JSON**:
       "rule": "EH-002",
       "file": "<path>",
       "line": 18,
-      "what": "Wrapped stripe.charges.create with try/catch, throws PaymentFailed at boundary"
+      "what": "Wrapped the external payment SDK call with try/catch, throws PaymentFailed at boundary"
     },
     {
       "rule": "EH-001",
@@ -132,16 +132,15 @@ Return **ONLY valid JSON**:
 In review mode you **do not add or rewrite error handling**. You read the file set and report how its failure handling measures against the rules you own (frontmatter `owns_rules`). **Be exhaustive — account for every rule you own, on every fallible operation in scope.** Missing a swallowed error is a worse failure than a verbose review.
 
 For each file × each owned rule, place the rule in exactly one bucket:
-- **fail** — a violation. Emit a finding with `file`, `line`, `severity`, `what`, and a concrete `fix`.
+- **fail** — a violation. Emit a finding with `file`, `line`, `what`, and a concrete `fix`.
 - **pass** — the rule applies and the code complies. Record the rule code in `passed`.
 - **skipped** — the rule cannot apply (e.g. no fallible/async operations in the file). Record it in `skipped` with a one-line `why`.
 
 Never silently drop a rule. Every owned rule lands in one of the three buckets.
 
-**Severity (Worker 3):**
-- `must-fix` — swallowed errors (empty catch, `_ = err`, silent `.unwrap_or_default()`), raw SDK exceptions leaking past a boundary (EH-002), floating un-awaited Promises / unreleased resources (EH-004), wrong failure mechanism for the language (FN-010, e.g. exceptions in Go).
-- `should-fix` — algorithm and error paths interleaved (EH-001), try/catch contract not written around the meaningful boundary (EH-002/EH-003).
-- `consider` — repeated boundary-translation that could share a helper (DP-007), error-handling that's correct but heavier than needed (DP-006).
+**No severity tiers.** A finding is a rule violation — every finding is must-fix. There is no `should-fix` / `consider`. A swallowed error and an interleaved error path are both violations to fix. The decision is binary — **does a rule break here?** (The only non-fix exits are downstream at Fix time: `accepted` with a reason, or `deferred` as an open breach.)
+
+**What your rules catch** (all must-fix): swallowed errors (empty catch, `_ = err`, silent `.unwrap_or_default()` — the linter also catches the common forms, report them anyway), raw SDK exceptions leaking past a boundary (EH-002), floating un-awaited Promises / unreleased resources (EH-004), wrong failure mechanism for the language (FN-010, e.g. exceptions in Go); algorithm and error paths interleaved (EH-001); try/catch contract not written around the meaningful boundary (EH-002/EH-003); repeated boundary-translation that should share one helper (DP-007).
 
 ### Review output
 
@@ -153,7 +152,7 @@ Return **ONLY valid JSON**:
   "name": "failure-handling",
   "mode": "review",
   "findings": [
-    { "rule": "EH-004", "file": "<path>", "line": 12, "severity": "must-fix", "what": "sendEmail() promise is fired without await or handler", "fix": "await it, or attach an explicit .catch with a comment if fire-and-forget is intended" }
+    { "rule": "EH-004", "file": "<path>", "line": 12, "what": "sendEmail() promise is fired without await or handler", "fix": "await it, or attach an explicit .catch with a comment if fire-and-forget is intended" }
   ],
   "passed": ["EH-002", "FN-010"],
   "skipped": [ { "rule": "EH-003", "why": "no fallible operations in this file" } ]

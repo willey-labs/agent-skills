@@ -55,7 +55,7 @@ see `hooks/_exclusions.py`'s `find_project_root`.
 
 - **Single-project repo** → that's the repo root.
 - **Monorepo** → that's the individual sub-project (`apps/web/`, `services/api/`). A Next.js app and a
-  Hono service in the same repo resolve to *different* files with *different* structures, each next to
+  Go service in the same repo resolve to *different* files with *different* structures, each next to
   its own `package.json` / `go.mod`.
 
 Always write the file where the hook reads it — the sub-project root. A file dropped at the monorepo

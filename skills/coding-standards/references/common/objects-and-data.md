@@ -140,3 +140,24 @@ These look like hybrids because they expose data shape *and* attach behavior (va
 **How to spot the real OD-004 violation inside a framework-boundary class:** business logic that goes beyond *what does this thing do with its own data?* If the method talks to other services, dispatches events, or coordinates across aggregates, it doesn't belong on the boundary class — push it into a service.
 
 Each framework's structure file (`nestjs/`, `laravel/`, `csharp/`, `cocos-creator/`, `spring-boot/`, …) carves the carve-out concretely for that stack.
+
+---
+
+## OD-006 — Don't escape the type system
+
+`any` (TypeScript), `Any` (Python `typing` / Kotlin), `interface{}` or bare `any` (Go), `dynamic` (C#), and `mixed` (PHP) all do the same thing: switch type checking *off* for that value. Every guarantee the type would have given the next reader — what it holds, what you can call on it — is gone, and the bugs the compiler would have caught at build time surface at runtime instead.
+
+These are **banned**, and the write-time hooks hard-block them across every supported language. This is the rule behind the `…is banned` block you'll see at write time.
+
+**The fixes, best first:**
+
+- **Name the real type.** Most `any` stands in for a shape you actually know — write the interface / struct / dataclass / record.
+- **`unknown` + narrowing** (TS) or a precise union — when the input genuinely varies, accept `unknown` and narrow with a type guard before use. The caller is *forced* to check; that's the point. (Python: a real `Union` / `X | Y`; C#: `object` + pattern matching; Go: a small interface or a type switch.)
+- **Generics / type parameters** — when the same code serves many types, parameterize (`<T>`, Go type params, C# generics) instead of erasing the type.
+- **A tagged / sum type** — when a value is one of a known set, model the set (OD-002); don't collapse it to `any`.
+
+**Why it's worse than it looks — `any` is contagious.** A value typed `any` spreads untyped-ness to everything it touches: every property access off it returns `any` too. One `any` at a boundary quietly disables checking across a whole call chain, so the cost is never local.
+
+**The same mistake in disguise.** Omitting an annotation so the type silently infers to `any`, or suppressing the error with `// @ts-ignore` / `# type: ignore`, are evasions the regex hooks can't see — but they are the *same* defect. If a value's type is genuinely unknowable, the answer is always `unknown` + narrowing, never a silent `any` and never a suppressed type error.
+
+**Carve-out.** Generated code, vendored code, and third-party stubs you don't own are out of scope (the skill skips them). The rare legitimate `any` is a single, commented one at an untyped third-party boundary that you narrow on the very next line — but reach for `unknown` first.

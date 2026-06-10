@@ -84,7 +84,7 @@ A fat interface that lumps together unrelated capabilities forces every implemen
 Business logic (high level) should depend on an abstraction of its infrastructure (database, HTTP, file system, third-party SDK) — not on the concrete implementation. The concrete implementation depends on the same abstraction.
 
 **Why it matters:**
-- The infrastructure changes faster than the business logic. Tying business logic to today's choice (Postgres, Stripe v3, AWS SDK) means every infrastructure change forces business changes.
+- The infrastructure changes faster than the business logic. Tying business logic to today's concrete choice (a specific database, payment API, or cloud SDK) means every infrastructure change forces business changes.
 - Tests against an interface are cheap; tests against a real database/HTTP client are slow and flaky.
 
 **Apply:**

@@ -22,7 +22,7 @@ from typing import Iterable
 
 sys.path.insert(0, str(Path(__file__).parent))
 # Shared PreToolUse lifecycle (gate, payload read, block emit) — see _hook_run.
-from _hook_run import block, read_payload, resolve_target  # noqa: E402
+from _hook_run import block, join_wrapped_signatures, read_payload, resolve_target  # noqa: E402
 
 GO_EXTENSIONS = {".go"}
 
@@ -58,6 +58,13 @@ DOT_IMPORT = re.compile(r'^\s*(?:import\s+)?\.\s+"[^"]+"\s*$')
 METHOD_PARAM_LINE = re.compile(r"\bfunc\s*\([^)]*\)\s*\w+\s*\(([^)]*)\)")
 FUNC_PARAM_LINE = re.compile(r"\bfunc\b[^(]*\(([^)]*)\)")
 
+# FN-005 carve-out — Go constructor functions. `func NewService(deps...)` is the
+# idiomatic dependency-wiring shape (the go-http reference mandates hand-wired
+# constructors); the caller is main.go's wiring, not a hot call site. A 4+ dep
+# constructor is grouped by introducing a Module/Config struct only when wiring
+# genuinely hurts — that's the reference's guidance, not a hard block.
+GO_CONSTRUCTOR = re.compile(r"\bfunc\s+New\w*\s*\(")
+
 
 def strip_strings_and_comments(source: str) -> str:
     def blank(match: re.Match[str]) -> str:
@@ -75,8 +82,8 @@ def iter_any_violations(clean_lines: list[str], file_path: str) -> Iterable[str]
         for pattern, label in ANY_RULES:
             if pattern.search(line):
                 yield (
-                    f"{file_path}:{idx} — `interface{{}}` / `any` is banned ({label}); "
-                    f"use a named type or type parameter"
+                    f"{file_path}:{idx} — OD-006: `interface{{}}` / `any` is banned ({label}); "
+                    f"use a named type, a small interface, or a type parameter"
                 )
                 break
 
@@ -128,16 +135,20 @@ def _count_go_params(param_list: str) -> int:
 
 
 def iter_arg_count_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
-    for idx, line in enumerate(clean_lines, start=1):
+    # join_wrapped_signatures merges a signature split across lines so a wrapped
+    # param list can't evade the count.
+    for lineno, text in join_wrapped_signatures(clean_lines):
         # Methods carry a receiver in the first paren group; prefer the method
         # pattern (which captures the real param list) before the generic one.
-        match = METHOD_PARAM_LINE.search(line) or FUNC_PARAM_LINE.search(line)
+        match = METHOD_PARAM_LINE.search(text) or FUNC_PARAM_LINE.search(text)
         if not match:
+            continue
+        if GO_CONSTRUCTOR.search(text):
             continue
         count = _count_go_params(match.group(1))
         if count >= 4:
             yield (
-                f"{file_path}:{idx} — FN-005: function takes {count} parameters; "
+                f"{file_path}:{lineno} — FN-005: function takes {count} parameters; "
                 f"group them into a request struct"
             )
 

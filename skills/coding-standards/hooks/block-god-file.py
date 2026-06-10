@@ -54,6 +54,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _exclusions import is_excluded_path, has_generation_marker  # noqa: E402
+# FN-001 length advisory for the languages with no AST statement-count (Go, C#,
+# Java, Kotlin, PHP). TS/JS/Python get a precise FN-001 block from their AST hooks.
+from _function_length import iter_long_functions  # noqa: E402
 
 # Source extensions this rule applies to (mirrors block-junk-paths.py's set).
 SOURCE_EXTS = {
@@ -109,8 +112,29 @@ def is_countable_unit(path: Path) -> bool:
     )
 
 
+def strip_noncode(source: str) -> str:
+    """Blank multi-line strings and comments (preserving newlines) so a file that
+    *embeds* code — fixture generators, docs with samples, templates, heredocs —
+    isn't counted as having those embedded `def`/`function`/`class` lines as its
+    own declarations. Covers the column-0 false-positive vector: triple-quoted
+    strings (Python), backtick template literals (JS/TS), block comments, and
+    line comments. Single-line string literals are left alone — a column-0 decl
+    keyword almost never hides inside one."""
+    def blank(match: re.Match[str]) -> str:
+        return "".join(" " if ch != "\n" else "\n" for ch in match.group(0))
+
+    source = re.sub(r'""".*?"""', blank, source, flags=re.DOTALL)
+    source = re.sub(r"'''.*?'''", blank, source, flags=re.DOTALL)
+    source = re.sub(r"`(?:\\.|[^`\\])*`", blank, source, flags=re.DOTALL)
+    source = re.sub(r"/\*.*?\*/", blank, source, flags=re.DOTALL)
+    source = re.sub(r"//[^\n]*", blank, source)
+    source = re.sub(r"#[^\n]*", blank, source)
+    return source
+
+
 def count_behavioral_decls(content: str) -> int:
-    return sum(1 for line in content.splitlines() if _BEHAVIORAL_DECL.match(line))
+    clean = strip_noncode(content)
+    return sum(1 for line in clean.splitlines() if _BEHAVIORAL_DECL.match(line))
 
 
 def assess_god_file_block(file_path: str, content: str) -> str | None:
@@ -207,6 +231,7 @@ def main() -> int:
     advisories = [
         m for m in (assess_size_warning(file_path, content), assess_flat_folder(file_path)) if m
     ]
+    advisories.extend(iter_long_functions(content, Path(file_path).suffix, file_path))
 
     if block_msg:
         sys.stderr.write("coding-standards (BLOCKED — ST-008):\n  - " + block_msg + "\n")

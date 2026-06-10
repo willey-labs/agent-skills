@@ -20,7 +20,7 @@ from typing import Iterable
 
 sys.path.insert(0, str(Path(__file__).parent))
 # Shared PreToolUse lifecycle (gate, payload read, block emit) — see _hook_run.
-from _hook_run import block, read_payload, resolve_target  # noqa: E402
+from _hook_run import block, join_wrapped_signatures, read_payload, resolve_target  # noqa: E402
 
 JVM_EXTENSIONS = {".java", ".kt", ".kts"}
 
@@ -43,6 +43,27 @@ JAVA_METHOD_SIG = re.compile(
     r"[\w<>,\s\[\]?]*?\s+\w+\s*\(([^)]*)\)"
 )
 KOTLIN_FUN_SIG = re.compile(r"\bfun\b[^(]*\(([^)]*)\)")
+
+# Java has no named arguments → line at 4 (functions.md:80). Kotlin does → 5.
+# (Kotlin primary constructors / data classes aren't `fun`, so KOTLIN_FUN_SIG
+# never sees them; only Kotlin methods are counted.)
+JAVA_MAX_PARAMS = 4
+KOTLIN_MAX_PARAMS = 5
+
+JAVA_MODIFIER_TOKENS = frozenset({
+    "public", "private", "protected", "static", "final", "abstract",
+    "synchronized", "default", "native", "strictfp", "record", "sealed",
+    "non", "transient", "volatile",
+})
+
+
+def _java_signature_kind(head: str) -> str:
+    """record | constructor | method. Records are mandated DTO carriers; a
+    constructor (one core token, no return type) is DI — both FN-005-exempt."""
+    if re.search(r"\brecord\b", head):
+        return "record"
+    core = [t for t in re.findall(r"[A-Za-z_]\w*", head) if t not in JAVA_MODIFIER_TOKENS]
+    return "constructor" if len(core) <= 1 else "method"
 
 
 def strip_strings_and_comments(source: str) -> str:
@@ -76,8 +97,8 @@ def iter_kotlin_any_violations(
         for pattern, label in KOTLIN_ANY_RULES:
             if pattern.search(line):
                 yield (
-                    f"{file_path}:{idx} — Kotlin `Any` is banned ({label}); "
-                    f"use a concrete type or sealed hierarchy"
+                    f"{file_path}:{idx} — OD-006: Kotlin `Any` is banned ({label}); "
+                    f"use a concrete type or a sealed hierarchy"
                 )
                 break
 
@@ -102,14 +123,19 @@ def iter_arg_count_violations(
     clean_lines: list[str], file_path: str, is_kotlin: bool
 ) -> Iterable[str]:
     sig_re = KOTLIN_FUN_SIG if is_kotlin else JAVA_METHOD_SIG
-    for idx, line in enumerate(clean_lines, start=1):
-        match = sig_re.search(line)
+    threshold = KOTLIN_MAX_PARAMS if is_kotlin else JAVA_MAX_PARAMS
+    for lineno, text in join_wrapped_signatures(clean_lines):
+        match = sig_re.search(text)
         if not match:
             continue
+        if not is_kotlin:
+            head = text[match.start():text.index("(", match.start())]
+            if _java_signature_kind(head) in ("record", "constructor"):
+                continue
         count = _count_jvm_params(match.group(1))
-        if count >= 4:
+        if count >= threshold:
             yield (
-                f"{file_path}:{idx} — FN-005: function takes {count} parameters; "
+                f"{file_path}:{lineno} — FN-005: function takes {count} parameters; "
                 f"group them into a request/DTO record"
             )
 

@@ -172,8 +172,7 @@ forgotten. (Exception: whole-app end-to-end tests, which belong to no single fil
 
 ## ST-008 — One file, one job; grow by splitting, not by piling on
 
-The rule that matters most, and the one most often gotten wrong: a file keeps absorbing jobs until it does
-everything.
+Left unchecked, a file keeps absorbing jobs until it does everything.
 
 **One file = one reason to change.** ST-005 governs a file's *name*; ST-008 governs its *scope*. A file
 can be perfectly named and still wrong — if one file parses input, calls an external service, *and* writes
@@ -198,10 +197,8 @@ file, or a sub-feature folder for symmetry.
 
 The promotion applies to **any** flat folder, however it grew — siblings created by splits, by extraction,
 or by plain accretion all count toward the same three. A split that leaves its folder holding a themed
-cluster of 3+ flat files has finished only half the job. Promotion is earned by **cohesion, not folder
-size** — 3+ units sharing a theme have earned a sub-feature folder even in an otherwise small folder. The
-flat-sibling line count is only a coarse backstop; a themed cluster in a 6-file folder still earns
-promotion.
+cluster of 3+ flat files has finished only half the job. Promotion is earned by **cohesion, not folder size** — the flat-sibling count is only a coarse backstop;
+3+ units sharing a theme have earned a sub-feature folder even in an otherwise small folder.
 
 **Splitting to beat the counter is not decomposition — it's scatter, and fails ST-008 worse than the
 original.** A split is valid only when each file is one genuine job that stands on its own. Two scatter

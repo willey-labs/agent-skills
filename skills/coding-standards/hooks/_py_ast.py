@@ -19,8 +19,19 @@ from typing import Iterable
 # because Python's blocks compress vertically.
 FN_001_MAX_STATEMENTS = 20
 
-# FN-005 — positional arg threshold.
-FN_005_MAX_POSITIONAL = 3
+# FN-005 — positional arg threshold. Python has named arguments, so per
+# functions.md:78 the line sits at 5+ (named langs soften; positional langs hit
+# 4). MAX is the last *allowed* count, so 4 → a 5th arg blocks.
+FN_005_MAX_POSITIONAL = 4
+
+# FastAPI declares per-request inputs as PARAMETERS bound to these markers
+# (`db = Depends(get_db)`, `q: str = Query(...)`). Each is a framework binding,
+# not an API-design argument the caller passes — so they don't count toward
+# FN-005's mental-load tally. Mirrors the Express error-middleware carve-out.
+FASTAPI_PARAM_MARKERS = frozenset({
+    "Depends", "Security", "Query", "Path", "Body", "Header", "Cookie",
+    "Form", "File", "Form", "Param",
+})
 
 # Names that look like framework-boundary class parents — exempt from OD-004
 # per OD-005 (Django Model, Pydantic BaseModel, DRF Serializer, Form, View,
@@ -35,19 +46,49 @@ OD_005_FRAMEWORK_BASES = frozenset({
 })
 
 
-def _count_ast_positional(args: ast.arguments) -> int:
+def _is_fastapi_marker(node: ast.expr | None) -> bool:
+    """True when a parameter's default is a FastAPI binding call
+    (`Depends(...)`, `Query(...)`, `body: X = Body(...)`, ...)."""
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    if isinstance(func, ast.Name):
+        return func.id in FASTAPI_PARAM_MARKERS
+    if isinstance(func, ast.Attribute):
+        return func.attr in FASTAPI_PARAM_MARKERS
+    return False
+
+
+def _fastapi_bound_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    """Parameter names bound to a FastAPI marker default — excluded from the
+    FN-005 count. Defaults align to the tail of (posonly+args); kw_defaults
+    align 1:1 with kwonlyargs."""
+    bound: set[str] = set()
+    positional = list(node.args.posonlyargs) + list(node.args.args)
+    defaults = list(node.args.defaults)
+    if defaults:
+        for arg, default in zip(positional[-len(defaults):], defaults):
+            if _is_fastapi_marker(default):
+                bound.add(arg.arg)
+    for arg, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
+        if _is_fastapi_marker(default):
+            bound.add(arg.arg)
+    return bound
+
+
+def _count_ast_positional(node: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
     """Count positional-capable parameters per FN-005's intent.
 
-    Includes posonly_args + args. Excludes self/cls. Excludes vararg (*args)
-    and kwarg (**kwargs) buckets — they're a single bucket each, not n args.
-    Keyword-only args (after `*`) are counted because they still raise the
-    mental load FN-005 is about.
+    Includes posonly_args + args. Excludes self/cls, the vararg (*args) and
+    kwarg (**kwargs) buckets (one bucket each, not n args), and FastAPI
+    framework-binding parameters. Keyword-only args (after `*`) are counted
+    because they still raise the mental load FN-005 is about.
     """
-    positional = list(args.posonlyargs) + list(args.args)
-    kwonly = list(args.kwonlyargs)
-    # Drop self / cls from instance / classmethod definitions.
-    positional = [a for a in positional if a.arg not in ("self", "cls")]
-    return len(positional) + len(kwonly)
+    bound = _fastapi_bound_names(node)
+    positional = list(node.args.posonlyargs) + list(node.args.args)
+    kwonly = list(node.args.kwonlyargs)
+    names = [a.arg for a in positional + kwonly]
+    return sum(1 for n in names if n not in ("self", "cls") and n not in bound)
 
 
 def _function_body_statement_count(node: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
@@ -136,12 +177,17 @@ def iter_ast_violations(source: str, file_path: str) -> tuple[Iterable[str], boo
 
     # FN-005 (precise) + FN-001 (statement count)
     for func in _iter_functions(tree):
-        positional_count = _count_ast_positional(func.args)
-        if positional_count > FN_005_MAX_POSITIONAL:
+        # pytest test functions take fixtures by name (the fixture system, not a
+        # caller, supplies them) — exempt, same spirit as the FastAPI carve-out.
+        if func.name.startswith("test_"):
+            arg_count = -1
+        else:
+            arg_count = _count_ast_positional(func)
+        if arg_count > FN_005_MAX_POSITIONAL:
             violations.append(
                 f"{file_path}:{func.lineno} — FN-005: `{func.name}` takes "
-                f"{positional_count} positional arguments; group them into a "
-                f"dataclass / TypedDict / parameter object"
+                f"{arg_count} arguments (cap {FN_005_MAX_POSITIONAL}); group them "
+                f"into a dataclass / TypedDict / parameter object"
             )
         body_stmts = _function_body_statement_count(func)
         if body_stmts > FN_001_MAX_STATEMENTS:

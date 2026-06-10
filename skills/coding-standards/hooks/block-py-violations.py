@@ -88,7 +88,7 @@ def iter_any_violations(clean_lines: list[str], file_path: str) -> Iterable[str]
     for idx, line in enumerate(clean_lines, start=1):
         for pattern, label in ANY_RULES:
             if pattern.search(line):
-                yield f"{file_path}:{idx} — `Any` is banned ({label})"
+                yield f"{file_path}:{idx} — OD-006: `Any` is banned ({label}); name the type, or use a precise union / generic"
                 break
 
 
@@ -148,14 +148,19 @@ def _count_py_params(param_list: str) -> int:
 
 
 def iter_arg_count_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
+    # Regex fallback (AST parse failed — partial Edit snippet). Python has named
+    # arguments, so the line sits at 5+ (functions.md:78); the precise AST path
+    # also drops FastAPI bindings and pytest fixtures, which this coarse pass can't.
     for idx, line in enumerate(clean_lines, start=1):
         match = FUNCTION_DEF.search(line)
         if not match:
             continue
+        if re.search(r"\bdef\s+test_", line):
+            continue
         count = _count_py_params(match.group(1))
-        if count >= 4:
+        if count >= 5:
             yield (
-                f"{file_path}:{idx} — FN-005: function takes {count} parameters; "
+                f"{file_path}:{idx} — FN-005: function takes {count} arguments; "
                 f"group them into a dataclass / TypedDict / parameter object"
             )
 

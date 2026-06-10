@@ -25,7 +25,7 @@ You (the main agent) are now the **orchestrator**. You do not apply rules yourse
 | Worker | Owns | Brief file |
 |---|---|---|
 | **Worker 1 — Structure & Architecture** | ST-*, OD-001, OD-002, OD-004, OD-005, DP-001 to DP-005, DP-007, `<framework>/structure.md` | `workers/worker-1-structure.md` |
-| **Worker 2 — Code Quality (line level)** | FN-001 to FN-009, NM-*, OD-003, FMT-* | `workers/worker-2-quality.md` |
+| **Worker 2 — Code Quality (line level)** | FN-001 to FN-009, NM-*, OD-003, OD-006, FMT-* | `workers/worker-2-quality.md` |
 | **Worker 3 — Failure Handling** | EH-*, FN-010 | `workers/worker-3-failure.md` |
 
 DP-006 (KISS) is a per-worker lens. **DP-007 (DRY) is owned by Worker 1 at module/cross-feature scale** (its function-level twin FN-011 stays Worker 2's). Worker 1 also owns ST-009. FN-012 ("rewrite the draft, don't ship it") stays a shared lens. (FN-010, the idiomatic-failure-mechanism rule, is Worker 3's, not cross-cutting.)
@@ -49,7 +49,7 @@ User task (diff/PR/file)
   → Worker 1 (Structure) — receives the MAP; reports structural findings as deltas against it + its rules
   → Worker 2 (Quality) → Worker 3 (Failure)
   → Orchestrator runs hooks/review-files.py --json over the file set (deterministic pass, runs LAST)
-  → Orchestrator merges all worker findings + linter findings, sorts by severity, presents unified report
+  → Orchestrator merges all worker findings + linter findings, orders by file then rule, presents unified report
 ```
 
 ## How to dispatch a worker
@@ -81,7 +81,7 @@ For each worker N in {1, 2, 3}:
    - If still failing, fall back to inline (load all references yourself, do the work, write files).
 5. **Validate the output**:
    - **Write mode:** worker only modified files it had authority over (check `must_not_touch`); its `changes_made` / `decisions` / `error_handling_added` cite a rule code it owns; it introduced no abstractions outside its rule list (no new Strategy patterns from Worker 2; no new layers from Worker 3).
-   - **Review mode:** every owned rule appears in exactly one of `findings` / `passed` / `skipped` — **reject (and re-dispatch) a review that silently drops owned rules**, since that is the thin-review failure mode. Each `findings` entry cites an owned rule and carries `file`, `line`, `severity`, and a concrete `fix`.
+   - **Review mode:** every owned rule appears in exactly one of `findings` / `passed` / `skipped` — **reject (and re-dispatch) a review that silently drops owned rules**, since that is the thin-review failure mode. Each `findings` entry cites an owned rule and carries `file`, `line`, and a concrete `fix` (no severity — every finding is a violation to fix).
 6. **If validation fails**, redispatch the worker with the specific violation noted. After one retry, fall back to inline.
 
 > **TodoWrite (only if you seeded a list in SKILL.md Step 6):** mark worker N `in_progress` as you dispatch it and `completed` once its output validates (step 5 above). Tick the bracketing items the same way — the final write-and-hooks (Write mode), or the linter pass and merge-and-present (Review mode, where the linter runs *after* the three workers) — as you reach each. If you didn't seed a list (TodoWrite unavailable, or inline single-file work), ignore this.
@@ -101,8 +101,8 @@ For each worker N in {1, 2, 3}:
 
 ## After all workers complete (Review mode)
 
-7. **Run `hooks/review-files.py --json`** over the file set now — *after* the three workers, as the final deterministic pass. Every finding it returns is must-fix: the *existence* of the finding is deterministic and never re-litigated (an `any` is an `any`). For the ST-008 decl-count block, the *remedy* is the reviewer's judgement — a cohesive split, OR a recorded exemption (`.coding-standards-ignore` + reason, logged `accepted`) when the file is one cohesive job the proxy miscounts. A split that creates scatter or copies a sibling's machinery is itself an ST-008 + DP-007 violation, not a fix.
-8. **Merge** every worker's `findings` array + the linter findings. **Dedupe** by `(file, line, rule)` — when a worker finding and a linter finding collide, keep one and mark it must-fix. Then **sort by severity** (must-fix → should-fix → consider) and group by file. The workers' `passed` / `skipped` arrays are the **coverage proof** — use them to state which rules were checked and clean, so the report is visibly comprehensive rather than a short list of hits.
+7. **Run `hooks/review-files.py --json`** over the file set now — *after* the three workers, as the final deterministic pass. Every finding it returns is a violation to fix: the *existence* of the finding is deterministic and never re-litigated (an `any` is an `any`). For the ST-008 decl-count block, the *remedy* is the reviewer's judgement — a cohesive split, OR a recorded exemption (`.coding-standards-ignore` + reason, logged `accepted`) when the file is one cohesive job the proxy miscounts. A split that creates scatter or copies a sibling's machinery is itself an ST-008 + DP-007 violation, not a fix.
+8. **Merge** every worker's `findings` array + the linter findings. **Dedupe** by `(file, line, rule)` — when a worker finding and a linter finding collide, keep one. Then **order by file, then rule code** — there are no severity tiers; every finding is a violation to fix. The workers' `passed` / `skipped` arrays are the **coverage proof** — use them to state which rules were checked and clean, so the report is visibly comprehensive rather than a short list of hits.
 9. **Write the report file**, then **present** it to the user as a structured PASS/FAIL table — in full at or below the scope threshold; above it, trim chat to the shape defined in `references/review-report.md` (the file keeps everything). Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
 
 ## Fix mode (`MODE: fix`) — apply review findings at scale
@@ -119,16 +119,15 @@ resume it instead of starting over — see "Resume" below.
 
 **Scope threshold — the one place these numbers live:** a fix is **milestone-driven**
 when the report holds **more than 20 findings or more than 10 files with findings**,
-counted over must-fix + should-fix (the default scope — decidable before the approval
-gate exists; a `consider` opt-in at approval only adds work to a run that is already
-milestone-driven). At or below that, run the single-pass fix. Review mode reuses the same
+counted over **all** findings (there are no severity tiers — every finding is in
+scope). At or below that, run the single-pass fix. Review mode reuses the same
 numbers — counted over the whole report — to trim its chat output (see
 `references/review-report.md`).
 
 ### Single-pass fix (at or below the threshold)
 
 1. **Build the completeness ledger.** One row per finding:
-   `{ id, file, line, rule, severity, status }`, `status = pending`. The id is the
+   `{ id, file, line, rule, status }`, `status = pending`. The id is the
    per-finding id from the review report (see `references/review-report.md`).
 
 2. **Partition findings:**
@@ -158,7 +157,7 @@ numbers — counted over the whole report — to trim its chat output (see
    its own findings** — never the whole set — with these fields:
    - `FILE_PATH` — absolute path of the one file being fixed
    - `CURRENT_CONTENT` — the file's current full content
-   - `FINDINGS` — this file's subset only (JSON array of `{ id, rule, line, severity, fix }`)
+   - `FINDINGS` — this file's subset only (JSON array of `{ id, rule, line, fix }`)
    - `FRAMEWORK` — detected framework key
    - `STRUCTURE` — resolved project structure
    Parse the returned JSON
@@ -199,19 +198,17 @@ and resume mechanics live in `references/fix-plan.md`; this is the orchestration
      first.
    - **M2…Mn — one per module:** group the file-local findings by the nearest
      feature/module folder per the resolved STRUCTURE (top-level directory as
-     fallback). Order milestones by must-fix count descending, then total findings
-     descending, then path.
+     fallback). Order milestones by total finding count descending, then path.
    Record the commit policy: commits happen only if the root is a git repo **and**
    the working tree was clean (`git status --porcelain` empty) at run start;
    otherwise the plan header notes why commits are skipped.
 
 2. **One approval, then autonomy.** Present the milestone list compactly — one line
-   per milestone: scope, finding count, severity breakdown — and ask **one** question:
-   scope. Default **must-fix + should-fix**; `consider` findings join only if the user
-   opts in here. Write the plan file with the approved scope **before any write to
-   user code**. If the host has a task-list tool, create one task per milestone now
-   (display mirror only — the plan file is the source of truth). After this point,
-   ask nothing until the run ends or blocks.
+   per milestone: scope (the module) and finding count — and ask **one** question: go
+   ahead? Every finding is in scope; there is no severity sub-choice to make. Write the
+   plan file **before any write to user code**. If the host has a task-list tool, create
+   one task per milestone now (display mirror only — the plan file is the source of
+   truth). After this point, ask nothing until the run ends or blocks.
 
 3. **The milestone loop.** For each milestone in plan order:
    a. Execute it — M1 via the Phase-A coordination, module milestones via the
@@ -266,8 +263,8 @@ After the pipeline completes, summarize:
 ```
 Worker 1 (Structure):
   - Placed 2 files per ST-001 capability layout
-  - Designed Order as data structure (OD-002)
-  - Wired DI per DP-005 — OrderService depends on PaymentGateway interface
+  - Designed <entity> as a data structure (OD-002)
+  - Wired DI per DP-005 — <service> depends on a <gateway> interface
 
 Worker 2 (Quality):
   - Renamed 4 placeholders to intent-revealing names (NM-001)
@@ -275,7 +272,7 @@ Worker 2 (Quality):
   - Fixed 1 Demeter chain (OD-003)
 
 Worker 3 (Failure):
-  - Added EH-002 boundary translation around stripe.charges.create
+  - Added EH-002 boundary translation around the external SDK call
   - Awaited 1 floating Promise (EH-004)
 
 Files written: <list>. Hooks passed.

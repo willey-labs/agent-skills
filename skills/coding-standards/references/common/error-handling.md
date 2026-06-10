@@ -14,28 +14,28 @@ Mixing logic with error checks at every step forces the reader to hold two stori
 
 ```
 // Error codes everywhere — the algorithm is buried
-function broadcastMessage(input) {
-  const session = verifySession(input.token);
-  if (session === Error.INVALID) {
-    return { ok: false, code: Error.INVALID };
+function processRequest(input) {
+  const auth = authorize(input);
+  if (auth === Error.DENIED) {
+    return { ok: false, code: Error.DENIED };
   }
-  const channel = resolveChannel(input.channelId);
-  if (channel === Error.NOT_FOUND) {
+  const record = loadRecord(input.id);
+  if (record === Error.NOT_FOUND) {
     return { ok: false, code: Error.NOT_FOUND };
   }
-  const moderated = moderateContent(input.content);
-  if (moderated === Error.BLOCKED) {
-    return { ok: false, code: Error.BLOCKED };
+  const result = applyRules(record, input);
+  if (result === Error.REJECTED) {
+    return { ok: false, code: Error.REJECTED };
   }
-  return broadcastToMembers(channel, moderated);
+  return commit(record, result);
 }
 
 // Exceptions — algorithm reads as four steps
-function broadcastMessage(input) {
-  const session   = verifySession(input.token);
-  const channel   = resolveChannel(input.channelId);
-  const moderated = moderateContent(input.content);
-  return broadcastToMembers(channel, moderated);
+function processRequest(input) {
+  const auth   = authorize(input);
+  const record = loadRecord(input.id);
+  const result = applyRules(record, input);
+  return commit(record, result);
 }
 // Error handling lives elsewhere — one place, one concern.
 ```

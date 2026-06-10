@@ -24,7 +24,7 @@ owns_rules:
   - "<framework>/* (all rules in references/<framework>/structure.md)"
 applies_as_lens:
   - DP-006 (KISS) — at architectural scale
-  - FN-012 (rewrite the draft, don't ship it) — at structural scale (the first decomposition is a draft; revise it)
+  - FN-012 (rewrite the draft, don't ship it) — at structural scale
 must_not_touch:
   - Function bodies (Worker 2 fills them)
   - Variable / parameter / local names beyond placeholders (Worker 2 names them)
@@ -64,7 +64,7 @@ EXISTING_PATHS: <list of paths already in the project, if any>
 
 `STRUCTURE` is the layout the project follows — already resolved (and confirmed with the user when custom). **Check placement against it, not against a default you pick yourself.**
 
-When given, check the real tree against the map; each relationship delta is a candidate finding you confirm and severity-grade.
+When given, check the real tree against the map; each relationship delta is a candidate finding you confirm against the loaded rules.
 
 ## References to load (only these — keep context lean)
 
@@ -139,8 +139,8 @@ Return **ONLY valid JSON**, no prose around it:
   "existing_mismatches": [
     { "path": "src/lib/checkoutUtils.ts", "rule": "ST-005", "why": "Junk-drawer name; doesn't match resolved structure — left in place, flag for migration" }
   ],
-  "notes_for_worker_2": "Function bodies in `book-appointment.ts` need implementing. Names `f`, `x`, `r` are placeholders.",
-  "notes_for_worker_3": "Stripe and external SDK calls will appear in `charge-customer.ts` — they'll need EH-002 boundary translation."
+  "notes_for_worker_2": "Function bodies in `<use-case>.ts` need implementing. Names `f`, `x`, `r` are placeholders.",
+  "notes_for_worker_3": "External SDK calls will appear in the use-case files — they'll need EH-002 boundary translation."
 }
 ```
 
@@ -149,11 +149,13 @@ Return **ONLY valid JSON**, no prose around it:
 In review mode you **do not write or move code**. You inspect the file set and report how it measures against the rules you own (frontmatter `owns_rules`). **Be exhaustive — account for every rule you own, on every file in scope.** A review that reports "a few findings" and stops is a failed review.
 
 For each file × each owned rule, place the rule in exactly one bucket:
-- **fail** — a violation. Emit a finding with `file`, `line`, `severity`, `what`, and a concrete `fix`.
+- **fail** — a violation. Emit a finding with `file`, `line`, `what`, and a concrete `fix`.
 - **pass** — the rule applies and the file complies. Record the rule code in `passed`.
 - **skipped** — the rule cannot apply to this file (e.g. ST-007 co-location on a single-file change). Record it in `skipped` with a one-line `why`.
 
 Never silently drop a rule. Every owned rule lands in one of the three buckets.
+
+**No severity tiers.** A finding is a rule violation, full stop — every finding is must-fix. There is no `should-fix` / `consider` / `nit` softening. The only non-fix exit is downstream, at Fix time: `accepted` (the reviewer judged it is *not* a violation here — reason required, stating why) or `deferred` (a real breach left open). So the decision at review time is binary: **does a rule break here?** If yes, it's a finding. If it's a genuine design tradeoff with no rule broken (two correct designs, an arguable-but-fine boundary), it's a `pass` — do **not** file it as a soft finding to hedge. KISS (DP-006) is a finding only when the current design adds complexity you can't justify against a simpler correct one; "could be slightly simpler" is not a violation.
 
 **ST-008 has a per-folder direction — check it per folder, not per file.** Beyond file scope
 (god-files) and variants-as-branches, ST-008 says 3+ flat siblings sharing a theme have earned a
@@ -161,8 +163,7 @@ sub-feature folder (Rule of Three). The per-file loop above never sees this, so 
 for each folder holding 2+ files of the review set, look at **all** its flat source siblings (a
 directory listing of that one folder — this is not a repo crawl; the folder is in scope because
 reviewed files live in it). If 3+ siblings share a theme and sit flat, emit **one finding for the
-folder** (`file` = the folder path, severity `should-fix`), naming the themed cluster and the
-sub-feature folder it has earned.
+folder** (`file` = the folder path), naming the themed cluster and the sub-feature folder it has earned.
 
 **Diff against the structure map (when provided).** For each relationship delta in `STRUCTURE_MAP`,
 confirm it against the code and emit a finding (or mark it resolved). These are the cross-feature checks
@@ -171,19 +172,16 @@ a per-file pass misses:
 - **DP-007 cross-feature.** Sibling features each carrying their own copy of the same non-trivial
   machinery (a stream/pump loop, a request-options builder, a response shaper, an error map) when a
   shared home exists or is earnable at their common parent (ST-004). One finding, `file` = the common
-  parent, `should-fix`, naming the duplicated concept + each copy + the shared home.
+  parent, naming the duplicated concept + each copy + the shared home.
 - **ST-009 nesting legitimacy.** A nested sub-feature that imports nothing (or only an incidental
   helper) from its parent's front door AND reimplements the parent's own shape is a misfiled peer. One
-  finding, `file` = the nested folder, `should-fix`: re-file as a sibling.
+  finding, `file` = the nested folder: re-file as a sibling.
 - **ST-008 promotion by cohesion, not count.** A feature folder holding 3+ units that share a theme
   (name stem, domain, imports) but sit flat has earned a sub-feature folder — *regardless of the total
   file count* (the 12-file hook advisory is only a coarse backstop and misses clusters in small
-  folders). One finding per cluster, `file` = the folder, `should-fix`.
+  folders). One finding per cluster, `file` = the folder.
 
-**Severity (Worker 1):**
-- `must-fix` — deep imports past a folder's public API (ST-003), junk-drawer files (ST-005). The deterministic linter also catches these; report them anyway — the orchestrator dedupes.
-- `should-fix` — wrong / non-business-shaped placement (ST-001, ST-006), SRP violations / god-files (DP-001, ST-008), unpromoted themed siblings — 3+ flat files sharing a theme that have earned a sub-feature folder (ST-008, promotion direction), business logic depending on concretions instead of abstractions (DP-005), object-vs-data mismatch (OD-002), cross-feature duplication with an earnable shared home (DP-007/ST-004), a nested folder that reimplements its parent (ST-009), a themed 3+ cluster left flat in any folder, count regardless (ST-008 promotion).
-- `consider` — design tradeoffs: a structure that works but a simpler one exists (DP-006 KISS), arguable module boundaries.
+**What your rules catch** (all findings are must-fix violations — no tiers): deep imports past a folder's public API (ST-003), junk-drawer files/folders (ST-005) — the deterministic linter also catches these, report them anyway, the orchestrator dedupes; wrong / non-business-shaped placement (ST-001, ST-006); SRP violations / god-files (DP-001, ST-008); unpromoted themed siblings — 3+ flat files sharing a theme that have earned a sub-feature folder (ST-008 promotion); business logic depending on concretions instead of abstractions (DP-005); object-vs-data mismatch (OD-002); cross-feature duplication with an earnable shared home (DP-007/ST-004); a nested folder that reimplements its parent (ST-009); over-engineering — a pattern/abstraction/layer added against a simpler correct design (DP-006 KISS, a finding only when the complexity is unjustified, not when a design is merely arguable).
 
 **Scope:** report misplacement only for files in the review set — never crawl the whole repo.
 
@@ -197,7 +195,7 @@ Return **ONLY valid JSON**:
   "name": "structure-and-architecture",
   "mode": "review",
   "findings": [
-    { "rule": "ST-003", "file": "<path>", "line": 12, "severity": "must-fix", "what": "Imports orders/internal/calc directly, past the folder's index", "fix": "Import from the orders/ public entry" }
+    { "rule": "ST-003", "file": "<path>", "line": 12, "what": "Imports orders/internal/calc directly, past the folder's index", "fix": "Import from the orders/ public entry" }
   ],
   "passed": ["ST-001", "ST-002", "OD-002"],
   "skipped": [ { "rule": "ST-007", "why": "single-file change, no co-location decision" } ]

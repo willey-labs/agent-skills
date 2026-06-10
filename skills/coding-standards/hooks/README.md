@@ -8,14 +8,16 @@ fix the violation before retrying — that's the enforcement.
 
 | Hook | Scope | What it catches |
 |---|---|---|
-| `block-junk-paths.py` | All languages (path-only) | ST-005 junk-drawer filenames (`utils.ts`, `helpers.py`, `common.go`, ...); ST-005 corollary top-level mega-files (`src/types.ts`, `src/constants.ts`, ...) |
-| `block-ts-violations.py` | `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue .svelte` | `any` (6 forms); NM-006 Hungarian; ST-003 deep imports; parent traversal. **AST checks (required — bootstrap installs tree-sitter):** FN-001 function length, FN-005 precise arg count, OD-004 hybrid class detection (OD-005 framework-boundary carve-out). Regex-only is a defensive fallback if the grammars are ever absent. |
-| `block-py-violations.py` | `.py .pyi` | `typing.Any` (8 forms); NM-006 Hungarian snake_case; `from x import *`. **AST checks (always on — stdlib `ast`):** FN-001 function length, FN-005 precise arg count, OD-004 hybrid class detection with OD-005 framework-boundary carve-out (Model, BaseModel, Serializer, Form, etc.). |
-| `block-go-violations.py` | `.go` | `interface{}` / `any` (param/return/var/map/slice); FN-005 4+ params (grouped or typed); `import . "fmt"` dot imports |
-| `block-csharp-violations.py` | `.cs` | `dynamic` (var/list/dict); NM-006 Hungarian (`strName`, `m_field`, ...); FN-005 4+ params |
-| `block-php-violations.py` | `.php` | `mixed` type; NM-006 Hungarian (`$strName`, ...); FN-005 4+ params |
-| `block-jvm-violations.py` | `.java .kt .kts` | Star imports (`import com.foo.*`); FN-005 4+ params; Kotlin `Any` (annotation/generic) |
-| `block-god-file.py` | All source languages | ST-008, both directions. **Blocks (exit 2)** when a non-test/non-schema source file has more than 10 *behavioral* top-level declarations (functions/classes/methods) — the least-blunt proxy for "does many jobs" (a data-only file of consts/types/enums has zero, so it never blocks; a 1.7k-line single class is one, so length alone never blocks). **Advises (exit 0)** on raw size (> 400 lines) and flat-folder promotion (a NEW source file landing in a folder already past 12 flat source units — 3+ themed siblings have earned a sub-feature folder, Rule of Three). Thresholds are fixed by the standard — no per-project tuning. Skips test, schema, fixture, story, and excluded/generated files. |
+| `block-junk-paths.py` | All languages (path-only; Write/Edit/MultiEdit) | ST-005 junk-drawer filenames (`utils.ts`, `helpers.py`, `common.go`, ...) **and folders** (a source file under `utils/`/`helpers/`/`common/`/`misc/`); ST-005 corollary top-level mega-files (`src/types.ts`, `src/constants.ts`, ...) |
+| `block-ts-violations.py` | `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue .svelte` | `any` (6 forms); NM-006 Hungarian; ST-003 deep imports; parent traversal. **AST checks (required — bootstrap installs tree-sitter):** FN-001 function length, FN-005 precise arg count (4+; exempts DI parameter-property constructors + the Express error-middleware shape), OD-004 hybrid class detection (OD-005 framework-boundary carve-out). Regex-only is a defensive fallback if the grammars are ever absent. AST checks/carve-outs live in `_ts_node_checks.py`; parse+walk in `_ts_ast.py`. |
+| `block-py-violations.py` | `.py .pyi` | `typing.Any` (8 forms); NM-006 Hungarian snake_case; `from x import *`. **AST checks (always on — stdlib `ast`):** FN-001 function length, FN-005 precise arg count (5+ — Python has named args; exempts FastAPI `Depends()`/`Query()`/… params and `test_*` fixtures), OD-004 hybrid class detection with OD-005 framework-boundary carve-out (Model, BaseModel, Serializer, Form, etc.). |
+| `block-go-violations.py` | `.go` | `interface{}` / `any` (param/return/var/map/slice); FN-005 4+ params (multi-line joined; `New*` constructor functions exempt); `import . "fmt"` dot imports |
+| `block-csharp-violations.py` | `.cs` | `dynamic` (var/list/dict); NM-006 Hungarian (`strName`, `m_field`, ...); FN-005 5+ params (named-arg language; records + constructors exempt; multi-line joined) |
+| `block-php-violations.py` | `.php` | `mixed` type; NM-006 Hungarian (`$strName`, ...); FN-005 4+ params (`__construct` exempt; multi-line joined) |
+| `block-jvm-violations.py` | `.java .kt .kts` | Star imports (`import com.foo.*`); FN-005 4+ params Java / 5+ Kotlin (records + Java constructors exempt; multi-line joined); Kotlin `Any` (annotation/generic) |
+| `block-swallowed-errors.py` | `.ts .tsx .js .jsx .mts .cts .mjs .cjs .vue .svelte .py .pyi .go .cs .java .kt .kts .php` | EH-002 swallowed errors: empty `catch (e) {}` / `catch {}` and empty `.catch(() => {})` (brace langs), Go `_ = err` and empty `if err != nil {}`, Python `except …: pass` / `: ...`. Runs on RAW text — a comment inside the block (the documented EH-002 escape) means it isn't empty and is allowed. |
+| `block-debug-artifacts.py` | same language set as swallowed-errors | FMT-005. **Blocks (exit 2)** debugger/halt forms never meant to ship: `debugger` (JS/TS), `breakpoint()`/`pdb.set_trace()`/`import pdb` (Python), `dd()`/`var_dump()` (PHP). **Advises (exit 0)** print-style residue (`console.log`, `print(`, `fmt.Print*`, `Console.WriteLine`, `System.out.print`, Kotlin `println`) and commented-out code — these have legit uses (CLI/logger/explanatory comment), so they're flagged to confirm, not blocked. Residue patterns run on string/comment-stripped text; the commented-code check on raw lines. |
+| `block-god-file.py` | All source languages | ST-008, both directions. **Blocks (exit 2)** when a non-test/non-schema source file has more than 10 *behavioral* top-level declarations (functions/classes/methods) — the least-blunt proxy for "does many jobs" (a data-only file of consts/types/enums has zero, so it never blocks; a 1.7k-line single class is one, so length alone never blocks). Strings/comments are stripped before the count, so a file embedding code samples isn't miscounted. **Advises (exit 0)** on raw size (> 400 lines) and flat-folder promotion (a NEW source file landing in a folder already past 12 flat source units — 3+ themed siblings have earned a sub-feature folder, Rule of Three). Also **advises (exit 0)** on over-long function bodies (FN-001) for the languages with no AST statement-count — Go, C#, Java, Kotlin, PHP (a blunt brace-matched line count, generous threshold, so it warns rather than blocks; TS/JS/Python get the precise AST block instead). Thresholds are fixed by the standard — no per-project tuning. Skips test, schema, fixture, story, and excluded/generated files. |
 | `block-structure-file-violations.py` | `.coding-standards-structure` only | Keeps the structure file to placement only. **Blocks (exit 2)** a write that introduces a comment line, a `hooks:` block, or any legacy rule toggle (`deep-import`, `god-file*`, `flat-folder*`). Allows `follows:` and a `layout:` body. Rules are never tunable per project, so the file never carries an on/off. |
 
 ### What runs on every Write/Edit/MultiEdit
@@ -24,8 +26,10 @@ All hooks run on each call. Each one checks the file extension first and
 exits 0 cleanly if the file doesn't match its language. There's no
 performance hit from registering them all.
 
-`block-junk-paths.py` only fires on `Write` (path-based — Edit/MultiEdit
-operate on already-accepted paths).
+`block-junk-paths.py` is path-based and fires on `Write`, `Edit`, and
+`MultiEdit` — a junk-drawer name is a violation however the file got there, so
+the next edit to an existing `utils.ts` is blocked until it's renamed (use
+`.coding-standards-ignore` for a legacy file you're not ready to rename).
 
 ## Review mode — run the hooks as a linter (read-only)
 
@@ -44,7 +48,7 @@ It feeds each file's current content to every `block-*.py` hook as a synthetic
 violations grouped by file. Excluded files are skipped exactly as at write time.
 It always exits `0` (it reports; it never blocks). The skill's Review mode runs
 this as its final deterministic pass — after the judgement pass / specialist
-workers — and merges the findings in as must-fix.
+workers — and merges the findings in. Every finding is a violation to fix; there are no severity tiers.
 
 ## Installation
 
@@ -73,10 +77,10 @@ paste anything into settings.json by hand.**
 After the first activation you'll see:
 
 ```
-coding-standards: Wired 9 PreToolUse hooks into <path>/settings.json (<scope>).
+coding-standards: Wired 11 PreToolUse hooks into <path>/settings.json (<scope>).
 ```
 
-(All 9 can block on exit 2. `block-god-file.py` additionally exits 0 with an advisory on raw size / flat folders; `block-structure-file-violations.py` only fires on the `.coding-standards-structure` config file.)
+(All 11 can block on exit 2. `block-god-file.py` and `block-debug-artifacts.py` additionally exit 0 with an advisory — god-file on raw size / flat folders, debug-artifacts on print-style residue / commented-out code; `block-structure-file-violations.py` only fires on the `.coding-standards-structure` config file.)
 
 Restart the agent session once for Claude Code to pick up the hooks; from
 the next session on, blocking is automatic on every Write/Edit/MultiEdit.
@@ -208,11 +212,25 @@ deliberately made:
 
 ## What these hooks deliberately do NOT catch
 
-Regex hits a precision ceiling fast. The skill's other rules — function
-length (FN-001), command/query separation (FN-009), hybrid classes (OD-004),
-Law of Demeter (OD-003), error boundary translation (EH-002), every rule
-in the framework-specific `structure.md` files — rely on the agent reading
-the references and applying judgement.
+Regex hits a precision ceiling fast. The skill's other rules — command/query
+separation (FN-009), Law of Demeter (OD-003), error boundary translation
+(EH-002), object-vs-data choice (OD-002), every rule in the framework-specific
+`structure.md` files — rely on the agent reading the references and applying
+judgement. (FN-001 length and OD-004 hybrid classes ARE caught: precisely on
+TS/JS/Python by the AST hooks, and FN-001 as a blunt advisory on Go/C#/Java/
+Kotlin/PHP via `block-god-file.py`. OD-004 stays review-only on the non-AST
+languages — a regex hybrid-class detector there has too high a false-positive
+rate to ship even as an advisory.)
+
+**The Bash bypass is not hard-enforced — by design.** Every hook matches
+`Write|Edit|MultiEdit`, so a file written through the shell (`> file`, `tee`,
+`sed -i`, a heredoc) evades all of them. A PreToolUse hook on `Bash` *could*
+block shell writes to source files, but a precise low-false-positive version
+isn't achievable (legitimate build/codegen scripts write source too) and it
+would add a process spawn to every shell command. So the bypass is closed by
+instruction instead: `SKILL.md` directs the agent to author only through
+Write/Edit, and to run `review-files.py` over anything a tool generates outside
+that path. A compliant agent never bypasses; this is a soft guard, not a gate.
 
 For AST-level checks (function length, hybrid class detection, real return-
 type analysis), an upgrade path is to replace the regex backends with

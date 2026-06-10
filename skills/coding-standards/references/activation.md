@@ -20,8 +20,8 @@ options:
                   blocked at write time by the installed hooks."
   - label:       "Check existing code against these rules"
     description: "Point me at a file, folder, or diff and I'll report violations.
-                  PASS / FAIL / SKIPPED per applicable rule with file:line citations,
-                  grouped by must-fix / should-fix / consider."
+                  PASS / FAIL / SKIPPED per applicable rule with file:line citations.
+                  Every finding is a violation to fix — no severity tiers."
   - label:       "Show me the rules"
     description: "Guided tour of the rule families (FN-*, NM-*, OD-*, ST-*, EH-*,
                   FMT-*, DP-*) plus the detected framework. Cite rule codes with
