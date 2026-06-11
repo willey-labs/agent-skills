@@ -6,6 +6,11 @@ Sub-feature → Unit). The map is the spec the real tree is diffed against — m
 findings are "the real tree doesn't fit this model" deltas, which a per-file pass can never see.
 
 ## When it's built
+- **Gate first — comprehend only when the structure isn't already recorded, or the user asks for it.**
+  No `.coding-standards-structure` yet → comprehend and record the resolved layout. A record exists →
+  skip the map and follow the recorded structure (SKILL.md Step 4); don't re-derive or restructure. The
+  only thing that forces a (re)build is an explicit "restructure" / "review the structure" / "show me the
+  structure tree" request.
 - Built in **Review** (orchestrator pipeline) over the whole package/sub-project, gated by the same
   scope threshold as Fix mode (`orchestrator-pipeline.md`). Below the threshold (small diff/PR), skip
   the full map — note that structural cross-feature findings were not run.
@@ -16,23 +21,50 @@ findings are "the real tree doesn't fit this model" deltas, which a per-file pas
   tree changed materially (regenerate when stale; a one-line staleness note when reused).
 
 ## How it's built — grounded, not narrated
-Each node MUST be backed by evidence read from the code, never inferred from folder names alone:
-- the folder's front-door exports (`index.*`), a representative unit, and its cross-folder imports.
-- For large trees the orchestrator may dispatch a comprehension agent per top-level folder (read +
-  return that folder's node as JSON), then assemble. Keep context lean: read excerpts, not whole files.
+Each node MUST be backed by evidence read from the code, never inferred from folder names alone. Read for
+two different things — and don't stop at the second:
+
+- **What it is** — the domain the code is about (the Business line, each node's purpose). It lives in
+  what's *always* in the repo: the domain nouns in the code's own identifiers (types, classes, functions,
+  entities); then the data and content files (constants, enums, config, fixtures, seed data, manifests);
+  then any user-facing strings (labels, messages, i18n); then the entry point and what it assembles. A
+  README / design notes / package description confirm it when present — but they're optional and they rot,
+  so never depend on them. The identifiers and data are the load-bearing source.
+- **How it's wired** — placement and boundaries: the folder's front-door exports (`index.*`), a
+  representative unit, its cross-folder imports.
+
+Wiring tells you how the pieces connect, never what the product is: reading only exports and imports
+yields the *category* ("a web server", "a parser"), not *this* product. For the Business line, read the
+identity sources above.
+
+**The Business line is done only when it names what *this* product does.** Test: swap in any competitor in
+the same category — if the line still reads true, it's too generic; keep reading the identifiers and data.
+The one exception is a project that genuinely *is* its category (a generic date-parsing library really is
+"a date parser") — then the category line is correct and complete. The bar is "did you read the names and
+data", not "must sound unique".
+
+For large trees the orchestrator may dispatch a comprehension agent per top-level folder (read + return
+that folder's node as JSON), then assemble. Keep context lean: read excerpts, not whole files.
 
 ## Confirm once (large reviews)
-Present the map compactly and ask the user **one** question: "is this the intended Business/Feature/
-Sub-feature structure?" (reuse the `AskUserQuestion` shape from Step 4 structure-resolution). Confirm
-*before* checks run, so a wrong map is caught before it cascades. A wrong map poisons every downstream
-check. Below the scope threshold, skip the question.
+Present the map compactly and confirm it **before any checks run** — a wrong map poisons every downstream
+finding. **Lead the confirmation with the Business line, not the folder tree:** the line is the part most
+likely to be wrong and least likely to be noticed, and a user scanning a folder tree will rubber-stamp it.
+Ask one `AskUserQuestion` (reuse the Step 4 structure-resolution shape):
+
+> I read this project as: **<Business line>**. The structure below follows from that. Is that what this
+> product is, and is the Business/Feature/Sub-feature split intended?
+
+If the Business line comes back wrong, the map is wrong at the root — rebuild it from the identity sources
+above before touching any check; do not patch the tree in passing and proceed. Below the scope threshold
+no map is built, so there's nothing to confirm — say that cross-feature structural checks were not run.
 
 ## Format
 
 ```markdown
 # Structure map — <sub-project path>  (comprehended <ts>, confirmed <ts|unconfirmed>)
 
-Business: <one line — what the product/sub-project does>
+Business: <one line — what *this* product does, in its own terms, not its category (see the Business-line bar above)>
 
 ## Features
 - <feature-folder>/ — <what it's about>  [product | core/infra | shell]

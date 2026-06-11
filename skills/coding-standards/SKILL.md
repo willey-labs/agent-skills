@@ -162,19 +162,29 @@ sub-feature → unit), whichever shell is chosen. Follow what the project alread
 scaffold, or the layout that's there); the choice is remembered in a `.coding-standards-structure` file
 so the user is asked at most once.
 
+**Comprehend the structure once, then trust the record.** When `.coding-standards-structure` does **not**
+exist, comprehend the structure (build and confirm the map, `references/structure-map.md`) and record the
+resolved layout in it. When it **does** exist, follow it and do **not** re-derive or propose restructuring
+— ordinary write/review runs check code *against* the recorded structure, they never re-open it. Re-run
+the full structure comprehension (then update the record) **only** when the user explicitly asks to
+restructure or review the structure — "restructure this", "review the structure", "show me the structure
+tree". A normal task ("add X", "review this PR", "is this clean?") is not that request.
+
 The decision in brief:
 
 1. **File exists** at the framework project root → read it and follow it (a `follows: <standard>` target,
    or a described custom layout). No question. If the file is non-canonical — carries comments, a `hooks:`
    block, or any rule toggle — **normalise it in place** (keep only the `follows:` line / `layout:` body),
    write it back, and report it.
-2. **No file, folders match a standard** → use that standard's reference. No question, no file.
+2. **No file, folders match a standard** → use that standard's reference, and **record it** — write
+   `follows: <standard>` plus the full `layout:` tree, so later runs follow it instead of re-comprehending. No question.
 3. **No file, custom layout** → ask the user once with `AskUserQuestion` (recommended structure first,
    "keep current" last), then write the file recording their choice.
 
-The file records **placement only** — a `follows:` line or a `layout:` body. It never carries rule
-toggles: every rule is always enforced, deep-import is derived from whether a barrel exists, and the
-ST-008 size/folder checks run at fixed thresholds. `block-structure-file-violations.py` enforces this.
+The file records **placement only** — a `follows:` line and/or a full `layout:` tree (the actual solved
+structure; a project may carry both). It never carries rule toggles: every rule is always enforced,
+deep-import is derived from whether a barrel exists, and the ST-008 size/folder checks run at fixed
+thresholds. `block-structure-file-violations.py` enforces this.
 
 Read `references/structure-resolution.md` before acting on case 3, a monorepo, or a non-canonical file.
 It has the full mechanics: monorepo file placement (the sub-project root, not the repo root), the question
@@ -244,10 +254,13 @@ Write/Review/Fix pipeline shapes, dispatch loop, validation, retry/fallback, sum
 
 Invariants, true even before you open the reference:
 
-- **Comprehend before you check.** Above the scope threshold, build and confirm the structure map
-  (`references/structure-map.md`) before dispatching Worker 1; pass it as `STRUCTURE_MAP`. Cross-feature
-  structure (duplication, mislabeled nesting, split features, themed-cluster promotion) is found by diffing
-  the real tree against this map — a per-file worker cannot see it.
+- **Comprehend before you check.** Above the scope threshold *and* when the structure isn't already
+  recorded in `.coding-standards-structure` (or the user explicitly asked to restructure / review the
+  structure — see Step 4), build and confirm the structure map (`references/structure-map.md`) before
+  dispatching Worker 1; pass it as `STRUCTURE_MAP`. When a record already exists and no such request was
+  made, skip the map and pass the recorded structure as `STRUCTURE` — don't re-open the layout.
+  Cross-feature structure (duplication, mislabeled nesting, split features, themed-cluster promotion) is
+  found by diffing the real tree against the map — a per-file worker cannot see it.
 - **Workers never call `Write`/`Edit`.** They emit code/findings as JSON; only you write to disk.
 - **Sequential, not parallel.** Worker 1 (Structure) → Worker 2 (Quality) → Worker 3 (Failure); each one's
   output is the next one's input.
@@ -293,12 +306,15 @@ honor it. If some tool genuinely must generate a source file outside the Write p
 Walk the rules systematically — don't freelance. Seed the Step 6 list first; the numbered steps map onto
 it:
 
-0. **Comprehend the structure (above the scope threshold).** Build the structure map
-   (`references/structure-map.md`) over the tree, confirm it with the user once, and persist it to
-   `.coding-standards/structure-map.md`. Hand it to the structure worker as `STRUCTURE_MAP`: cross-feature
-   findings (duplication, misnested peers, split features, themed-cluster promotion) are diffs against this
-   map, which a per-file pass can't see. Skipped below the threshold — say that cross-feature structural
-   checks were not run.
+0. **Comprehend the structure (above the scope threshold, and only when it isn't already recorded).** If
+   `.coding-standards-structure` already records the structure and the user didn't ask to restructure /
+   review the structure, **skip this** — follow the recorded structure and review code against it; don't
+   re-open the layout. Otherwise build the structure map (`references/structure-map.md`) over the tree,
+   confirm it with the user once, persist it to `.coding-standards/structure-map.md`, and record the
+   resolved layout in `.coding-standards-structure`. Hand the map to the structure worker as
+   `STRUCTURE_MAP`: cross-feature findings (duplication, misnested peers, split features, themed-cluster
+   promotion) are diffs against it, which a per-file pass can't see. Skipped below the threshold — say that
+   cross-feature structural checks were not run.
 1. **Scope + resolve structure.** List each file in the diff; detect its framework (Step 3) and resolve
    structure (Step 4).
 2. **Load references.** Every `common/` file, plus the resolved structure for each framework in the diff.

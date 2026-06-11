@@ -24,16 +24,19 @@ follows one of those or keeps its own custom layout.
 
 ## The file records structure only — never rule config
 
-`.coding-standards-structure` answers exactly one question: *which folder layout does this project use?*
-It holds one of two things and nothing else:
+`.coding-standards-structure` answers one question: *what folder structure does this project use?* It
+records placement, in up to two parts:
 
-- a **`follows: <framework-or-variant>`** line — the project adopted a catalog standard, or
-- a **`layout:` body** — a learned custom layout describing placement.
+- a **`follows: <framework-or-variant>`** line — which catalog standard the project adheres to, and
+- a **`layout:` body** — the project's **actual solved structure tree**: the full feature / sub-feature
+  skeleton, so later runs follow *this tree*, not a generic convention that could be re-derived into a
+  different shape.
 
-It does **not** carry comments, a `hooks:` block, or any rule toggle. Every coding-standards rule is
-always enforced; a project chooses where its files live, never which rules apply or how strict they are.
-The `block-structure-file-violations.py` hook blocks any write that tries to slip a comment, a `hooks:`
-block, or a legacy toggle (`deep-import`, `god-file*`, `flat-folder*`) back into the file.
+A project may carry **both** — `follows:` names the rulebook, `layout:` pins the concrete tree. It does
+**not** carry comments, a `hooks:` block, or any rule toggle. Every coding-standards rule is always
+enforced; a project chooses where its files live, never which rules apply or how strict they are. The
+`block-structure-file-violations.py` hook blocks any write that tries to slip a comment, a `hooks:` block,
+or a legacy toggle (`deep-import`, `god-file*`, `flat-folder*`) into the file.
 
 Two checks that *used* to be toggled here are now derived, not configured:
 
@@ -78,8 +81,11 @@ Either way: no question. But before trusting it, **self-heal a non-canonical fil
 
 ### Case 2 — no file, but the folders match the framework's recommended structure
 
-Use that bundled reference (a catalog variant, or the single `structure.md`). Done — no question, no
-file. It's re-recognised from the folders every run, so nothing needs saving.
+Use that bundled reference (a catalog variant, or the single `structure.md`) — no question. But **record
+it**: comprehend the tree once and write `.coding-standards-structure` with the `follows: <standard>` line
+**plus** the full `layout:` tree (the actual solved structure). Recording even a clean standard match is
+what lets later runs skip re-comprehension (SKILL.md Step 4: a record exists → follow it, don't re-open).
+A matching project left fileless would re-comprehend on every run — so don't leave it fileless.
 
 ### Case 3 — no file, and the layout is custom → ask once
 
@@ -136,9 +142,11 @@ custom layout) is unchanged — only the cruft is gone.
 
 ### Keep current
 
-Scan → draft the layout → user confirms → write `.coding-standards-structure` with the learned custom
-layout as a `layout:` body. **No `hooks:` block, no comments** — the validator blocks those, and there's
-nothing to configure: a kept layout governs *placement* only.
+Scan → draft the layout → user confirms → write `.coding-standards-structure` with the **full solved tree**
+as a `layout:` body (plus a `follows:` line if it also adheres to a standard). Record the actual feature /
+sub-feature skeleton, not just a pattern — later runs follow *this* tree. **No `hooks:` block, no
+comments** — the validator blocks those, and there's nothing to configure: a kept layout governs
+*placement* only.
 
 A kept layout does not exempt new code from any rule. All seven `common/` rules still apply to every
 file, including ST-008 tier decomposition (Domain → Feature → Sub-feature → Unit) and ST-005 (no
@@ -146,22 +154,40 @@ file, including ST-008 tier decomposition (Domain → Feature → Sub-feature �
 of `utils.ts` is no reason to relax ST-005 — the next edit to such a file is blocked until it's renamed.
 
 ```
-# the file holds only this — a placement description
+# the file records the actual solved tree (placement only)
 layout: |
-  src/<feature>/{ui,model,api}.ts
+  src/
+    <feature>/         one capability per top folder
+      <unit>.ts
+      <sub-feature>/   once 3+ related files earn it
+      index.ts
 ```
 
 ### Pick a standard
 
-Use that structure's bundled reference for this run, and write `.coding-standards-structure` with a
-single `follows: <framework-or-variant>` line — nothing else.
+Use that structure's bundled reference for this run, and write `.coding-standards-structure` with the
+`follows: <framework-or-variant>` line **plus** the full `layout:` tree (the actual solved structure):
 
 ```
 follows: route-colocated
+layout: |
+  src/
+    <feature>/
+      <unit>.ts
+      index.ts
 ```
 
-A barrel-less variant (e.g. `route-colocated`) needs no extra line: deep-import is derived from the
+A barrel-less variant (e.g. `route-colocated`) still needs no toggle: deep-import is derived from the
 absence of barrels, not declared.
+
+### When the record is written — and rewritten
+
+Write it the first time the structure is resolved (Case 2 / 3) or whenever the user confirms a restructure
+— that's the **target**. After a **Fix** run applies the structural moves, rewrite the `layout:` to the
+**achieved** tree, so the record always matches what's on disk (`orchestrator-pipeline.md`, Fix mode). If
+Fix deferred some moves, the rewritten `layout:` mirrors what's actually there and the report tracks the
+open breaches — the record never claims a structure that isn't on disk. Fix never hand-edits the file; it
+rewrites the layout to mirror the tree it produced.
 
 ---
 

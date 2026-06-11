@@ -146,6 +146,11 @@ numbers — counted over the whole report — to trim its chat output (see
       candidate* (folder + themed cluster). Don't perform it: fix mode never
       expands its own ledger mid-run. Candidates surface as offers in the final
       report.
+   e. **rewrite the structure record:** once the moves / splits / renames are
+      applied, rewrite `.coding-standards-structure`'s `layout:` to the **achieved**
+      tree, so the committed record matches what's now on disk (SKILL.md Step 4). If a
+      move was deferred, mirror what's actually there — the ledger/report carries the
+      open breach; the record never claims a structure that isn't on disk.
    Each write goes through the orchestrator, so the hooks fire. Update the ledger.
    Independent barrels may fan out, but an import rewrite runs only after the barrel
    it targets exists.
@@ -195,7 +200,8 @@ and resume mechanics live in `references/fix-plan.md`; this is the orchestration
      peer (ST-009), consolidate a split feature (ST-001), route duplicate machinery to
      its shared home (DP-007), promote a themed cluster (ST-008). The map is read from
      `.coding-standards/structure-map.md`; if absent (review predated this), build it
-     first.
+     first. When M1's moves are applied, rewrite `.coding-standards-structure`'s
+     `layout:` to the achieved tree (as in Single-pass step 3e).
    - **M2…Mn — one per module:** group the file-local findings by the nearest
      feature/module folder per the resolved STRUCTURE (top-level directory as
      fallback). Order milestones by total finding count descending, then path.

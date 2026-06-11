@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """PreToolUse hook — keep `.coding-standards-structure` to structure only.
 
-The structure file records ONE thing: which folder layout a project uses — a
-`follows: <standard>` line, or a custom `layout:` body describing placement.
-It is NOT a place to tune or silence rules. Every coding-standards rule is always
+The structure file records placement only: which folder layout a project uses — a
+`follows: <standard>` line and/or a `layout:` tree describing the solved structure
+(a project may carry both). It is NOT a place to tune or silence rules. Every
+coding-standards rule is always
 enforced; there is no per-project on/off. So this hook hard-blocks (exit 2) a
 Write/Edit to a `.coding-standards-structure` file that introduces:
 
@@ -94,8 +95,8 @@ def main() -> int:
     sys.stderr.write(
         "coding-standards hook blocked this write — fix the file and try again.\n"
         f"`{STRUCTURE_FILENAME}` records structure only: a `follows: <standard>` line "
-        "or a `layout:` body. No comments, no `hooks:`, no rule toggles — every rule is "
-        "always enforced (see references/structure-resolution.md).\n"
+        "and/or a `layout:` tree (placement). No comments, no `hooks:`, no rule toggles — "
+        "every rule is always enforced (see references/structure-resolution.md).\n"
         + "".join(f"  - {v}\n" for v in violations)
     )
     return 2
