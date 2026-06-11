@@ -43,21 +43,38 @@ The one exception is a project that genuinely *is* its category (a generic date-
 "a date parser") — then the category line is correct and complete. The bar is "did you read the names and
 data", not "must sound unique".
 
+**The Feature axis is wrong until you've traced a capability against it.** The Business line can be right
+and the features under it still just echo the folder names — the most common failure of this whole pass,
+because mirroring the existing layout produces a map that passes a glance and trips no error. So before
+presenting, run for the feature axis the test the bar above runs for the root: pick one capability and
+trace its files across the tree (grep its domain nouns; follow its entry point's imports). If that one
+capability's pieces are scattered across 3+ kind-named folders — folders named for a technical layer or
+artifact type rather than for what the product does — the map is filed by kind, not by capability; rebuild
+it on the capability axis before going further. The tell is a feature list whose names line up one-for-one
+with the folder names: that means you read the layout, not the product. This is not optional polish — it is
+the step that separates a map of what the code *does* from a relabeling of where the files *sit*.
+
 For large trees the orchestrator may dispatch a comprehension agent per top-level folder (read + return
 that folder's node as JSON), then assemble. Keep context lean: read excerpts, not whole files.
 
 ## Confirm once (large reviews)
 Present the map compactly and confirm it **before any checks run** — a wrong map poisons every downstream
-finding. **Lead the confirmation with the Business line, not the folder tree:** the line is the part most
-likely to be wrong and least likely to be noticed, and a user scanning a folder tree will rubber-stamp it.
-Ask one `AskUserQuestion` (reuse the Step 4 structure-resolution shape):
+finding. **Lead the confirmation with the Business line and the feature axis, not the folder tree:** both
+are likely to be wrong and unlikely to be noticed — the line because it's easy to write too generic, the
+axis because a feature list that echoes the folders looks valid at a glance — and a user scanning a folder
+tree will rubber-stamp either. Carry the one-capability trace from the Feature-axis test into the question
+as evidence the split is derived from what the product does, not from where the files sit. Ask one
+`AskUserQuestion` (reuse the Step 4 structure-resolution shape):
 
-> I read this project as: **<Business line>**. The structure below follows from that. Is that what this
-> product is, and is the Business/Feature/Sub-feature split intended?
+> I read this project as: **<Business line>**. Its capabilities are **<feature axis>** — e.g. <one
+> capability> is spread across <N files in M folders>, which is why the split follows the capabilities
+> rather than the folders they're currently filed under. Is that what this product is, and is that
+> Business/Feature/Sub-feature split right?
 
-If the Business line comes back wrong, the map is wrong at the root — rebuild it from the identity sources
-above before touching any check; do not patch the tree in passing and proceed. Below the scope threshold
-no map is built, so there's nothing to confirm — say that cross-feature structural checks were not run.
+If the Business line comes back wrong, the map is wrong at the root; if the split just mirrors the folder
+names, the axis is wrong. Either way rebuild from the identity sources above (and the capability trace)
+before touching any check; do not patch the tree in passing and proceed. Below the scope threshold no map
+is built, so there's nothing to confirm — say that cross-feature structural checks were not run.
 
 ## Format
 
