@@ -18,6 +18,7 @@ block-ts-violations.py keeps importing it from `_ts_ast` unchanged.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 from typing import Iterable
@@ -72,8 +73,28 @@ def _pick_ts_language(ext: str):
         return _TS_LANGUAGE
     if ext in (".js", ".mjs", ".cjs"):
         return _JS_LANGUAGE or _TS_LANGUAGE
-    # SFCs (.vue/.svelte) — we don't extract the <script> block yet. Skip AST.
-    return None
+    return None  # plain-file extensions only; SFCs go through _extract_sfc_scripts
+
+
+# .vue / .svelte `<script>` / `<script setup lang="ts">` blocks (ISS-010).
+_SCRIPT_RE = re.compile(r"<script\b([^>]*)>(.*?)</script>", re.DOTALL | re.IGNORECASE)
+
+
+def _extract_sfc_scripts(source: str) -> list[tuple[str, bool]]:
+    """For each `<script>` block in a .vue/.svelte SFC, return (padded_source, is_tsx).
+
+    The block body is prefixed with as many newlines as precede it in the file, so
+    the parsed AST's line numbers line up with the SFC itself — no per-check offset
+    math. `lang="tsx"` picks the TSX grammar; everything else uses TS (a superset
+    that parses both JS and TS `<script>` bodies)."""
+    blocks: list[tuple[str, bool]] = []
+    for match in _SCRIPT_RE.finditer(source):
+        attrs, body = match.group(1), match.group(2)
+        leading_newlines = source.count("\n", 0, match.start(2))
+        padded = ("\n" * leading_newlines) + body
+        is_tsx = 'lang="tsx"' in attrs or "lang='tsx'" in attrs
+        blocks.append((padded, is_tsx))
+    return blocks
 
 
 def _walk(node, predicate):
@@ -84,31 +105,18 @@ def _walk(node, predicate):
         yield from _walk(child, predicate)
 
 
-def iter_ts_ast_violations(
-    source: str, file_path: str, ext: str
-) -> tuple[Iterable[str], bool]:
-    """Run AST checks. Returns (violations_iter, ast_ran). ast_ran=False means
-    tree-sitter is unavailable, the extension isn't supported, or parsing failed —
-    caller falls back to regex."""
-    language = _pick_ts_language(ext)
-    if language is None:
-        return iter([]), False
-
+def _parse_and_collect(language, source: str, file_path: str) -> list[str] | None:
+    """Parse `source` and collect FN-001/FN-005/OD-004 violations, or None on a
+    parse failure (caller then reports ast_ran=False and falls back to regex)."""
     parser = tree_sitter.Parser(language)
-    source_bytes = source.encode("utf-8", errors="replace")
     try:
-        tree = parser.parse(source_bytes)
+        tree = parser.parse(source.encode("utf-8", errors="replace"))
     except Exception:
-        return iter([]), False
-
+        return None
     root = tree.root_node
-    if not root.children:
-        return iter([]), True
-
     violations: list[str] = []
     for func_node in _walk(root, lambda n: n.type in TS_FUNCTION_NODE_TYPES):
         violations.extend(check_function_node(func_node, file_path))
-
     for cls in _walk(
         root, lambda n: n.type in ("class_declaration", "abstract_class_declaration")
     ):
@@ -122,5 +130,33 @@ def iter_ts_ast_violations(
                 f"(mixes get/set accessors with business methods); split data "
                 f"carrier from behavior owner"
             )
+    return violations
 
-    return iter(violations), True
+
+def iter_ts_ast_violations(
+    source: str, file_path: str, ext: str
+) -> tuple[Iterable[str], bool]:
+    """Run AST checks. Returns (violations_iter, ast_ran). ast_ran=False means
+    tree-sitter is unavailable, the extension isn't supported, or parsing failed —
+    caller falls back to regex."""
+    if not _AST_AVAILABLE:
+        return iter([]), False
+
+    if ext in (".vue", ".svelte"):
+        # Extract + check each <script> block; padded so line numbers match the SFC.
+        all_violations: list[str] = []
+        for padded, is_tsx in _extract_sfc_scripts(source):
+            language = _TSX_LANGUAGE if is_tsx else _TS_LANGUAGE
+            collected = _parse_and_collect(language, padded, file_path)
+            if collected is None:
+                return iter([]), False
+            all_violations.extend(collected)
+        return iter(all_violations), True
+
+    language = _pick_ts_language(ext)
+    if language is None:
+        return iter([]), False
+    collected = _parse_and_collect(language, source, file_path)
+    if collected is None:
+        return iter([]), False
+    return iter(collected), True

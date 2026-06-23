@@ -147,10 +147,17 @@ def class_extends_boundary_parent(class_node) -> bool:
     return False
 
 
+# OD-004 fires only when data is exposed through ≥2 get/set accessors alongside
+# business methods. One accessor next to one real method is ordinary OOP, not the
+# data-exposing hybrid OD-004 targets (counting one over-fired on plain classes).
+# Precision over recall: a borderline single-accessor case is left to review (Worker 1).
+OD_004_MIN_ACCESSORS = 2
+
+
 def class_has_accessor_and_business_methods(class_node) -> bool:
-    """OD-004 — class has BOTH get/set accessors AND non-trivial business
-    methods (not constructors, not <=1-statement pass-throughs)."""
-    has_accessor = False
+    """OD-004 — class exposes data through ≥2 get/set accessors AND owns non-trivial
+    business methods (not constructors, not <=1-statement pass-throughs)."""
+    accessor_count = 0
     business_methods = 0
     for child in class_node.children:
         if child.type != "class_body":
@@ -159,7 +166,7 @@ def class_has_accessor_and_business_methods(class_node) -> bool:
             if member.type != "method_definition":
                 continue
             if any(c.type in ("get", "set") for c in member.children):
-                has_accessor = True
+                accessor_count += 1
                 continue
             if function_name(member) == "constructor":
                 continue
@@ -167,7 +174,7 @@ def class_has_accessor_and_business_methods(class_node) -> bool:
             if body is None or statement_block_stmt_count(body) <= 1:
                 continue
             business_methods += 1
-    return has_accessor and business_methods >= 1
+    return accessor_count >= OD_004_MIN_ACCESSORS and business_methods >= 1
 
 
 def check_function_node(func_node, file_path: str) -> list[str]:

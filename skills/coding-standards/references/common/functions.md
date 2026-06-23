@@ -71,7 +71,7 @@ Arguments carry mental weight. Each one is something the reader must remember, s
 | 1 | Clear |
 | 2 | Acceptable |
 | 3 | Signal — usually wants grouping into a named object |
-| 4+ | Almost always wrong — group, unless the args are a natural tuple (e.g. matrix coordinates) |
+| 4+ | Almost always wrong — group them (rare exception: a genuinely irreducible natural tuple like matrix coordinates — see the enforcement note below) |
 
 **How to apply:** when arguments pile up, they are telling you they want to be an object. Group the related ones and pass the *idea*, not the pieces. `createUser(name, email, age, role, plan)` becomes `createUser(userDetails)`.
 
@@ -86,6 +86,8 @@ Arguments carry mental weight. Each one is something the reader must remember, s
 - **Framework parameter bindings** — FastAPI `Depends()`/`Query()`/… parameters, the Express `(err, req, res, next)` error-middleware shape, pytest fixture parameters. Each parameter is a framework binding, not an argument you chose.
 
 These are exemptions by *shape*, not a license to raise the count: an ordinary function or method with 4+/5+ real arguments still groups them into an object.
+
+**Enforcement note — the "natural tuple" is not a hook exemption.** The write-time hook enforces the 4+/5+ line literally; a coordinate tuple `(x, y, z, w)` blocks too. The only carve-outs the hook honors are the *shape* ones above (DI constructors, records, framework bindings). If a tuple is genuinely irreducible, that is a **review-time `accepted` with a reason** (per the review/fix model), never a silent write-time pass — the call at review is still binary: it's `accepted` (with the reason naming why) or it's a violation.
 
 ---
 

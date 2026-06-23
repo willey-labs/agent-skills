@@ -1,6 +1,6 @@
 # Rule index — find a rule by the question you're asking
 
-The rules are organized by **what kind of question you're asking**, not by language. Use this index to jump to the right reference; the rule codes (FN-*, NM-*, OD-*, FMT-*, EH-*, DP-*, ST-*) live inside each file with worked examples.
+The rules are organized by **what kind of question you're asking**, not by language. Use this index to jump to the right reference; the rule codes (FN-*, NM-*, OD-*, FMT-*, CM-*, EH-*, DP-*, ST-*) live inside each file with worked examples.
 
 **Functions** — size, argument count, side effects, command/query separation, exceptions vs error codes
 → `references/common/functions.md`
@@ -13,6 +13,9 @@ The rules are organized by **what kind of question you're asking**, not by langu
 
 **File layout, vertical spacing, declaration placement, team conventions**
 → `references/common/formatting.md`
+
+**Comments & docstrings** — no narration, why-not-what, no redundant docstrings/banners, no filler or change-narration (review-only, no hook)
+→ `references/common/comments.md`
 
 **Try/catch, exception design, error translation at boundaries**
 → `references/common/error-handling.md`

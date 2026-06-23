@@ -27,6 +27,21 @@ JVM_EXTENSIONS = {".java", ".kt", ".kts"}
 # Star imports — bring entire package into scope, hide where a type came from.
 STAR_IMPORT = re.compile(r"^\s*import\s+(?:static\s+)?[\w.]+\.\*\s*;?\s*$")
 
+# NM-006 — Hungarian notation (ISS-018). Same multi-char prefix policy as C#/TS;
+# the `[A-Z][a-z]+` after the prefix guards legit names (`strategy`, `name`).
+# Three shapes cover both languages: Java `Type strName` (decl/field/param),
+# Kotlin `val/var strName`, and Kotlin param/property `strName: Type`.
+JVM_HUNGARIAN_PREFIXES = ("str", "arr", "obj", "lst", "dct", "fn", "bln")
+_JVM_HG = "|".join(sorted(JVM_HUNGARIAN_PREFIXES, key=len, reverse=True))
+JVM_HUNGARIAN_PATTERNS = [
+    re.compile(
+        rf"\b(?:[A-Z]\w*|int|long|short|byte|double|float|boolean|char|var)"
+        rf"(?:<[^>]*>)?(?:\[\])?\s+(?P<prefix>{_JVM_HG})(?P<rest>[A-Z][a-z]+\w*)\s*[=;,)]"
+    ),
+    re.compile(rf"\b(?:val|var)\s+(?P<prefix>{_JVM_HG})(?P<rest>[A-Z][a-z]+\w*)\b"),
+    re.compile(rf"[(,]\s*(?P<prefix>{_JVM_HG})(?P<rest>[A-Z][a-z]+\w*)\s*:"),
+]
+
 # Kotlin `Any` and `Any?` as a declared type — same smell as TS `any`.
 # Java's `Object` is too common in legitimate code to flag without noise.
 KOTLIN_ANY_RULES: list[tuple[re.Pattern[str], str]] = [
@@ -103,6 +118,16 @@ def iter_kotlin_any_violations(
                 break
 
 
+def iter_hungarian_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
+    for idx, line in enumerate(clean_lines, start=1):
+        for pattern in JVM_HUNGARIAN_PATTERNS:
+            for match in pattern.finditer(line):
+                yield (
+                    f"{file_path}:{idx} — NM-006: Hungarian notation "
+                    f"`{match.group('prefix')}{match.group('rest')}`; drop the `{match.group('prefix')}` prefix"
+                )
+
+
 def _count_jvm_params(param_list: str) -> int:
     s = param_list.strip()
     if not s:
@@ -156,6 +181,7 @@ def main() -> int:
     violations: list[str] = []
     violations.extend(iter_star_import_violations(raw_lines, file_path))
     violations.extend(iter_kotlin_any_violations(clean_lines, file_path, is_kotlin))
+    violations.extend(iter_hungarian_violations(clean_lines, file_path))
     violations.extend(iter_arg_count_violations(clean_lines, file_path, is_kotlin))
 
     if not violations:

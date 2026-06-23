@@ -141,6 +141,14 @@ the job it does (`<verb>-<noun>`), so it has exactly one reason to exist.
 The same applies to catch-all mega-files — a single top-level `types` or `constants` holding the whole
 project. Split them; constants and types live beside the code that owns them.
 
+**`lib` is the one deliberate asymmetry**, and it's intended: a *file* named `lib.ts` / `lib.py` is junk
+(it names nothing), and the write-time hook blocks it — but a `lib/` *folder* is allowed. `lib/` is a
+conventional home for thin third-party wrappers and shared infrastructure, and two of the bundled layouts
+(`route-colocated`, feature-sliced-design's `shared/lib`) depend on it; blocking the folder would fight
+those structures and add noise. `utils` / `helpers` / `common` / `misc` get no such pass — they're junk as
+both file and folder. (Inside a `lib/` folder, ST-005 still applies to the filenames: name each wrapper by
+what it wraps, e.g. `lib/stripe-client.ts`, not `lib/utils.ts`.)
+
 ---
 
 ## ST-006 — Generic names only in the shared / design-system layer

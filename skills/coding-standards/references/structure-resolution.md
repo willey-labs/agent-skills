@@ -38,7 +38,7 @@ enforced; a project chooses where its files live, never which rules apply or how
 `block-structure-file-violations.py` hook blocks any write that tries to slip a comment, a `hooks:` block,
 or a legacy toggle (`deep-import`, `god-file*`, `flat-folder*`) into the file.
 
-Two checks that *used* to be toggled here are now derived, not configured:
+Checks that *used* to be (or look like they should be) toggled here are derived, not configured:
 
 - **ST-003 deep-import** is decided per import: `@/a/b/c` is flagged only when capability `a/b` actually
   exposes an index barrel (a public API to reach past). A barrel-less layout — `route-colocated`, a flat
@@ -47,6 +47,12 @@ Two checks that *used* to be toggled here are now derived, not configured:
 - **ST-008 god-file / flat-folder** run at the standard's fixed thresholds on every project. They are not
   silenced or retuned per project — `block-god-file.py` blocks on too many behavioral declarations and
   advises on raw size / flat folders, the same everywhere.
+- **ST-005 folder allowance** is read from the `follows:` standard, not a toggle: when a project follows a
+  catalog variant that *publishes* a folder that would otherwise read as junk (bulletproof-react's
+  `utils/` under `feature-first` and `route-colocated`), `block-junk-paths.py` allows that exact folder
+  name. Derived from the adopted standard — the user cannot whitelist arbitrary folders here. The allowance
+  is folder-only: junk *filenames* (`utils.ts`) and the `src/<name>` mega-file ban are never relaxed, and
+  `helpers/` / `common/` / `misc/` are never sanctioned by any variant.
 
 ---
 

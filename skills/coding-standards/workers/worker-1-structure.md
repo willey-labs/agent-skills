@@ -68,6 +68,8 @@ When given, check the real tree against the map; each relationship delta is a ca
 
 ## References to load (only these — keep context lean)
 
+Every path below is **relative to your `SKILL_DIR` input** — prefix it: `<SKILL_DIR>/references/common/structure.md`. You are cwd'd in the user's project, where these files do not exist; on a global install they live under `SKILL_DIR`. If `SKILL_DIR` is missing from your INPUT, say so and stop — do not review from memory.
+
 1. `references/common/structure.md` — your primary rule set (ST-001 to ST-009).
 2. `references/common/objects-and-data.md` — for OD-001, OD-002, OD-004, OD-005.
 3. `references/common/code-principles.md` — for DP-001 (SRP), DP-002 (OCP), DP-003 (LSP), DP-004 (ISP), DP-005 (DIP), DP-006 (KISS), DP-007 (DRY).

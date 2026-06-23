@@ -52,6 +52,8 @@ WORKER_2_OUTPUT: <JSON from Worker 2 — refined files, changes_made, notes_for_
 
 ## References to load
 
+Every path below is **relative to your `SKILL_DIR` input** — prefix it: `<SKILL_DIR>/references/common/error-handling.md`. You are cwd'd in the user's project, where these files do not exist; on a global install they live under `SKILL_DIR`. If `SKILL_DIR` is missing from your INPUT, say so and stop — do not review from memory.
+
 1. `references/common/error-handling.md` — your primary rule set (EH-001 to EH-004).
 2. `references/common/functions.md` — but ONLY FN-010 (idiomatic failure mechanism per language). Other FN-* rules are Worker 2's.
 3. `references/common/code-principles.md` — but ONLY DP-006 (KISS) and DP-007 (DRY) as lenses.

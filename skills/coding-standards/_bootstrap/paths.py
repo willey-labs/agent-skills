@@ -65,9 +65,35 @@ SKILL_DIR = SCRIPT_PATH.parent
 # Hooks dir resolved to its real location so the command paths in settings.json
 # work from any cwd.
 HOOKS_DIR = (SKILL_DIR / "hooks").resolve()
-# The dedicated coding-standards venv lives HERE — beside the hooks. It's the
-# default for GLOBAL installs (so the hooks don't depend on whatever python3 is
-# first on PATH) and the fallback when the system Python is externally-managed
-# (PEP 668). Co-located with the skill: reinstalling the skill and re-running
-# bootstrap recreates it.
-MANAGED_VENV_DIR = HOOKS_DIR.parent / ".venv"
+
+
+def _managed_venv_dir() -> Path:
+    """Where the dedicated coding-standards venv lives.
+
+    OUTSIDE the skill dir, deliberately (ISS-006): the venv used to sit at
+    `<skill>/.venv`, but `npx skills add` (the documented update path) re-copies
+    the whole skill tree and WIPES it — after which every hook command's
+    interpreter is missing and the hooks exit 127 silently, never blocking. A
+    stable per-user data dir survives skill re-copies. Resolution order:
+      1. $CODING_STANDARDS_VENV — explicit override (also used by the test sandbox)
+      2. $XDG_DATA_HOME/coding-standards/venv
+      3. ~/.local/share/coding-standards/venv
+      4. (last resort, HOME undeterminable) the old in-skill location
+    """
+    override = os.environ.get("CODING_STANDARDS_VENV")
+    if override:
+        return Path(override)
+    xdg = os.environ.get("XDG_DATA_HOME")
+    if xdg:
+        return Path(xdg) / "coding-standards" / "venv"
+    try:
+        return Path.home() / ".local" / "share" / "coding-standards" / "venv"
+    except RuntimeError:
+        return HOOKS_DIR.parent / ".venv"
+
+
+# The dedicated venv: default for GLOBAL installs (so the hooks don't depend on
+# whatever python3 is first on PATH) and the fallback when the system Python is
+# externally-managed (PEP 668). A wiped venv is rebuilt by the next bootstrap and
+# announced by the SessionStart health check, never failing silently.
+MANAGED_VENV_DIR = _managed_venv_dir()

@@ -376,13 +376,52 @@ def load_user_ignore_patterns(project_root: Path | None) -> tuple[str, ...]:
     return tuple(patterns)
 
 
+def read_structure_follows(project_root: Path | None) -> str | None:
+    """Return the catalog standard named on the `follows:` line of
+    `.coding-standards-structure`, or None.
+
+    Records which published layout the project adopted (e.g. `feature-first`).
+    This is placement, NOT rule config: callers derive structure-sanctioned
+    behavior from the named standard (the same way ST-003 deep-import derives
+    from whether a barrel exists). There is no on/off toggle to read here."""
+    if project_root is None:
+        return None
+    structure_file = project_root / ".coding-standards-structure"
+    if not structure_file.exists():
+        return None
+    try:
+        lines = structure_file.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return None
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("follows:"):
+            value = stripped[len("follows:"):].strip()
+            # Tolerate `nextjs/feature-first` as well as bare `feature-first`.
+            return value.split("/")[-1].strip() or None
+    return None
+
+
+def _has_cocos_layout(project_root: Path) -> bool:
+    """Cocos Creator projects carry a committed `assets/` dir at the root next to
+    the engine's library/temp/settings dirs. Require that signal before treating
+    those root dirs as engine output (ISS-009) — without it, a plain web/Django/
+    etc. project that happens to have a root `settings/` (or `temp/`) would lose
+    ALL enforcement under it. One cheap stat call."""
+    try:
+        return (project_root / "assets").is_dir()
+    except OSError:
+        return False
+
+
 def root_anchored_match(file_path: str, project_root: Path | None) -> str | None:
     """Return the project-root-level directory segment of `file_path` that is a
     ROOT_ANCHORED_DIRS exclusion, or None.
 
     'Root-anchored' means the segment sits directly under `project_root` — a
     same-named folder nested deeper is NOT excluded. Returns None when the root
-    is unknown or the path isn't under it.
+    is unknown, the path isn't under it, or the project isn't Cocos-shaped (so the
+    library/temp/settings exclusion can't blind a non-Cocos project — ISS-009).
     """
     if project_root is None:
         return None
@@ -391,7 +430,7 @@ def root_anchored_match(file_path: str, project_root: Path | None) -> str | None
     except ValueError:
         return None
     parts = relative.parts
-    if parts and parts[0] in ROOT_ANCHORED_DIRS:
+    if parts and parts[0] in ROOT_ANCHORED_DIRS and _has_cocos_layout(project_root):
         return parts[0]
     return None
 

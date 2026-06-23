@@ -13,7 +13,7 @@ description: >
 license: MIT
 metadata:
   author: willey-labs
-  version: "4.7.0"
+  version: "5.0.0"
 ---
 
 # Coding Standards
@@ -117,31 +117,41 @@ task.
 
 ## Step 3 — Detect the framework
 
-Look at the file you're acting on and match the signals below. **Stop at the first match.**
+Look at the file you're acting on and match the signals below. **Stop at the first match whose "owns file
+types" includes the extension of the file you're editing.** A row whose file types don't include the
+current file is skipped even if its repo-level signal is present — so editing a `.php` file in a
+Laravel + Inertia/Vue repo resolves to `laravel`, not `vue-nuxt`, and a `Component.vue` in the same repo
+resolves to `vue-nuxt`. This is the rule; the "more specific" note below only breaks ties *within* one
+language.
 
-| Framework key | Detection signals (any of these) |
-|---|---|
-| `nextjs` | `next.config.{js,ts,mjs}` at repo root **or** `next` in `package.json` deps **or** the file lives under `app/` or `pages/` next to that config |
-| `react-native` | `expo`, `react-native`, or `@expo/*` in `package.json` **or** `app.json` with `"expo"` key **or** `metro.config.js` |
-| `nativescript` | `nativescript.config.{js,ts}` or `nativescript` in `package.json` **or** a `.xml` file paired with a `.ts` page |
-| `cocos-creator` | `assets/` + `settings/` + (`library/` or `temp/` in `.gitignore`) at repo root **or** `cc` / `cocos-creator` import **or** `.scene` / `.prefab` files |
-| `vue-nuxt` | `vue` or `nuxt` in `package.json` **or** `nuxt.config.{ts,js}` **or** `.vue` files |
-| `nestjs` | `@nestjs/*` in `package.json` **or** `*.module.ts` / `*.controller.ts` / `*.service.ts` with NestJS decorator imports |
-| `node-express` | `express` or `fastify` in `package.json` **and** no NestJS |
-| `laravel` | `composer.json` with `laravel/framework` **or** an `artisan` file at root **or** `.php` under `app/` |
-| `csharp` | `*.csproj`, `*.sln`, `*.cs` files |
-| `spring-boot` | `pom.xml` with `spring-boot-starter-*` **or** Gradle with the Spring Boot plugin **or** `@SpringBootApplication` |
-| `django` | `manage.py` + a settings module **or** `django` in `pyproject.toml` / `requirements.txt` |
-| `fastapi` | `fastapi` in deps **or** `from fastapi import FastAPI` **and** not Django |
-| `flask` | `flask` in deps **or** `from flask import Flask` **and** not Django/FastAPI |
-| `go-http` | `go.mod` + a router (`gin`, `echo`, `fiber`, `chi`, `mux`) or net/http handler routing |
-| `unsupported` | A framework the skill recognizes but has **no structure reference** for — Angular (`@angular/core` / `angular.json`), Svelte / SvelteKit (`.svelte` files, `svelte` in `package.json`, `svelte.config.*`), Astro (`astro` dep / `astro.config.*` / `.astro`), Remix (`@remix-run/*`), Ember, SolidStart, Qwik, … |
-| `vanilla-js` | Plain `.ts` / `.js` that fits none of the above **and is not one of the recognized-unsupported frameworks** (libraries, CLIs, scripts, browserless projects) |
+| Framework key | Owns file types | Detection signals (any of these) |
+|---|---|---|
+| `nextjs` | `.ts .tsx .js .jsx` | `next.config.{js,ts,mjs}` at repo root **or** `next` in `package.json` deps **or** the file lives under `app/` or `pages/` next to that config |
+| `react-native` | `.ts .tsx .js .jsx` | `expo`, `react-native`, or `@expo/*` in `package.json` **or** `app.json` with `"expo"` key **or** `metro.config.js` |
+| `nativescript` | `.ts .js .xml` | `nativescript.config.{js,ts}` or `nativescript` in `package.json` **or** a `.xml` file paired with a `.ts` page |
+| `cocos-creator` | `.ts .js` | `assets/` + `settings/` + (`library/` or `temp/` in `.gitignore`) at repo root **or** `cc` / `cocos-creator` import **or** `.scene` / `.prefab` files |
+| `vue-nuxt` | `.vue .ts .js` | `vue` or `nuxt` in `package.json` **or** `nuxt.config.{ts,js}` **or** `.vue` files |
+| `nestjs` | `.ts` | `@nestjs/*` in `package.json` **or** `*.module.ts` / `*.controller.ts` / `*.service.ts` with NestJS decorator imports |
+| `node-express` | `.ts .js` | `express` or `fastify` in `package.json` **and** no NestJS |
+| `laravel` | `.php` | `composer.json` with `laravel/framework` **or** an `artisan` file at root **or** `.php` under `app/` |
+| `csharp` | `.cs` | `*.csproj`, `*.sln`, `*.cs` files |
+| `spring-boot` | `.java .kt` | `pom.xml` with `spring-boot-starter-*` **or** Gradle with the Spring Boot plugin **or** `@SpringBootApplication` |
+| `django` | `.py` | `manage.py` + a settings module **or** `django` in `pyproject.toml` / `requirements.txt` |
+| `fastapi` | `.py` | `fastapi` in deps **or** `from fastapi import FastAPI` **and** not Django |
+| `flask` | `.py` | `flask` in deps **or** `from flask import Flask` **and** not Django/FastAPI |
+| `go-http` | `.go` | `go.mod` + a router (`gin`, `echo`, `fiber`, `chi`, `mux`) or net/http handler routing |
+| `unsupported` | (any) | A framework/ecosystem the skill recognizes but has **no structure reference** for. Web: Angular (`@angular/core` / `angular.json`), Svelte / SvelteKit (`.svelte`, `svelte` in `package.json`, `svelte.config.*`), Astro (`astro` dep / `astro.config.*` / `.astro`), Remix (`@remix-run/*`), Ember, SolidStart, Qwik. Game engines: Unity (`Assets/` + `ProjectSettings/`), Godot (`project.godot`). Other ecosystems not yet covered in v5: Ruby/Rails, Rust, Swift/iOS, Flutter/Dart, Android native. … |
+| `vanilla-js` | `.ts .js` | Plain `.ts` / `.js` that fits none of the above **and is not one of the recognized-unsupported frameworks** (libraries, CLIs, scripts, browserless projects) |
 
-- **If two could apply**, pick the more specific one (a `.tsx` in a Next.js repo is `nextjs`, not
-  `react-native`).
+- **If two rows of the SAME language could apply** (e.g. a `.ts` that's both Next.js and vue-nuxt-eligible),
+  pick the more specific one (a `.tsx` in a Next.js repo is `nextjs`, not `react-native`). The file-type
+  gate above already separates different languages — this only breaks within-language ties.
 - **Monorepos** pick the framework **per file**, not per repo — walk up from the file until a signal
-  matches. `apps/web/...` → `nextjs`; `apps/api/...` → `nestjs`.
+  matches whose file types include the file. `apps/web/...` → `nextjs`; `apps/api/...` → `nestjs`.
+- **Engine/ecosystem override (checked FIRST):** if the project shows a game-engine marker — Unity
+  (`Assets/` + `ProjectSettings/`) or Godot (`project.godot`) — route to `unsupported`, even though a
+  `.cs` would otherwise match `csharp`. The `csharp` row's vertical-slice web layout is wrong advice for a
+  Unity project, so the engine signal wins. `common/` line rules still apply; structure review is declined.
 - **Plain libraries** with no framework signal default to `vanilla-js` (JS/TS) or `common/` only (Python).
 - **Recognized but unsupported** (the `unsupported` row): **say so and do NOT fall back to `vanilla-js`** —
   imposing vanilla-js's business-folder + barrel layout on an Angular or SvelteKit app actively fights the
@@ -272,8 +282,8 @@ Invariants, true even before you open the reference:
 
 Before writing or reviewing any code, read these fully — once per session, not once per task:
 
-1. **All seven `common/` files** (always): `functions.md`, `naming.md`, `objects-and-data.md`,
-   `formatting.md`, `error-handling.md`, `code-principles.md`, `structure.md`.
+1. **All eight `common/` files** (always): `functions.md`, `naming.md`, `objects-and-data.md`,
+   `formatting.md`, `comments.md`, `error-handling.md`, `code-principles.md`, `structure.md`.
 2. **The resolved structure** (from Step 4) — a `structures/<name>.md` variant or
    `references/<framework>/structure.md`.
 
@@ -319,7 +329,7 @@ it:
    structure (Step 4).
 2. **Load references.** Every `common/` file, plus the resolved structure for each framework in the diff.
 3. **Judgement pass** — the rules regex/AST *can't* catch (FN-001 length nuance, FN-009 CQS, OD-003
-   Demeter, EH-002 boundaries, the `structure.md` rules). Per rule, report `PASS`, a finding as
+   Demeter, EH-002 boundaries, the CM-* comment rules, the `structure.md` rules). Per rule, report `PASS`, a finding as
    `file.tsx:42 — <rule> — <what's wrong>`, or `SKIPPED — <why it doesn't apply>`.
 4. **Run the hooks as a linter** (deterministic pass, LAST — don't skip). The `block-*.py` hooks only fire
    on Write/Edit, so a review must invoke them explicitly:
@@ -371,7 +381,7 @@ file for big fixes (`references/fix-plan.md`) — lives in `references/orchestra
 ## Finding a rule on demand
 
 Rules are organized by the kind of question you're asking (functions, naming, objects/data, formatting,
-error handling, principles, structure), not by language. The full question→file index is in
+comments, error handling, principles, structure), not by language. The full question→file index is in
 `references/rule-index.md` — use it for "what does FN-005 mean?" lookups or when unsure which reference owns
 a concern. During real work Step 7 already loads everything, so the index is just for targeted lookups.
 

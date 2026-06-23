@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""PreToolUse hook — keep `.coding-standards-structure` to structure only.
+"""PreToolUse hook — guard the coding-standards config dotfiles.
+
+Two jobs, one cohesive concern (keeping the skill's own config honest):
+`.coding-standards-structure` stays structure-only, and every `.coding-standards-ignore`
+exemption states a reason (ISS-011) — an ungated ignore file is a self-exemption
+channel a blocked agent could use to silence the very check that just fired.
+
+`.coding-standards-structure` to structure only.
 
 The structure file records placement only: which folder layout a project uses — a
 `follows: <standard>` line and/or a `layout:` tree describing the solved structure
@@ -33,6 +40,7 @@ import sys
 from pathlib import Path
 
 STRUCTURE_FILENAME = ".coding-standards-structure"
+IGNORE_FILENAME = ".coding-standards-ignore"
 
 _COMMENT_LINE = re.compile(r"^\s*#")
 _HOOKS_LINE = re.compile(r"^\s*hooks\s*:", re.IGNORECASE)
@@ -41,6 +49,10 @@ _TOGGLE_LINE = re.compile(
     r"flat-folder|flat-folder-max-files)\s*:",
     re.IGNORECASE,
 )
+# An exemption in `.coding-standards-ignore` must justify itself: a trailing
+# `# reason: ...` (ISS-011). Without it, the agent could silently self-exempt the
+# very path a hook just blocked.
+_REASON = re.compile(r"#\s*reason\s*:", re.IGNORECASE)
 
 
 def introduced_text(tool_name: str, tool_input: dict[str, object]) -> str:
@@ -71,6 +83,30 @@ def find_violations(text: str) -> list[str]:
     return violations
 
 
+def find_ignore_violations(text: str) -> tuple[list[str], list[str]]:
+    """For `.coding-standards-ignore`: return (blocking, added_patterns).
+
+    Every added pattern line (non-blank, non-comment) is an exemption that skips
+    ALL checks for matching paths — so it MUST carry a trailing `# reason: ...`
+    (ISS-011). Patterns without one block; patterns with one are allowed but named
+    in a loud advisory so a human always sees what got exempted.
+    """
+    blocking: list[str] = []
+    added: list[str] = []
+    for idx, line in enumerate(text.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        pattern = stripped.split("#", 1)[0].strip()
+        added.append(pattern)
+        if not _REASON.search(line):
+            blocking.append(
+                f"line {idx}: pattern `{pattern}` has no `# reason: ...` — every "
+                f"exemption must state why (it silences ALL checks for that path)"
+            )
+    return blocking, added
+
+
 def main() -> int:
     raw = sys.stdin.read()
     if not raw.strip():
@@ -85,21 +121,44 @@ def main() -> int:
         return 0
     tool_input = payload.get("tool_input") or {}
     file_path = tool_input.get("file_path", "")
-    if not file_path or Path(file_path).name != STRUCTURE_FILENAME:
+    name = Path(file_path).name if file_path else ""
+    text = introduced_text(tool_name, tool_input)
+
+    if name == STRUCTURE_FILENAME:
+        violations = find_violations(text)
+        if not violations:
+            return 0
+        sys.stderr.write(
+            "coding-standards hook blocked this write — fix the file and try again.\n"
+            f"`{STRUCTURE_FILENAME}` records structure only: a `follows: <standard>` line "
+            "and/or a `layout:` tree (placement). No comments, no `hooks:`, no rule toggles — "
+            "every rule is always enforced (see references/structure-resolution.md).\n"
+            + "".join(f"  - {v}\n" for v in violations)
+        )
+        return 2
+
+    if name == IGNORE_FILENAME:
+        blocking, added = find_ignore_violations(text)
+        if blocking:
+            sys.stderr.write(
+                "coding-standards hook blocked this write — every exemption needs a reason.\n"
+                f"`{IGNORE_FILENAME}` skips ALL checks for matching paths, so each added "
+                "pattern must carry a trailing `# reason: ...` (see "
+                "references/structure-resolution.md).\n"
+                + "".join(f"  - {v}\n" for v in blocking)
+            )
+            return 2
+        if added:
+            # Allowed, but never silent: surface every exemption to the user.
+            sys.stderr.write(
+                "coding-standards (advisory — not blocked): this write adds "
+                f"{len(added)} exemption(s) to {IGNORE_FILENAME}; matching paths will "
+                "SKIP all checks. Confirm each is intended:\n"
+                + "".join(f"  - {p}\n" for p in added)
+            )
         return 0
 
-    violations = find_violations(introduced_text(tool_name, tool_input))
-    if not violations:
-        return 0
-
-    sys.stderr.write(
-        "coding-standards hook blocked this write — fix the file and try again.\n"
-        f"`{STRUCTURE_FILENAME}` records structure only: a `follows: <standard>` line "
-        "and/or a `layout:` tree (placement). No comments, no `hooks:`, no rule toggles — "
-        "every rule is always enforced (see references/structure-resolution.md).\n"
-        + "".join(f"  - {v}\n" for v in violations)
-    )
-    return 2
+    return 0
 
 
 if __name__ == "__main__":

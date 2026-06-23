@@ -26,6 +26,7 @@ Stdlib only.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -46,24 +47,60 @@ def _imports_tree_sitter(interpreter: str) -> bool:
         return False
 
 
+def _managed_venv_dirs() -> list[Path]:
+    """Candidate managed-venv locations, in the precedence the bootstrap uses.
+
+    Mirror of `_bootstrap/paths.py:_managed_venv_dir` — kept in sync by
+    `hooks/tests/test-review-files-venv.py`. The managed venv lives OUTSIDE the
+    skill dir (ISS-006: `npx skills add` re-copies the skill tree and would wipe
+    an in-skill venv), so the in-skill `.venv` is only the last-resort fallback.
+    We can't import `_bootstrap` here (it anchors on the bootstrap entry script's
+    path, which a hook invocation doesn't provide), so the logic is mirrored.
+    """
+    dirs: list[Path] = []
+    override = os.environ.get("CODING_STANDARDS_VENV")
+    if override:
+        dirs.append(Path(override))
+    xdg = os.environ.get("XDG_DATA_HOME")
+    if xdg:
+        dirs.append(Path(xdg) / "coding-standards" / "venv")
+    try:
+        dirs.append(Path.home() / ".local" / "share" / "coding-standards" / "venv")
+    except RuntimeError:
+        pass  # HOME undeterminable — the skill-dir fallback below still applies
+    dirs.append(SKILL_DIR / ".venv")  # last resort (matches paths.py's fallback)
+    return dirs
+
+
+def _venv_interpreters() -> list[str]:
+    """Existing interpreter paths inside every candidate managed venv."""
+    found: list[str] = []
+    for venv_dir in _managed_venv_dirs():
+        for sub in ("bin", "Scripts"):
+            for name in ("python", "python3", "python.exe", "python3.exe"):
+                candidate = venv_dir / sub / name
+                if candidate.exists():
+                    found.append(str(candidate))
+    return found
+
+
 def resolve_interpreter() -> tuple[str, bool]:
     """Pick an interpreter that can run the TS/JS AST checks, returning
     (interpreter, has_tree_sitter).
 
     The write-time hooks are wired to the interpreter tree-sitter was installed
-    into (often a dedicated `<skill>/.venv` on PEP-668 hosts). A review launched
-    with a bare `python3` that lacks the grammars would silently skip FN-001 /
-    OD-004 / precise FN-005 and report the file CLEAN — the exact write-blocks /
-    review-passes split this driver exists to prevent. So prefer, in order: the
-    launching interpreter, the skill's sibling venv, then PATH python — and use
-    the first that actually imports the grammars. If none can, run anyway but
-    report the gap as a finding (never silently)."""
+    into. On a PEP-668 host that is the dedicated managed venv, which lives
+    OUTSIDE the skill dir (ISS-006) — at `$CODING_STANDARDS_VENV`,
+    `$XDG_DATA_HOME/coding-standards/venv`, or `~/.local/share/coding-standards/
+    venv`. A review launched with a bare `python3` that lacks the grammars must
+    look THERE, not only beside the skill, or it would silently skip FN-001 /
+    OD-004 / precise FN-005 and report a TS/JS file CLEAN — the exact write-blocks
+    / review-passes split this driver exists to prevent. Prefer, in order: the
+    launching interpreter, the managed venv(s), then PATH python — first that
+    imports the grammars wins. If none can, run anyway but report the gap as a
+    finding (never silently)."""
     candidates = [sys.executable]
-    for name in ("python", "python3"):
-        for sub in ("bin", "Scripts"):
-            venv_py = SKILL_DIR / ".venv" / sub / name
-            if venv_py.exists():
-                candidates.append(str(venv_py))
+    candidates.extend(_venv_interpreters())
     for name in ("python3", "python"):
         found = shutil.which(name)
         if found:
@@ -176,6 +213,11 @@ def print_report(results: dict[str, list[str]]) -> None:
         else:
             print(f"\n{path}  — clean (no hook-level violations)")
     print(f"\nTotal hook-level violations: {total}")
+    if any("[advisory]" in violation for vs in results.values() for violation in vs):
+        print(
+            "  ([advisory] = not hard-blocked at write time, but still a violation "
+            "to fix or record as accepted with a reason — not optional.)"
+        )
 
 
 def main(argv: list[str]) -> int:

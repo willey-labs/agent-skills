@@ -58,11 +58,9 @@ from _exclusions import is_excluded_path, has_generation_marker  # noqa: E402
 # Java, Kotlin, PHP). TS/JS/Python get a precise FN-001 block from their AST hooks.
 from _function_length import iter_long_functions  # noqa: E402
 
-# Source extensions this rule applies to (mirrors block-junk-paths.py's set).
-SOURCE_EXTS = {
-    ".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs",
-    ".py", ".go", ".cs", ".java", ".kt", ".php", ".rb", ".rs", ".vue", ".swift",
-}
+# Source extensions this rule applies to — shared so it can't drift from the
+# other hooks' sets (ISS-010). One canonical set in _languages.py.
+from _languages import CONTENT_HOOK_EXTENSIONS, SOURCE_EXTENSIONS as SOURCE_EXTS  # noqa: E402
 
 # Fixed thresholds from ST-008 — the standard, not tunable per project.
 MAX_BEHAVIORAL_DECLS = 10   # > this many top-level functions/classes → BLOCK
@@ -74,11 +72,16 @@ MAX_FLAT_FILES = 12         # > this many flat source siblings → advisory warn
 EXEMPT_NAME_PATTERNS = (
     re.compile(r"\.test\."), re.compile(r"\.spec\."),
     re.compile(r"_test\.(py|go)$"), re.compile(r"^test_.*\.py$"),
-    re.compile(r"(test|tests)\.(java|kt|cs)$"),   # FooTest.java, FooTests.cs
     re.compile(r"\.schema\."), re.compile(r"-schema(s)?\."),
     re.compile(r"\.fixtures?\."), re.compile(r"\.stor(?:y|ies)\."),
     re.compile(r"\.e2e\."),
 )
+
+# JVM / C# test classes are PascalCase (FooTest, FooTests, OrderServiceTests).
+# Matched against the ORIGINAL-case name with a capital `T` preceded by start or a
+# lower/digit boundary, so `Contest.java` / `Attest.cs` (lowercase "test") are NOT
+# exempted (ISS-022) while real `FooTest.java` still is.
+EXEMPT_CLASSFILE_PATTERN = re.compile(r"(?:^|[a-z0-9])Tests?\.(java|kt|cs)$")
 
 # Front-door / entry files (by stem) — a folder's barrel doesn't count toward
 # flatness, and writing one is usually part of FIXING a flat folder.
@@ -94,10 +97,23 @@ _BEHAVIORAL_DECL = re.compile(
     r"(function|func|fn|def|class|impl|trait|protocol)\b"
 )
 
+# ISS-004 — modern TS/JS declares functions as `const f = () => …` or
+# `const f = function () {…}`, the dominant style. Count those as behavioral so
+# the god-file block can't be evaded by writing 14 arrow-consts. Precision: the
+# arrow/function-expression must sit IMMEDIATELY after `=`, so a const holding a
+# value, object, array, or a `.map(i => …)` result stays non-behavioral (data).
+_BEHAVIORAL_ASSIGN = re.compile(
+    r"^(export\s+)?(default\s+)?(const|let|var)\s+\w+"
+    r"(\s*:\s*[^=]+?)?\s*=\s*(async\s+)?"
+    r"(function\b|(\([^)]*\)|\w+)\s*(:\s*[^=]+?)?=>)"
+)
+
 
 def is_exempt_name(file_path: str) -> bool:
-    name = Path(file_path).name.lower()
-    return any(p.search(name) for p in EXEMPT_NAME_PATTERNS)
+    name = Path(file_path).name
+    if any(p.search(name.lower()) for p in EXEMPT_NAME_PATTERNS):
+        return True
+    return bool(EXEMPT_CLASSFILE_PATTERN.search(name))
 
 
 def is_countable_unit(path: Path) -> bool:
@@ -134,7 +150,11 @@ def strip_noncode(source: str) -> str:
 
 def count_behavioral_decls(content: str) -> int:
     clean = strip_noncode(content)
-    return sum(1 for line in clean.splitlines() if _BEHAVIORAL_DECL.match(line))
+    return sum(
+        1
+        for line in clean.splitlines()
+        if _BEHAVIORAL_DECL.match(line) or _BEHAVIORAL_ASSIGN.match(line)
+    )
 
 
 def assess_god_file_block(file_path: str, content: str) -> str | None:
@@ -187,16 +207,46 @@ def assess_flat_folder(file_path: str) -> str | None:
     )
 
 
-def read_content(tool_input: dict[str, object], file_path: str) -> str | None:
-    """The full new content for Write; the current on-disk file for Edit/MultiEdit
-    (whose payload carries only the diff). None when nothing is readable."""
+def _apply_edits(base: str, tool_input: dict[str, object]) -> tuple[str, bool]:
+    """Apply Edit/MultiEdit diffs to `base`; return (post_content, applied_cleanly).
+    applied_cleanly is False when an old_string isn't found — the caller then
+    counts the pre-edit content and says so, instead of guessing."""
+    multi = tool_input.get("edits")
+    edits = multi if isinstance(multi, list) else [tool_input]
+    text = base
+    applied = True
+    for edit in edits:
+        if not isinstance(edit, dict):
+            continue
+        old = edit.get("old_string", "")
+        new = edit.get("new_string", "")
+        if not isinstance(old, str) or not isinstance(new, str) or old == "":
+            applied = False
+            continue
+        if old not in text:
+            applied = False
+            continue
+        text = text.replace(old, new) if edit.get("replace_all") else text.replace(old, new, 1)
+    return text, applied
+
+
+def resolve_content(payload: dict[str, object], file_path: str) -> tuple[str | None, bool]:
+    """Return (content_to_count, post_edit_computed).
+
+    Write: the full new content (post_edit_computed is trivially True).
+    Edit/MultiEdit: the POST-edit content — apply the diff to the on-disk file so
+    the count reflects the file AFTER the write, not before (ISS-005). Falls back
+    to the on-disk pre-edit content (post_edit_computed=False) when the diff can't
+    be applied (old_string missing / unreadable file)."""
+    tool_input = payload.get("tool_input") or {}
     content = tool_input.get("content")
-    if isinstance(content, str):
-        return content
-    try:
-        return Path(file_path).read_text(encoding="utf-8")
+    if isinstance(content, str):  # Write
+        return content, True
+    try:  # Edit / MultiEdit — payload carries only the diff
+        base = Path(file_path).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
-        return None
+        return None, False
+    return _apply_edits(base, tool_input)
 
 
 def main() -> int:
@@ -221,25 +271,50 @@ def main() -> int:
     if excluded:
         return 0
 
-    content = read_content(tool_input, file_path)
+    content, post_edit_computed = resolve_content(payload, file_path)
     if content is None:
         return 0
     if has_generation_marker(content):
         return 0
 
+    ext = Path(file_path).suffix.lower()
     block_msg = assess_god_file_block(file_path, content)
     advisories = [
         m for m in (assess_size_warning(file_path, content), assess_flat_folder(file_path)) if m
     ]
     advisories.extend(iter_long_functions(content, Path(file_path).suffix, file_path))
 
+    # The decl-count BLOCK is hard only for languages with a dedicated content hook.
+    # Ruby / Rust / Swift have none (v5-unsupported), so a hard ST-008 block there is
+    # half-enforcement — demote it to an advisory. The path-based ST-005 check
+    # (block-junk-paths.py) still blocks for every language.
+    if block_msg and ext not in CONTENT_HOOK_EXTENSIONS:
+        advisories.insert(
+            0,
+            block_msg + "\n    (advisory — no content hook for this language yet; "
+            "ST-008 is not hard-blocked here, but this file still does too many jobs)",
+        )
+        block_msg = None
+
     if block_msg:
-        sys.stderr.write("coding-standards (BLOCKED — ST-008):\n  - " + block_msg + "\n")
+        # The way out is a structural split, which is a full-file Write (or new
+        # sibling files) — never another Edit, which would re-trip this block.
+        escape = (
+            "\n    Fix: split this into named sibling units with a full-file Write "
+            "(or new files), one job each — not another Edit."
+        )
+        if not post_edit_computed:
+            escape += (
+                "\n    (Counted the on-disk file: the edit's old_string wasn't found, "
+                "so the post-edit size couldn't be computed.)"
+            )
+        sys.stderr.write("coding-standards (BLOCKED — ST-008):\n  - " + block_msg + escape + "\n")
         return 2
 
     if advisories:
         sys.stderr.write(
-            "coding-standards (advisory — not blocked):\n"
+            "coding-standards (advisory: not hard-blocked, but each is still a "
+            "must-fix violation — fix it or record it accepted with a reason):\n"
             + "".join(f"  - {m}\n" for m in advisories)
         )
     return 0

@@ -2,7 +2,7 @@
 
 Every review — orchestrator pipeline *and* inline single-agent — persists its merged result to a Markdown file so it's durable, diffable, and feedable to a later fix pass. The same content is also printed to the user — except above the scope threshold (defined once in `orchestrator-pipeline.md` → Fix mode), where chat gets the Summary line, the first ~20 findings, the remaining-count, and the report path, and the full table lives here only. The file is always complete either way.
 
-There are **no severity tiers** — every finding is a violation to fix (model A). The report is one ordered findings table, not a must-fix/should-fix/consider split. A finding's only non-fix exit is at Fix time: `accepted` (reviewer judged it is not a violation — reason required) or `deferred` (open breach).
+There are **no severity tiers** — every finding is a violation to fix. The report is one ordered findings table, not a must-fix/should-fix/consider split. A finding's only non-fix exit is at Fix time: `accepted` (reviewer judged it is not a violation — reason required) or `deferred` (open breach).
 
 ## Procedure
 

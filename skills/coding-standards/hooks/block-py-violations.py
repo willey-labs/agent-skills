@@ -21,6 +21,7 @@ Reads PreToolUse JSON from stdin, exits 2 with stderr on block.
 
 from __future__ import annotations
 
+import ast
 import re
 import sys
 from pathlib import Path
@@ -35,15 +36,19 @@ from _py_ast import iter_ast_violations  # noqa: E402
 
 PY_EXTENSIONS = {".py", ".pyi"}
 
-# `typing.Any` and its friends. `: Any`, `-> Any`, generic-arg Any.
+# OD-006 — `typing.Any` is banned in every position. `\bAny\b` bounds keep these
+# off identifiers that merely contain the letters (Anything, MyAny, company).
+# The subscript rule is position- AND container-agnostic: `Any` led by `[` or `,`
+# and trailed by `]` or `,` catches PEP 585 lowercase builtins (`dict[str, Any]`,
+# `list[Any]`, `tuple[Any, ...]`, `set[Any]`) as well as the capitalized typing
+# forms — so it subsumes the old List/Dict/Optional/Tuple/Union specials (ISS-003).
+# The two pipe rules catch PEP 604 unions (`int | Any`, `Any | None`).
 ANY_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r":\s*Any\b"), "type annotation `: Any`"),
     (re.compile(r"->\s*Any\b"), "return annotation `-> Any`"),
-    (re.compile(r"\bList\s*\[\s*Any\s*\]"), "`List[Any]`"),
-    (re.compile(r"\bDict\s*\[[^\]]*,\s*Any\s*\]"), "`Dict[..., Any]`"),
-    (re.compile(r"\bOptional\s*\[\s*Any\s*\]"), "`Optional[Any]`"),
-    (re.compile(r"\bTuple\s*\[[^\]]*Any[^\]]*\]"), "`Tuple[..., Any, ...]`"),
-    (re.compile(r"\bUnion\s*\[[^\]]*\bAny\b[^\]]*\]"), "`Union[..., Any]`"),
+    (re.compile(r"[\[,]\s*Any\s*[,\]]"), "subscript `[..., Any, ...]` (incl. PEP 585 `dict[str, Any]`)"),
+    (re.compile(r"\|\s*Any\b"), "union member `| Any` (PEP 604)"),
+    (re.compile(r"\bAny\s*\|"), "union member `Any |` (PEP 604)"),
     (re.compile(r"\bcast\s*\(\s*Any\b"), "`cast(Any, ...)`"),
 ]
 
@@ -84,12 +89,55 @@ def strip_strings_and_comments(source: str) -> str:
     return source
 
 
-def iter_any_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
+def iter_any_violations(
+    clean_lines: list[str], file_path: str, exempt_return_lines: frozenset[int] = frozenset()
+) -> Iterable[str]:
     for idx, line in enumerate(clean_lines, start=1):
         for pattern, label in ANY_RULES:
             if pattern.search(line):
+                # FastAPI route handlers idiomatically return `-> Any` — the
+                # response_model decorator defines the real schema (GAP-002 finding).
+                if "-> Any" in label and idx in exempt_return_lines:
+                    break
                 yield f"{file_path}:{idx} — OD-006: `Any` is banned ({label}); name the type, or use a precise union / generic"
                 break
+
+
+# FastAPI route decorators — `@router.get(...)`, `@app.post(...)`, etc. A route's
+# response shape comes from `response_model=` on the decorator, so the handler's own
+# `-> Any` is decorative and idiomatic (the official full-stack-fastapi-template
+# ships it). Exempt that one annotation from OD-006; a param typed `Any` still blocks.
+_FASTAPI_ROUTE_METHODS = frozenset(
+    {"get", "post", "put", "delete", "patch", "options", "head", "trace", "api_route", "websocket"}
+)
+
+
+def fastapi_route_return_any_lines(source: str) -> frozenset[int]:
+    """Line numbers of `-> Any` return annotations on FastAPI route handlers.
+
+    Empty when the source doesn't parse (a partial Edit snippet) — the regex then
+    treats `-> Any` normally, the safe default.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return frozenset()
+    lines: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        ret = node.returns
+        is_any = (isinstance(ret, ast.Name) and ret.id == "Any") or (
+            isinstance(ret, ast.Attribute) and ret.attr == "Any"
+        )
+        if not is_any:
+            continue
+        for dec in node.decorator_list:
+            target = dec.func if isinstance(dec, ast.Call) else dec
+            if isinstance(target, ast.Attribute) and target.attr in _FASTAPI_ROUTE_METHODS:
+                lines.add(ret.lineno)
+                break
+    return frozenset(lines)
 
 
 def iter_hungarian_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
@@ -180,7 +228,8 @@ def collect_violations(new_content: str, file_path: str) -> list[str]:
     raw_lines = new_content.splitlines()
 
     violations: list[str] = []
-    violations.extend(iter_any_violations(clean_lines, file_path))
+    route_any = fastapi_route_return_any_lines(new_content)
+    violations.extend(iter_any_violations(clean_lines, file_path, route_any))
     violations.extend(iter_hungarian_violations(clean_lines, file_path))
     violations.extend(iter_star_import_violations(raw_lines, file_path))
 

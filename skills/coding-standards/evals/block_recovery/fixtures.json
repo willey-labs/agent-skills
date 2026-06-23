@@ -1,0 +1,11 @@
+{
+  "fn005-ts": "export function createOrder(\n  customerId: string,\n  items: string[],\n  discount: number,\n  currency: string,\n  note: string,\n) {\n  return { customerId, items, discount, currency, note };\n}\n",
+  "fn005-py": "def register_user(name, email, password, age, country, referral):\n    return (name, email, password, age, country, referral)\n",
+  "fn005-go": "package billing\n\nfunc Charge(userID string, amount int, currency string, note string) int {\n\treturn amount\n}\n",
+  "nm006-ts": "export function sumTotals(values: number[]) {\n  const arrValues = values;\n  let strLabel = \"total\";\n  return { arrValues, strLabel };\n}\n",
+  "any-ts": "export function parseConfig(input: string): any {\n  return JSON.parse(input);\n}\n",
+  "any-py": "from typing import Any\n\n\ndef load_settings(raw: str) -> dict[str, Any]:\n    import json\n\n    return json.loads(raw)\n",
+  "eh002-ts": "export async function fetchUser(id: string) {\n  try {\n    return await getUser(id);\n  } catch (e) {}\n}\n",
+  "eh002-py": "def read_file(path: str) -> str:\n    try:\n        with open(path) as handle:\n            return handle.read()\n    except Exception:\n        pass\n",
+  "fmt005-ts": "export function calc(x: number) {\n  debugger;\n  return x * 2;\n}\n"
+}

@@ -27,6 +27,11 @@ owns_rules:
   - FMT-002
   - FMT-003
   - FMT-004
+  - CM-001
+  - CM-002
+  - CM-003
+  - CM-004
+  - CM-005
 applies_as_lens:
   - DP-006 (KISS) — at function-body scale
   - DP-007 (DRY) — at function / file scale
@@ -71,11 +76,14 @@ WORKER_1_OUTPUT: <JSON from Worker 1 — files with placeholder bodies, decision
 
 ## References to load
 
+Every path below is **relative to your `SKILL_DIR` input** — prefix it: `<SKILL_DIR>/references/common/functions.md`. You are cwd'd in the user's project, where these files do not exist; on a global install they live under `SKILL_DIR`. If `SKILL_DIR` is missing from your INPUT, say so and stop — do not review from memory.
+
 1. `references/common/functions.md` — your primary rule set (FN-001 to FN-009 and FN-011, function-scale DRY). FN-010 is Worker 3's. FN-012 (rewrite the draft) you apply as a lens, not as an owned check.
 2. `references/common/naming.md` — NM-001 to NM-009.
 3. `references/common/formatting.md` — FMT-001 to FMT-004.
-4. `references/common/objects-and-data.md` — but ONLY OD-003 (Law of Demeter) and OD-006 (no type-system escape: `any`/`Any`/`interface{}`/`dynamic`/`mixed`). Skip OD-001, OD-002, OD-004, OD-005 — those are Worker 1's.
-5. `references/common/code-principles.md` — but ONLY DP-006 (KISS) and DP-007 (DRY) as lenses. Skip DP-001 to DP-005 — Worker 1 owns.
+4. `references/common/comments.md` — CM-001 to CM-005 (no narration, why-not-what, no redundant docstrings/banners, no filler/change-narration). Review-only — no hook backs these.
+5. `references/common/objects-and-data.md` — but ONLY OD-003 (Law of Demeter) and OD-006 (no type-system escape: `any`/`Any`/`interface{}`/`dynamic`/`mixed`). Skip OD-001, OD-002, OD-004, OD-005 — those are Worker 1's.
+6. `references/common/code-principles.md` — but ONLY DP-006 (KISS) and DP-007 (DRY) as lenses. Skip DP-001 to DP-005 — Worker 1 owns.
 
 Do not load `structure.md`, `error-handling.md`, or `<framework>/structure.md` — out of scope.
 
@@ -157,7 +165,7 @@ Never silently drop a rule. Every owned rule lands in one of the three buckets.
 
 **No severity tiers.** A finding is a rule violation — every finding is must-fix. There is no `should-fix` / `consider` / `nit`. Formatting is not a "nit": FMT-001 to FMT-004 are violations like any other. The decision is binary — **does a rule break here?** If yes, file it; if it's a genuine tradeoff with no rule broken, it's a `pass`, not a soft finding. (The only non-fix exits are downstream at Fix time: `accepted` with a reason, or `deferred` as an open breach.)
 
-**What your rules catch** (all must-fix): Hungarian notation (NM-006), 4+/5+ args past the carve-outs (FN-005), `any`/`Any`/`dynamic`/`mixed` — the linter also catches these, report them anyway, the orchestrator dedupes; function too long / doing >1 thing (FN-001, FN-002); mixed abstraction levels (FN-003); hidden side effects (FN-008); CQS violations (FN-009); non-intent-revealing names (NM-001 to NM-005, NM-007 to NM-009); Demeter chains (OD-003); formatting / newspaper-order / vertical-spacing (FMT-001 to FMT-004); DRY duplication (FN-011/DP-007 — real shared knowledge, not code that merely looks alike).
+**What your rules catch** (all must-fix): Hungarian notation (NM-006), 4+/5+ args past the carve-outs (FN-005), `any`/`Any`/`dynamic`/`mixed` — the linter also catches these, report them anyway, the orchestrator dedupes; function too long / doing >1 thing (FN-001, FN-002); mixed abstraction levels (FN-003); hidden side effects (FN-008); CQS violations (FN-009); non-intent-revealing names (NM-001 to NM-005, NM-007 to NM-009); Demeter chains (OD-003); formatting / newspaper-order / vertical-spacing (FMT-001 to FMT-004); comment hygiene — narration, what-not-why comments, redundant docstrings/banners, filler/change-narration (CM-001 to CM-005, review-only, no hook); DRY duplication (FN-011/DP-007 — real shared knowledge, not code that merely looks alike).
 
 ### Review output
 

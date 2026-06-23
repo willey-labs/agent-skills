@@ -30,7 +30,7 @@ FN_005_MAX_POSITIONAL = 4
 # FN-005's mental-load tally. Mirrors the Express error-middleware carve-out.
 FASTAPI_PARAM_MARKERS = frozenset({
     "Depends", "Security", "Query", "Path", "Body", "Header", "Cookie",
-    "Form", "File", "Form", "Param",
+    "Form", "File", "Param",
 })
 
 # Names that look like framework-boundary class parents — exempt from OD-004
@@ -59,10 +59,27 @@ def _is_fastapi_marker(node: ast.expr | None) -> bool:
     return False
 
 
+def _annotation_is_fastapi(annotation: ast.expr | None) -> bool:
+    """True when a param annotation is `Annotated[T, <marker>(...)]` carrying a
+    FastAPI binding in its metadata — the no-default style FastAPI now recommends
+    (`db: Annotated[Session, Depends(get_db)]`), which has no default to inspect
+    (ISS-017)."""
+    if not isinstance(annotation, ast.Subscript):
+        return False
+    base = annotation.value
+    name = base.id if isinstance(base, ast.Name) else getattr(base, "attr", None)
+    if name != "Annotated":
+        return False
+    sl = annotation.slice
+    elts = sl.elts if isinstance(sl, ast.Tuple) else [sl]
+    return any(_is_fastapi_marker(meta) for meta in elts)
+
+
 def _fastapi_bound_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
-    """Parameter names bound to a FastAPI marker default — excluded from the
-    FN-005 count. Defaults align to the tail of (posonly+args); kw_defaults
-    align 1:1 with kwonlyargs."""
+    """Parameter names bound to a FastAPI marker — excluded from the FN-005 count.
+    Two styles: a marker DEFAULT (`db = Depends(...)`) and a marker in an
+    `Annotated[...]` ANNOTATION (`db: Annotated[Session, Depends(...)]`). Defaults
+    align to the tail of (posonly+args); kw_defaults align 1:1 with kwonlyargs."""
     bound: set[str] = set()
     positional = list(node.args.posonlyargs) + list(node.args.args)
     defaults = list(node.args.defaults)
@@ -72,6 +89,9 @@ def _fastapi_bound_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[st
                 bound.add(arg.arg)
     for arg, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
         if _is_fastapi_marker(default):
+            bound.add(arg.arg)
+    for arg in positional + list(node.args.kwonlyargs):
+        if _annotation_is_fastapi(arg.annotation):
             bound.add(arg.arg)
     return bound
 
@@ -130,12 +150,20 @@ def _class_extends_framework_base(node: ast.ClassDef) -> bool:
     return False
 
 
+# OD-004 fires only when data is exposed through MULTIPLE accessors (≥2) alongside
+# business methods. A single computed @property next to one real method is ordinary
+# OOP, not the data-exposing hybrid OD-004 targets — counting one accessor over-fired
+# on plain Python classes (the Django corpus finding). Precision over recall: a
+# borderline single-accessor hybrid is left to review judgement (Worker 1 owns OD-004).
+OD_004_MIN_ACCESSORS = 2
+
+
 def _class_has_property_and_business_methods(node: ast.ClassDef) -> bool:
-    """OD-004 detection — class has BOTH @property getters/setters AND
-    non-trivial business methods (not dunders, not pure pass-through).
+    """OD-004 detection — class exposes data through ≥2 @property/setter accessors
+    AND owns non-trivial business methods (not dunders, not 1-statement pass-throughs).
     """
-    has_property = False
-    business_methods: list[str] = []
+    accessor_count = 0
+    business_methods = 0
     for item in node.body:
         if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
             decorator_names = []
@@ -144,12 +172,9 @@ def _class_has_property_and_business_methods(node: ast.ClassDef) -> bool:
                     decorator_names.append(dec.id)
                 elif isinstance(dec, ast.Attribute):
                     decorator_names.append(dec.attr)
-            if "property" in decorator_names:
-                has_property = True
-                continue
-            # `<name>.setter` decorator counts as property machinery too.
-            if any(d.endswith("setter") for d in decorator_names):
-                has_property = True
+            # `@property` and `<name>.setter` are both accessor machinery.
+            if "property" in decorator_names or any(d.endswith("setter") for d in decorator_names):
+                accessor_count += 1
                 continue
             # Dunder methods (__init__, __repr__, ...) aren't business methods.
             if item.name.startswith("__") and item.name.endswith("__"):
@@ -158,8 +183,8 @@ def _class_has_property_and_business_methods(node: ast.ClassDef) -> bool:
             # logic — likely getters/setters in disguise.
             if _function_body_statement_count(item) <= 1:
                 continue
-            business_methods.append(item.name)
-    return has_property and len(business_methods) >= 1
+            business_methods += 1
+    return accessor_count >= OD_004_MIN_ACCESSORS and business_methods >= 1
 
 
 def iter_ast_violations(source: str, file_path: str) -> tuple[Iterable[str], bool]:
@@ -177,9 +202,22 @@ def iter_ast_violations(source: str, file_path: str) -> tuple[Iterable[str], boo
 
     # FN-005 (precise) + FN-001 (statement count)
     for func in _iter_functions(tree):
-        # pytest test functions take fixtures by name (the fixture system, not a
-        # caller, supplies them) — exempt, same spirit as the FastAPI carve-out.
-        if func.name.startswith("test_"):
+        # Test functions and pytest fixtures take their parameters from the test
+        # framework (the fixture system, not a caller, supplies them) — exempt from
+        # FN-005, same spirit as the FastAPI carve-out (ISS-017). Covers pytest/
+        # unittest names (`test_foo`, `testFoo`) and any `@fixture`/`@pytest.fixture`.
+        name = func.name
+        is_test = name.startswith("test_") or (
+            name.startswith("test") and len(name) > 4 and name[4].isupper()
+        )
+        has_fixture = False
+        for dec in func.decorator_list:
+            target = dec.func if isinstance(dec, ast.Call) else dec
+            attr = getattr(target, "attr", None) or getattr(target, "id", None)
+            if attr == "fixture":
+                has_fixture = True
+                break
+        if is_test or has_fixture:
             arg_count = -1
         else:
             arg_count = _count_ast_positional(func)

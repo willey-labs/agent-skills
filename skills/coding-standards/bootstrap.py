@@ -66,19 +66,23 @@ from _bootstrap.dependencies import (
 )
 from _bootstrap.command import install_slash_command
 from _bootstrap.install import ensure_global_venv, ensure_required_packages
+from _bootstrap.interpreter import (
+    hook_interpreter,
+    interpreter_note,
+    warn_project_interpreter_mismatch,
+)
 from _bootstrap.paths import HOOKS_DIR
+from _bootstrap.permissions import wire_skill_permissions
 from _bootstrap.readiness import find_compatible_python, print_readiness, readiness_report
 from _bootstrap.scope import IGNORE_FILENAME, detect_scope_and_targets, seed_ignore_template
 from _bootstrap.settings import (
     HOOK_FILES,
     build_hook_entry,
-    ensure_skill_permissions,
-    hook_interpreter,
-    interpreter_note,
+    build_session_start_entry,
     is_our_entry,
     load_settings,
     merge_hook_entry,
-    warn_project_interpreter_mismatch,
+    merge_session_start_entry,
     write_settings,
 )
 
@@ -115,6 +119,7 @@ class WiringResult:
     settings_path: Path
     commands_dir: Path
     hooks_action: str
+    session_action: str
     cmd_action: str
     perms_changed: bool
     hook_python: str
@@ -127,6 +132,7 @@ def report_install_result(result: WiringResult) -> int:
     """Print the post-wiring summary and return the process exit code."""
     if (
         result.hooks_action == "noop"
+        and result.session_action == "noop"
         and result.cmd_action == "noop"
         and not result.perms_changed
         and result.ignore_action != "created"
@@ -147,6 +153,8 @@ def report_install_result(result: WiringResult) -> int:
         f"  Hook commands use: {result.hook_python}\n"
         f"    ({interpreter_note(result.scope, result.venv_python)}).\n"
         f"  Hooks dir: {HOOKS_DIR}\n"
+        f"  SessionStart health check: {result.session_action} (warns loudly if "
+        f"enforcement ever goes dead — wiped venv / moved skill dir).\n"
         f"  Restart your agent if hooks or commands don't activate on the next tool call."
     )
     if result.perms_changed:
@@ -192,6 +200,35 @@ def _wired_hook_interpreter(pre_tool_use: list) -> str | None:
     return None
 
 
+def _wired_hook_scripts(pre_tool_use: list) -> list[str]:
+    """The hook SCRIPT paths (second token) of every wired command of ours."""
+    scripts: list[str] = []
+    for entry in pre_tool_use:
+        if not (isinstance(entry, dict) and is_our_entry(entry)):
+            continue
+        for hook in entry.get("hooks") or []:
+            command = (hook or {}).get("command", "")
+            parts = command.split()
+            if len(parts) >= 2:
+                scripts.append(parts[1])
+    return scripts
+
+
+def _all_wired_scripts_exist(scripts: list[str]) -> bool:
+    """True unless a resolvable wired script path is missing on disk (ISS-015) —
+    a moved/renamed skill dir leaves the wiring intact but every hook exits 127,
+    the same silent death as a wiped venv. Paths still holding an unexpanded
+    ${VAR} (project scope when CLAUDE_PROJECT_DIR isn't set in this process) are
+    skipped: can't verify, so don't false-negative into a needless re-bootstrap."""
+    for script in scripts:
+        expanded = os.path.expandvars(script)
+        if "${" in expanded:
+            continue
+        if not Path(expanded).exists():
+            return False
+    return True
+
+
 def verify_already_set_up() -> int:
     """`--verify`: 0 if the skill is genuinely ready (wired AND the hooks'
     interpreter can import the required packages); non-zero if a full bootstrap
@@ -208,11 +245,21 @@ def verify_already_set_up() -> int:
         return 1
     hooks_section = settings.get("hooks") if isinstance(settings, dict) else None
     pre_tool_use = hooks_section.get("PreToolUse") if isinstance(hooks_section, dict) else None
-    interpreter = _wired_hook_interpreter(pre_tool_use) if isinstance(pre_tool_use, list) else None
-    # Wired AND the interpreter those hooks use can actually load the packages.
-    # A missing/wiped venv (or a deps-less python3) means the hooks would
-    # fail-open — so that must read as "not ready", triggering a real bootstrap.
-    if interpreter is not None and interpreter_has_packages(interpreter):
+    is_list = isinstance(pre_tool_use, list)
+    interpreter = _wired_hook_interpreter(pre_tool_use) if is_list else None
+    scripts = _wired_hook_scripts(pre_tool_use) if is_list else []
+    # Ready means three things, all of which silently fail-open if broken:
+    #   1. our entry is wired,
+    #   2. the interpreter those hooks use can import the required packages
+    #      (a wiped venv / deps-less python3 would exit 127 and never block), and
+    #   3. the wired hook SCRIPT files still exist (a moved/renamed skill dir
+    #      leaves wiring intact but every hook exits 127 — ISS-006/ISS-015).
+    # Any failure reads as "not ready", triggering a real bootstrap that rebuilds.
+    if (
+        interpreter is not None
+        and interpreter_has_packages(interpreter)
+        and _all_wired_scripts_exist(scripts)
+    ):
         print(f"coding-standards: already set up ({scope}) — no bootstrap needed.")
         return 0
     return 1
@@ -295,8 +342,17 @@ def main(argv: list[str] | None = None) -> int:
     entry = build_hook_entry(scope, hook_python)
     settings = load_settings(settings_path)
     updated, hooks_action = merge_hook_entry(settings, entry)
-    perms_changed = ensure_skill_permissions(updated)
-    if hooks_action != "noop" or perms_changed:
+    # SessionStart health check (ISS-006) — makes silently-dead enforcement loud.
+    _, session_action = merge_session_start_entry(updated, build_session_start_entry(scope))
+    # Permissions: global → into the committed `updated`; project → into the
+    # git-ignored settings.local.json so machine-absolute paths never get committed
+    # (ISS-012). perms_changed reflects whichever file was touched.
+    perms_changed = wire_skill_permissions(scope, settings_path, updated)
+    committed_changed = (
+        hooks_action != "noop" or session_action != "noop"
+        or (scope == "global" and perms_changed)
+    )
+    if committed_changed:
         write_settings(settings_path, updated)
     cmd_action = install_slash_command(commands_dir)
     ignore_action, ignore_path = seed_ignore_template(scope, settings_path)
@@ -306,6 +362,7 @@ def main(argv: list[str] | None = None) -> int:
         settings_path=settings_path,
         commands_dir=commands_dir,
         hooks_action=hooks_action,
+        session_action=session_action,
         cmd_action=cmd_action,
         perms_changed=perms_changed,
         hook_python=hook_python,

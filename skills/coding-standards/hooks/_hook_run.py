@@ -4,7 +4,7 @@
 Every language hook runs the same lifecycle — read the tool-call JSON, decide
 whether the target file is ours, and emit a block message — and only the
 *checks* differ. That shared lifecycle lives here so it isn't copy-pasted across
-six hooks (DP-001 DRY). Each hook keeps only its own constants, its check
+six hooks (DP-007 DRY). Each hook keeps only its own constants, its check
 functions, and a thin `main` that wires its extension set + checks into this
 runner.
 
@@ -47,7 +47,16 @@ def read_payload() -> dict | None:
 
 
 def extract_new_content(tool_name: str, tool_input: dict) -> str:
-    """The proposed new file content carried by a Write/Edit/MultiEdit call."""
+    """The proposed new file content carried by a Write/Edit/MultiEdit call.
+
+    ISS-023 / MultiEdit caveat: for MultiEdit we concatenate the edits' new_strings,
+    so any line number a hook reports is a position *within that concatenation*, not
+    a file line. We accept this because current Claude Code no longer exposes
+    MultiEdit — the matcher is kept only for back-compat with older versions, so this
+    is a dead path in practice; reworking the shared return signature (every hook
+    depends on it) to thread a per-edit offset isn't worth it for a tool that no
+    longer fires. Write/Edit line numbers are exact.
+    """
     if tool_name == "Write":
         return tool_input.get("content", "") or ""
     if tool_name == "Edit":

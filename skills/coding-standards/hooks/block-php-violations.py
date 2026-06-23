@@ -53,10 +53,18 @@ def strip_strings_and_comments(source: str) -> str:
     def blank(match: re.Match[str]) -> str:
         return "".join(" " if ch != "\n" else "\n" for ch in match.group(0))
 
+    # Heredoc/nowdoc FIRST (ISS-025) — `<<<EOT ... \nEOT;` and `<<<'EOT' ...` (nowdoc).
+    # Their bodies are string DATA; without blanking them, code-shaped template text
+    # (`function f(mixed $strName)` in a SQL/HTML heredoc) false-fires `mixed`/Hungarian.
+    # Done before comments so a `#`/`//` inside the body isn't half-processed. The
+    # closing label may be indented (PHP 7.3+), hence `[ \t]*`.
+    source = re.sub(
+        r"<<<(['\"]?)([A-Za-z_]\w*)\1\n.*?\n[ \t]*\2\b",
+        blank, source, flags=re.DOTALL,
+    )
     source = re.sub(r"/\*.*?\*/", blank, source, flags=re.DOTALL)
     source = re.sub(r"//[^\n]*", blank, source)
     source = re.sub(r"#[^\n]*", blank, source)  # PHP also accepts `#` comments
-    # PHP heredoc/nowdoc — leave alone; rare and complex to strip.
     source = re.sub(r'"(?:\\.|[^"\\])*"', blank, source)
     source = re.sub(r"'(?:\\.|[^'\\])*'", blank, source)
     return source

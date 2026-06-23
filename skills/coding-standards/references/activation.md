@@ -24,7 +24,7 @@ options:
                   Every finding is a violation to fix — no severity tiers."
   - label:       "Show me the rules"
     description: "Guided tour of the rule families (FN-*, NM-*, OD-*, ST-*, EH-*,
-                  FMT-*, DP-*) plus the detected framework. Cite rule codes with
+                  FMT-*, CM-*, DP-*) plus the detected framework. Cite rule codes with
                   worked examples from the reference files."
 ```
 

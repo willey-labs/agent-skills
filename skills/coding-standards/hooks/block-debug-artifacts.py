@@ -144,7 +144,8 @@ def main() -> int:
         return 2
     if advisory:
         sys.stderr.write(
-            "coding-standards (advisory — not blocked):\n"
+            "coding-standards (advisory: not hard-blocked, but each is still a "
+            "must-fix violation — fix it or record it accepted with a reason):\n"
             + "".join(f"  - {m}\n" for m in advisory)
         )
     return 0

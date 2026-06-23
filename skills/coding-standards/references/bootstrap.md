@@ -59,3 +59,13 @@ There is no opt-out flag: the tree-sitter grammars are required. A host that gen
 - Reports `Install OK` for tree-sitter → also restart, so the TS/JS AST checks load.
 - Exits with `Blocking issues:` (Python below 3.10, or the required tree-sitter grammars couldn't be installed) → surface the issue verbatim and ask the user to resolve it before proceeding. The hooks are **not** wired in this state and the skill is not ready.
 - Exits with `cannot determine install scope` → the skill is invoked from outside a `.claude/skills/` tree. Point at `README.md`'s install command and skip Step 0; the rest of the skill still applies (rules enforced softly, no write-time blocking).
+
+## Turning it off
+
+There is **no rule toggle** — every rule is always enforced, and `block-structure-file-violations.py` blocks any attempt to add one to `.coding-standards-structure`. Disabling is install-scoped, by design:
+
+- **One project, temporarily** — remove the skill's `PreToolUse` block from that scope's `settings.json` (the entry whose commands reference `coding-standards/hooks/block-*.py`); re-run `bootstrap.py` to restore it.
+- **One path / a legacy file** — add it to `.coding-standards-ignore` with a `# reason:` (skips all checks for that path). An all-paths `**  # reason: ...` exemption silences a whole project, but each pattern still needs its reason — the intent is recorded, never hidden.
+- **Everywhere** — uninstall the skill (remove it from `.claude/skills/`) and drop its `PreToolUse` entry.
+
+A managed venv left behind after an uninstall is inert (nothing references it); delete `$XDG_DATA_HOME/coding-standards/` (or `~/.local/share/coding-standards/`) to remove it.

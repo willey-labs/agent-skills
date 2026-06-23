@@ -13,6 +13,7 @@ Language-agnostic clean-code rules **plus** per-framework structure rules.
 - `naming.md` — intention-revealing, no Hungarian, meaningful distinctions, pronounceable, searchable, no mental mapping, one word per concept, solution-vs-problem domain names
 - `objects-and-data.md` — expose behavior not data, objects vs data structures, sum-type escape hatch, Law of Demeter, no hybrid classes (with framework-boundary carve-out)
 - `formatting.md` — newspaper rule, vertical spacing, declarations close to use, line-length convention
+- `comments.md` — no narration, comments say *why* not *what*, no redundant docstrings/banners, no filler or change-narration (review-only)
 - `error-handling.md` — separate algorithm from error handling, translate at boundaries (exceptions & Result/Either), async failure rules
 - `code-principles.md` — SOLID, KISS, DRY
 - `structure.md` — universal structural rules: folder-as-module, no deep imports, Rule of Three, no junk-drawer files, generic names at the design system
@@ -40,13 +41,13 @@ Language-agnostic clean-code rules **plus** per-framework structure rules.
 *Frameworkless*
 - `vanilla-js/` — Folder-as-module + co-location (libraries, CLIs, frameworkless apps)
 
-The agent loads `common/` (all seven files) plus the matching framework `structure.md` on every code-writing or review task.
+The agent loads `common/` (all eight files) plus the matching framework `structure.md` on every code-writing or review task.
 
 ## How the skill picks a framework
 
-`SKILL.md` has a detection table — `next.config.*` + `next` in `package.json` → `nextjs`, `composer.json` with `laravel/framework` → `laravel`, `manage.py` + `settings.py` → `django`, `pom.xml` with `spring-boot-starter-*` → `spring-boot`, `go.mod` + `gin-gonic/gin` → `go-http`, etc. In monorepos with multiple frameworks coexisting (web + API + mobile), the agent picks the framework by the file being edited rather than by the repo as a whole. When project signals are missing, the agent asks rather than guesses.
+`SKILL.md` Step 3 has the authoritative detection table (per-framework signals plus the file types each framework owns) — see it for the exact rules rather than relying on examples here, which drift. The shape: each row pairs a framework with repo signals (config files, dependency keys, distinctive file types). Matching is **file-type-aware** — a row only wins if it owns the extension of the file being edited, so a `.php` file in a Laravel + Inertia/Vue repo resolves to `laravel` while a `.vue` in the same repo resolves to `vue-nuxt`. In monorepos the agent picks per file, not per repo. When signals are missing, it asks rather than guesses.
 
-A framework the skill **recognizes but has no structure reference for** (Angular, Svelte/SvelteKit, Astro, Remix, …) is declined explicitly: the agent says so, applies the universal `common/` rules (still hook-enforced on the language), and keeps the project's existing layout — it does **not** fall back to the vanilla-js business-folder/barrel layout, which would fight those frameworks' own conventions.
+A framework the skill **recognizes but has no structure reference for** (Angular, Svelte/SvelteKit, Astro, Remix, …) is declined explicitly: the agent says so, applies the universal `common/` rules (still enforced by the language hooks on Claude Code, guidance elsewhere — see [enforcement per agent](#what-enforcement-means-per-agent)), and keeps the project's existing layout — it does **not** fall back to the vanilla-js business-folder/barrel layout, which would fight those frameworks' own conventions.
 
 ## Installation
 
@@ -64,6 +65,9 @@ Uses the [skills.sh](https://skills.sh) / [agentskills.io](https://agentskills.i
 CLI from [`vercel-labs/skills`](https://github.com/vercel-labs/skills).
 The CLI auto-detects which agents you have installed (Claude Code, Cursor,
 Codex, OpenCode, and 50+ more); pass `-a claude-code` to target one explicitly.
+Installation reaches all of them; write-time **blocking** does not — that part is
+Claude Code only (see [the enforcement note](#what-enforcement-means-per-agent)
+below). On every other agent the rules ride along as guidance, not a hard block.
 
 Preview before installing: `npx skills add willey-labs/agent-skills --list`.
 
@@ -99,11 +103,27 @@ runs on every Write/Edit/MultiEdit automatically.
 See `skills/coding-standards/hooks/README.md` for what each hook catches
 per language.
 
-> Write-time blocking via these hooks is a **Claude Code** feature (the
-> exit-2 + stderr PreToolUse contract). Cline also has hooks, but uses a
-> different contract (a JSON `{"cancel": true}` response on stdout, not exit
-> 2), so these scripts won't block under Cline as-is. On other agents the
-> rule documentation still applies, but write-time blocking won't.
+#### What enforcement means per agent
+
+> **Distribution is not enforcement.** The skill *installs* on 50+ agents; the
+> hard, can't-ignore **write-time block** runs on far fewer. Two tiers:
+>
+> - **Hard block (Claude Code).** The hooks implement Claude Code's PreToolUse
+>   exit-2 + stderr contract. A Write/Edit that violates a rule is stopped before it
+>   lands and the agent must fix it. Any agent
+>   that implements *that exact* contract would block the same way; today that's
+>   Claude Code.
+> - **Guidance everywhere else (Cursor, Codex, OpenCode, Cline, …).** The skill
+>   still installs and the rules still ride along — the model reads them and is
+>   expected to follow them — but **nothing blocks a violation at write time.** If
+>   the model drifts, the code is written anyway. Cline is a concrete example of why
+>   the scripts don't port for free: its hooks expect a JSON `{"cancel": true}` on
+>   stdout, not exit 2, so these scripts won't block under it as-is.
+>
+> So: the *standards* reach every agent; the *hard block* reaches Claude Code. If
+> you need the block on another agent, you'd have to implement that agent's own hook
+> contract — it isn't shipped here. For a code review pass on any agent, run
+> `hooks/review-files.py` as a manual linter (it reports; it doesn't block).
 
 ### Manual install (no CLI)
 
@@ -136,6 +156,10 @@ without a prompt). Because settings are read at session start, the *first* sessi
 after an update may still prompt once; the next session is clean. To apply
 immediately instead of waiting, run `python3 <skill-dir>/bootstrap.py` and restart.
 
+### Turning it off
+
+Enforcement is always-on once wired — there is no rule toggle (toggles are blocked by design). To disable it, remove the skill's `PreToolUse` entry from the relevant `settings.json` (project or `~/.claude`), or uninstall the skill; for a single path or legacy file, add it to `.coding-standards-ignore` with a `# reason:`. Details in `skills/coding-standards/references/bootstrap.md`.
+
 ## Status
 
 The structure rules have been self-reviewed against representative project
@@ -144,7 +168,9 @@ content-checkers, one cross-language swallowed-error checker, one cross-language
 debug-artifact checker, one ST-008 god-file checker that blocks on declaration
 count and advises on size, and one checker that keeps `.coding-standards-structure`
 to placement only) in `skills/coding-standards/hooks/` enforce what they can detect
-reliably.
+reliably. That write-time blocking is **Claude Code only** (the exit-2 PreToolUse
+contract); on every other agent the same checks ship as guidance, not a hard block —
+see [What enforcement means per agent](#what-enforcement-means-per-agent).
 The regex checks hard-block `any`/`Any`/`interface{}`/`dynamic`/`mixed` (OD-006),
 Hungarian notation, 4+/5+ argument functions (the line follows the language —
 positional vs named-argument — with framework carve-outs for DI constructors,

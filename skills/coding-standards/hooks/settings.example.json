@@ -1,5 +1,5 @@
 {
-  "_comment": "Paste the `hooks` block into ~/.claude/settings.json or .claude/settings.json. If you already have `hooks.PreToolUse`, merge entries. Replace ${CLAUDE_PROJECT_DIR}/.claude with the absolute path to the skill dir if installed elsewhere.",
+  "_comment": "Reference only — bootstrap.py wires this for you (and picks the right interpreter + scope). Paste into ~/.claude/settings.json or .claude/settings.json if wiring by hand; merge into existing hooks.PreToolUse / hooks.SessionStart rather than replacing them. Replace ${CLAUDE_PROJECT_DIR}/.claude with the absolute path to the skill dir on a global install. The PreToolUse list must match hooks/_bootstrap/settings.py HOOK_FILES exactly (a test asserts this).",
   "hooks": {
     "PreToolUse": [
       {
@@ -13,7 +13,17 @@
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-php-violations.py" },
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-jvm-violations.py" },
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-god-file.py" },
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-swallowed-errors.py" },
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-debug-artifacts.py" },
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-structure-file-violations.py" }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/session-health-check.py" }
         ]
       }
     ]

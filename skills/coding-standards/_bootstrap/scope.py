@@ -29,10 +29,12 @@ IGNORE_TEMPLATE = """\
 # default (see hooks/_exclusions.py -> DEFAULT_EXCLUSIONS). Add a pattern below
 # ONLY to skip something project-specific.
 #
-# Examples — uncomment and edit:
-# src/legacy/**          # pre-existing code you're not ready to clean up
-# scripts/one-off-*.ts   # throwaway scripts
-# **/*.config.js         # config files you don't want flagged
+# Every pattern MUST carry a trailing `# reason: ...` — an exemption silences ALL
+# checks for matching paths, so it has to justify itself (the write is blocked
+# otherwise). Examples — uncomment and edit:
+# src/legacy/**          # reason: pre-existing code you're not ready to clean up
+# scripts/one-off-*.ts   # reason: throwaway scripts
+# **/*.config.js         # reason: config files you don't want flagged
 """
 
 # Project-root markers — mirror hooks/_exclusions.py:find_project_root so the

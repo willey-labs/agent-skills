@@ -26,42 +26,81 @@ from pathlib import Path
 # helper. Each hook is invoked as a standalone script via the settings.json
 # command entry; this keeps them self-bootstrapping without requiring a package.
 sys.path.insert(0, str(Path(__file__).parent))
-from _exclusions import is_excluded_path  # noqa: E402
+from _exclusions import (  # noqa: E402
+    find_project_root,
+    is_excluded_path,
+    read_structure_follows,
+)
 
 # ST-005 — junk-drawer filenames. Files named for *what they are* instead of
 # *what they do*. Everything ends up there because nothing has to.
 JUNK_DRAWER_STEMS = {"utils", "helpers", "common", "misc", "lib", "util", "helper"}
-JUNK_DRAWER_EXTS = {
-    ".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs",
-    ".py", ".go", ".cs", ".java", ".kt", ".php", ".rb", ".rs",
-}
+# Shared canonical source-extension set, so this universal entry point can't drift
+# from the other hooks (ISS-010). Adding a language updates _languages.py only.
+from _languages import SOURCE_EXTENSIONS as JUNK_DRAWER_EXTS  # noqa: E402
 # ST-005 applies to FOLDERS too ("a file or folder named utils/helpers/common/misc").
 # `lib`/`util`/`helper` singular stems stay file-only — `lib/` is a conventional
 # infrastructure folder and blocking it would be noise. A junk-drawer *folder*
 # collects everything because nothing has to live there; name it by what it holds.
 JUNK_DRAWER_FOLDERS = {"utils", "helpers", "common", "misc"}
-# ST-005 is absolute — a junk-drawer stem is wrong in every directory, including
-# shared-utility homes like shared/lib/. A project that must keep such a file uses
-# `.coding-standards-ignore`, not a hard-coded global whitelist.
 
-# ST-005 corollary — generic mega-files directly under a `src/` directory
-# (root-level `src/types.ts` OR a nested one like `apps/web/src/constants.ts` —
-# the pattern matches `src/<name>` at any depth). These collect knowledge that
-# should live next to the capability that owns it. Covers JS/TS/Python paths;
-# Go/C#/Java equivalents aren't `src/`-rooted so they aren't matched here.
+# .NET uses folders as PascalCase namespaces, so `Common/` under a layer
+# (Application/Common/Behaviours) is a structured namespace, not a junk drawer —
+# it's the canonical clean-architecture layout (GAP-002 found it blocking 22% of a
+# reference repo's files). Exempt the `common` folder for C# ONLY; `common/` in a
+# JS/TS project is still a real junk drawer and still blocks.
+LANGUAGE_EXEMPT_FOLDERS: dict[str, frozenset[str]] = {".cs": frozenset({"common"})}
+
+# ISS-001 — some published catalog layouts sanction a specific shared folder that
+# would otherwise read as junk (bulletproof-react's `src/utils/` and per-feature
+# `utils/`). When the project records `follows: <variant>`, the folder names that
+# variant publishes are allowed — derived from the adopted standard, not a user
+# toggle (same model as ST-003 deep-import). The FILE-stem ban and the src/<name>
+# mega-file ban are NOT relaxed: a file literally named `utils.ts` stays junk
+# everywhere. Folder allowance only, and only for the variant that publishes it.
+STRUCTURE_SANCTIONED_FOLDERS: dict[str, frozenset[str]] = {
+    "feature-first": frozenset({"utils"}),
+    "route-colocated": frozenset({"utils"}),
+}
+
+# ST-005 corollary — generic mega-files directly under a source root: `src/` OR
+# `app/` (src-less Next.js), at any depth (`src/types.ts`, `apps/web/src/constants.ts`,
+# `app/utils.ts` — ISS-024). These collect knowledge that should live next to the
+# capability that owns it. Covers JS/TS/Python paths. Not matched (caught by review,
+# not this regex): bare project-root files (`constants.py` with no src/app parent —
+# too many legit single-file roots to hard-block) and Go/C#/Java layouts (not
+# src/app-rooted). The junk-FILENAME check above still catches `utils.ts` anywhere.
 TOP_LEVEL_MEGAFILE_PATTERN = re.compile(
-    r"(^|/)src/(types|constants|utils|helpers|common|misc)\.(ts|tsx|js|jsx|py)$"
+    r"(^|/)(src|app)/(types|constants|utils|helpers|common|misc)\.(ts|tsx|js|jsx|py)$"
 )
 
+# shadcn/ui generates `lib/utils.ts` (the `cn()` class-name helper) in nearly
+# every Next.js/React project — a near-universal ecosystem convention, not a
+# junk drawer. Exempt that exact path from the ST-005 filename ban, the same
+# spirit as the `components/ui/**` exclusion. Scope is deliberately narrow
+# (`lib/utils.{ts,js}` only): a hand-written junk `lib/utils.ts` is the accepted
+# cost; the alternative blocks almost every shadcn project's first file, which the
+# GAP-002 corpus confirmed on shadcn's own reference app. Other rules (any,
+# Hungarian) still apply to the file — only the junk-FILENAME check is relaxed.
+SHADCN_CN_FILE = re.compile(r"(?:^|/)lib/utils\.(?:ts|js)$")
 
-def check_path_violations(file_path: str) -> list[str]:
+
+def sanctioned_folders_for(file_path: str) -> frozenset[str]:
+    """Folder names a recorded catalog structure publishes (so they aren't junk
+    for this project). Empty when no structure is recorded or it sanctions none."""
+    root = find_project_root(Path(file_path))
+    follows = read_structure_follows(root)
+    return STRUCTURE_SANCTIONED_FOLDERS.get(follows or "", frozenset())
+
+
+def check_path_violations(file_path: str, sanctioned_folders: frozenset[str] = frozenset()) -> list[str]:
     violations: list[str] = []
     p = Path(file_path)
     normalized = file_path.replace("\\", "/")
 
     is_source = p.suffix.lower() in JUNK_DRAWER_EXTS
 
-    if is_source and p.stem.lower() in JUNK_DRAWER_STEMS:
+    if is_source and p.stem.lower() in JUNK_DRAWER_STEMS and not SHADCN_CN_FILE.search(normalized):
         violations.append(
             f"{file_path} — ST-005: junk-drawer filename `{p.name}`; "
             f"name files by what they do (e.g. format-currency.ts, parse-date.ts)"
@@ -69,9 +108,16 @@ def check_path_violations(file_path: str) -> list[str]:
 
     # ST-005 for folders — a source file living under a utils/helpers/common/misc
     # directory. Exact segment match (so `commons/`, `utilities/` don't trip), and
-    # only the directory part (the filename is handled above).
+    # only the directory part (the filename is handled above). A folder the recorded
+    # catalog structure publishes (sanctioned_folders) is skipped — see ISS-001.
     if is_source:
-        junk_dirs = [seg for seg in p.parent.parts if seg.lower() in JUNK_DRAWER_FOLDERS]
+        lang_exempt = LANGUAGE_EXEMPT_FOLDERS.get(p.suffix.lower(), frozenset())
+        junk_dirs = [
+            seg for seg in p.parent.parts
+            if seg.lower() in JUNK_DRAWER_FOLDERS
+            and seg.lower() not in sanctioned_folders
+            and seg.lower() not in lang_exempt
+        ]
         if junk_dirs:
             violations.append(
                 f"{file_path} — ST-005: junk-drawer folder `{junk_dirs[0]}/`; "
@@ -120,7 +166,7 @@ def main() -> int:
     # regardless of architecture. No rule has a per-project off switch: the
     # `.coding-standards-structure` file records placement only (follows: / layout:),
     # never a rule toggle.
-    violations = check_path_violations(file_path)
+    violations = check_path_violations(file_path, sanctioned_folders_for(file_path))
     if not violations:
         return 0
 

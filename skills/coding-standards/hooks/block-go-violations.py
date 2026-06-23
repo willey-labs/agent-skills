@@ -4,11 +4,16 @@
 Hard-blocks Write/Edit/MultiEdit on `.go` files when the new content
 violates high-precision rules that regex can catch reliably:
 
-- `interface{}` and bare `any` usage in declarations (Go's "any" type — same
-  smell as TS `any` / Python `Any`).
 - Star/dot imports: `import . "fmt"` — pollutes the package namespace.
+- Hungarian notation (NM-006).
 - Function signatures with 4+ named positional parameters (FN-005). Go's
   grouped-type syntax (`func F(a, b, c, d int)`) is also caught.
+
+`interface{}` / `any` is an **advisory** (exit 0 + stderr), NOT a hard block.
+Go genuinely needs `any` for heterogeneous JSON, reflection, and generic
+constraints (`[T any]`, `map[string]any`), so hard-blocking it fights the
+language — the GAP-002 corpus measured it firing on ~60% of idiomatic Go files.
+It's surfaced so a lazy `any` can still be reconsidered, but it never blocks.
 
 Stdlib only. Reads PreToolUse JSON from stdin, exits 2 with stderr on block.
 """
@@ -34,12 +39,30 @@ ANY_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"[(,]\s*\w+\s+any\b"), "parameter `name any`"),
     # Go return shape: `) any {` or `) any\n`
     (re.compile(r"\)\s*any\b"), "return type `any`"),
+    # `any` as a member of a parenthesised return/param tuple: `(any, error)`,
+    # `(x, any)`. The `[,)]` boundary keeps it off identifiers like `anyVar` (ISS-014).
+    (re.compile(r"[(,]\s*any\s*[,)]"), "`any` in a return/param tuple"),
     # Go var/const decl: `var x any = ...`
     (re.compile(r"\b(?:var|const)\s+\w+\s+any\b"), "var/const `any` type"),
     (re.compile(r"\bmap\s*\[\s*\w+\s*\]\s*any\b"), "`map[K]any`"),
+    (re.compile(r"\bmap\s*\[\s*any\s*\]"), "`map[any]V` (any key)"),  # ISS-014
     (re.compile(r"\bmap\s*\[\s*\w+\s*\]\s*interface\s*\{\s*\}"), "`map[K]interface{}`"),
     (re.compile(r"\[\s*\]\s*any\b"), "`[]any`"),
     (re.compile(r"\[\s*\]\s*interface\s*\{\s*\}"), "`[]interface{}`"),
+]
+
+# NM-006 — Hungarian notation (ISS-018). Same multi-char prefix policy as C#/TS:
+# single-char prefixes are NOT matched (too many false positives), and the
+# `[A-Z][a-z]+` after the prefix guards legit names (`strings`, `strconv`,
+# `strategy` never match — the char after the prefix is lowercase). Three
+# unambiguous decl shapes: short var (`strName :=`), var/const, and param/field
+# (`(strName string`). Bare usage sites are intentionally NOT matched.
+GO_HUNGARIAN_PREFIXES = ("str", "arr", "obj", "lst", "dct", "fn", "bln")
+_GO_HG = "|".join(sorted(GO_HUNGARIAN_PREFIXES, key=len, reverse=True))
+GO_HUNGARIAN_PATTERNS = [
+    re.compile(rf"\b(?P<prefix>{_GO_HG})(?P<rest>[A-Z][a-z]+\w*)\s*:="),
+    re.compile(rf"\b(?:var|const)\s+(?P<prefix>{_GO_HG})(?P<rest>[A-Z][a-z]+\w*)\b"),
+    re.compile(rf"[(,]\s*(?P<prefix>{_GO_HG})(?P<rest>[A-Z][a-z]+\w*)\s"),
 ]
 
 # Dot/star import — `import . "fmt"` brings every name into local scope.
@@ -82,8 +105,9 @@ def iter_any_violations(clean_lines: list[str], file_path: str) -> Iterable[str]
         for pattern, label in ANY_RULES:
             if pattern.search(line):
                 yield (
-                    f"{file_path}:{idx} — OD-006: `interface{{}}` / `any` is banned ({label}); "
-                    f"use a named type, a small interface, or a type parameter"
+                    f"{file_path}:{idx} — OD-006: `any`/`interface{{}}` ({label}); idiomatic in Go "
+                    f"for JSON, generics and reflection — prefer a named type or type parameter "
+                    f"where one exists (advisory, not blocked)"
                 )
                 break
 
@@ -95,6 +119,16 @@ def iter_dot_import_violations(raw_lines: list[str], file_path: str) -> Iterable
                 f"{file_path}:{idx} — dot import banned; "
                 f"use a qualified import (`import \"fmt\"`)"
             )
+
+
+def iter_hungarian_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
+    for idx, line in enumerate(clean_lines, start=1):
+        for pattern in GO_HUNGARIAN_PATTERNS:
+            for match in pattern.finditer(line):
+                yield (
+                    f"{file_path}:{idx} — NM-006: Hungarian notation "
+                    f"`{match.group('prefix')}{match.group('rest')}`; drop the `{match.group('prefix')}` prefix"
+                )
 
 
 def _count_go_params(param_list: str) -> int:
@@ -165,15 +199,23 @@ def main() -> int:
     clean_lines = strip_strings_and_comments(new_content).splitlines()
     raw_lines = new_content.splitlines()
 
-    violations: list[str] = []
-    violations.extend(iter_any_violations(clean_lines, file_path))
-    violations.extend(iter_dot_import_violations(raw_lines, file_path))
-    violations.extend(iter_arg_count_violations(clean_lines, file_path))
+    hard: list[str] = []
+    hard.extend(iter_dot_import_violations(raw_lines, file_path))
+    hard.extend(iter_hungarian_violations(clean_lines, file_path))
+    hard.extend(iter_arg_count_violations(clean_lines, file_path))
 
-    if not violations:
-        return 0
+    if hard:
+        # Hard block wins; the `any` advisory resurfaces on the clean rewrite.
+        return block(hard, "See skills/coding-standards/references/go-http/structure.md and common/.")
 
-    return block(violations, "See skills/coding-standards/references/go-http/structure.md and common/.")
+    advisory = list(iter_any_violations(clean_lines, file_path))
+    if advisory:
+        sys.stderr.write(
+            "coding-standards (advisory: not hard-blocked, but each is still a "
+            "must-fix violation — fix it or record it accepted with a reason):\n"
+            + "".join(f"  - {m}\n" for m in advisory)
+        )
+    return 0
 
 
 if __name__ == "__main__":

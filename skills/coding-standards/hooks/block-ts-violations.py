@@ -34,18 +34,26 @@ from _ts_ast import (  # noqa: E402
     iter_ts_ast_violations,
 )
 
-TS_EXTENSIONS = {".ts", ".tsx", ".mts", ".cts"}
-JS_EXTENSIONS = {".js", ".jsx", ".mjs", ".cjs"}
-# Vue SFCs and Svelte components carry TS/JS in `<script>` blocks.
-VUE_LIKE_EXTENSIONS = {".vue", ".svelte"}
+from _languages import (  # noqa: E402  (shared so extension sets can't drift — ISS-010)
+    JS_EXTENSIONS,
+    TS_EXTENSIONS,
+    VUE_LIKE_EXTENSIONS,
+)
 
+# OD-006 — `any` is banned in every position. `\bany\b`-style bounds keep these
+# off identifiers that merely contain the letters (company, anyhow, manyItems).
+# The generic-argument rule is position-agnostic: it matches `any` led by `<` OR
+# `,` and trailed by `,` OR `>`, so `Record<string, any>`, `Map<K, any>` and
+# `Promise<Map<K, any>>` are caught — not just leading `<any>` (ISS-002). It
+# subsumes the old Array<any>/Promise<any> special cases.
 ANY_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r":\s*any\b"), "type annotation `: any`"),
-    (re.compile(r"<\s*any\s*[,>]"), "generic argument `<any>`"),
     (re.compile(r"\bas\s+any\b"), "type assertion `as any`"),
+    (re.compile(r"\bsatisfies\s+any\b"), "`satisfies any`"),
     (re.compile(r"\bany\s*\[\]"), "array type `any[]`"),
-    (re.compile(r"\bArray\s*<\s*any\s*>"), "array type `Array<any>`"),
-    (re.compile(r"\bPromise\s*<\s*any\s*>"), "promise type `Promise<any>`"),
+    (re.compile(r"[<,]\s*any\s*[,>]"), "generic argument `any` (e.g. Record<string, any>)"),
+    (re.compile(r"\btype\s+\w+\s*(?:<[^>=]*>)?\s*=\s*any\b"), "type alias laundering `type X = any`"),
+    (re.compile(r"\bextends\s+any\b"), "type constraint `extends any`"),
 ]
 
 # NM-006 — Hungarian notation. Single-char prefixes (b, i, n, o, a) were
@@ -60,6 +68,15 @@ HUNGARIAN_DECL = re.compile(
 HUNGARIAN_PARAM = re.compile(
     rf"(?P<bound>[(,]\s*)"
     rf"(?P<prefix>{_PREFIX_ALT})(?P<rest>[A-Z][a-z]+\w*)\s*[:?=,)]"
+)
+# Class fields, interface members, object properties — `private strName: T`,
+# `strHost: string` (interface), `{ strData: x }`. Anchored at line start, after a
+# member modifier, or after `;`/`{`, and requires a trailing `:` so it's a typed
+# member/property (ISS-013). The `[A-Z][a-z]+` after the prefix is the same FP
+# guard the other shapes use — `strategy`/`strengthScore` never match.
+HUNGARIAN_MEMBER = re.compile(
+    rf"(?:^\s*|[;{{]\s*|\b(?:public|private|protected|readonly|static)\s+)"
+    rf"(?P<prefix>{_PREFIX_ALT})(?P<rest>[A-Z][a-z]+\w*)\s*[?!]?\s*:"
 )
 
 # FN-005 regex fallback — used only when the AST didn't run (bypassed bootstrap /
@@ -113,6 +130,11 @@ def iter_hungarian_violations(clean_lines: list[str], file_path: str) -> Iterabl
                 f"{file_path}:{idx} — NM-006: Hungarian notation "
                 f"`{match.group('prefix')}{match.group('rest')}` (parameter); drop the `{match.group('prefix')}` prefix"
             )
+        for match in HUNGARIAN_MEMBER.finditer(line):
+            yield (
+                f"{file_path}:{idx} — NM-006: Hungarian notation "
+                f"`{match.group('prefix')}{match.group('rest')}` (member/property); drop the `{match.group('prefix')}` prefix"
+            )
 
 
 def iter_arg_count_violations(clean_lines: list[str], file_path: str) -> Iterable[str]:
@@ -160,8 +182,9 @@ def main() -> int:
 
     # Surface degraded enforcement: FN-001/OD-004 are AST-only, so without
     # tree-sitter they silently no-op while regex checks still run. Fires only on
-    # a broken/bypassed bootstrap. (.vue/.svelte never run the AST path.)
-    if not ast_backend_available() and ext in (TS_EXTENSIONS | JS_EXTENSIONS):
+    # a broken/bypassed bootstrap. Covers .vue/.svelte too — their `<script>`
+    # blocks now run the AST path (ISS-010), so they degrade with everything else.
+    if not ast_backend_available() and ext in (TS_EXTENSIONS | JS_EXTENSIONS | VUE_LIKE_EXTENSIONS):
         sys.stderr.write(
             "coding-standards: tree-sitter unavailable — FN-001/OD-004 AST checks "
             "skipped for this write (regex checks still ran); re-run bootstrap.py "

@@ -76,6 +76,12 @@ def _cs_signature_kind(head: str) -> str:
     """
     if re.search(r"\brecord\b", head):
         return "record"
+    # C# 12 primary constructor: `class Foo(...)` / `struct Foo(...)`. The params
+    # are DI dependencies (the container is the caller, not a hot call site) — same
+    # exemption as a classic constructor and as records (ISS-008). `class`/`struct`
+    # are lowercase keywords, so a method like `ProcessClass(...)` won't match.
+    if re.search(r"\b(class|struct)\b", head):
+        return "constructor"
     core = [t for t in re.findall(r"[A-Za-z_]\w*", head) if t not in CS_MODIFIER_TOKENS]
     return "constructor" if len(core) <= 1 else "method"
 

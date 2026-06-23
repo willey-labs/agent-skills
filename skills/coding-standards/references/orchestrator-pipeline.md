@@ -63,12 +63,21 @@ For each worker N in {1, 2, 3}:
      ```
      === INPUT ===
      TASK: <user's original task verbatim>
+     SKILL_DIR: <absolute path to the installed skill root — substitute the real path, e.g. /home/me/.claude/skills/coding-standards>
      FRAMEWORK: <detected framework key from SKILL.md Step 3>
      STRUCTURE: <resolved structure from SKILL.md Step 4 — the chosen structures/<name>.md, the project's .coding-standards-structure custom layout, or the framework default structure.md>
      STRUCTURE_MAP: <the comprehension map from Phase 0 — the confirmed B→F→SF→U model + relationship deltas; omitted below the scope threshold>
      MODE: write | review
      WORKER_<N-1>_OUTPUT: <previous worker's JSON, omit for Worker 1>
      ```
+   - **`SKILL_DIR` is mandatory and load-bearing.** The worker is a fresh `general-purpose` subagent
+     cwd'd in the *user's* project; on a global install the references live under
+     `~/.claude/skills/coding-standards/`, not the project. Substitute the real absolute path you were
+     invoked from (the directory containing this skill's `SKILL.md`). Every "References to load" path in a
+     brief resolves against it: `<SKILL_DIR>/references/common/structure.md`. A `STRUCTURE` value naming
+     `structures/<name>.md` likewise resolves to `<SKILL_DIR>/references/<framework>/structures/<name>.md`.
+     Without it the worker cannot load the worked examples the review depends on and silently reviews from
+     memory — the exact thin-review failure step 5 rejects.
    - When Phase 0 produced a map, include `STRUCTURE_MAP`. Workers treat it as the intended shape: a
      file's placement, a folder's promotion, a feature's duplication are judged against the map, not
      re-derived per file.
@@ -81,7 +90,7 @@ For each worker N in {1, 2, 3}:
    - If still failing, fall back to inline (load all references yourself, do the work, write files).
 5. **Validate the output**:
    - **Write mode:** worker only modified files it had authority over (check `must_not_touch`); its `changes_made` / `decisions` / `error_handling_added` cite a rule code it owns; it introduced no abstractions outside its rule list (no new Strategy patterns from Worker 2; no new layers from Worker 3).
-   - **Review mode:** every owned rule appears in exactly one of `findings` / `passed` / `skipped` — **reject (and re-dispatch) a review that silently drops owned rules**, since that is the thin-review failure mode. Each `findings` entry cites an owned rule and carries `file`, `line`, and a concrete `fix` (no severity — every finding is a violation to fix).
+   - **Review mode:** every owned **enumerable `common/` rule** (each `ST-*`, `OD-*`, etc. the worker owns) appears in exactly one of `findings` / `passed` / `skipped` — **reject (and re-dispatch) a review that silently drops one**, since that is the thin-review failure mode. Worker 1 additionally owns the framework structure rules (`<framework>/*`), which aren't a fixed enumerable list — so for those require a single **framework-coverage line** in `passed`/`skipped` stating the structure file was checked against the resolved layout (e.g. `"nextjs/structure: checked against feature-first — placement conforms"`), not a per-rule enumeration. Each `findings` entry cites a rule and carries `file`, `line`, and a concrete `fix` (no severity — every finding is a violation to fix).
 6. **If validation fails**, redispatch the worker with the specific violation noted. After one retry, fall back to inline.
 
 > **TodoWrite (only if you seeded a list in SKILL.md Step 6):** mark worker N `in_progress` as you dispatch it and `completed` once its output validates (step 5 above). Tick the bracketing items the same way — the final write-and-hooks (Write mode), or the linter pass and merge-and-present (Review mode, where the linter runs *after* the three workers) — as you reach each. If you didn't seed a list (TodoWrite unavailable, or inline single-file work), ignore this.

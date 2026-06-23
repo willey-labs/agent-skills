@@ -51,8 +51,14 @@ shared  →  features  →  app
 
 This variant keeps a per-feature `index.ts` barrel, so ST-003 deep-import is enforced automatically:
 `block-ts-violations.py` flags `@/a/b/c` because capability `a/b` exposes that barrel. Nothing to
-configure — the presence of the barrel *is* the signal. Every other rule (ST-005 junk-drawer, no-`any`,
-naming, arg-count, ST-008 tiers) applies unchanged, as in every layout.
+configure — the presence of the barrel *is* the signal.
+
+One ST-005 nuance is **derived** from this variant (not configured): bulletproof-react publishes a
+shared `src/utils/` and a per-feature `utils/` folder, so when the project records `follows: feature-first`,
+`block-junk-paths.py` allows a folder named `utils/`. That allowance is folder-only and variant-only — a
+file literally named `utils.ts`, and the `src/utils.ts` mega-file, are still blocked, and `helpers/` /
+`common/` / `misc/` folders are still blocked. Every other rule (no-`any`, naming, arg-count, ST-008
+tiers) applies unchanged, as in every layout.
 
 ## `.coding-standards-structure` written when chosen
 
