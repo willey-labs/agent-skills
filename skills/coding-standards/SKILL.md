@@ -248,11 +248,9 @@ Name the shape's trigger (the table row, or "user choice"), and mark how structu
 On any real work — writing, editing, refactoring, or reviewing — open the task list **up front, the moment
 the scope is known**: for the Step 2 picker path, right after the "what to review / write" answer; for a
 plain message ("review this PR"), as soon as you've identified the files. Open it **before Steps 3–4**, so
-framework detection and *resolve + record structure* land on the list as the **first tracked items** —
-not untracked pre-work that runs before any list exists. That ordering gap (structure resolved at Step 4,
-list opened later) is exactly how the structure step gets silently skipped: it was finished, off-list,
-before the user ever saw a plan. The list is what makes the standards visible — the user sees each stage
-applied instead of trusting it happened. Use the host's task-list tool (`TodoWrite`,
+framework detection and *resolve + record structure* land on the list as the **first tracked items**, not
+pre-work that runs before any list exists. The list is what makes the standards visible — the user sees
+each stage applied instead of trusting it happened. Use the host's task-list tool (`TodoWrite`,
 `TaskCreate`/`TaskUpdate`, …); skip the list only if the host has none, and skip it for pure rule Q&A —
 there's no multi-step work to track.
 
@@ -369,11 +367,18 @@ first item.
    required) or `deferred` (a real breach left open). At review time the call is binary: a rule breaks
    (file it) or it doesn't (it's a pass, not a soft "consider"). Persist the merged result to a report file
    per `references/review-report.md` (`.coding-standards/reviews/<timestamp>.md`, gitignored) and tell the
-   user the path — every review writes one, inline included. Above the scope threshold (defined once in
+   user the path — every review writes one, inline included. The report's **`Structure baseline:` field is
+   mandatory** and names the recorded `.coding-standards-structure` (or declares `NOT RECORDED` with a
+   reason) — see `references/review-report.md`. Above the scope threshold (defined once in
    `orchestrator-pipeline.md` → Fix mode), trim the chat output to the shape in `review-report.md`; the
    report file always holds everything.
-6. **Never silently skip a rule.** If you didn't check it, say so. A review with hidden gaps is worse than
-   one that admits its scope.
+6. **Verify the structure baseline, then never silently skip a rule.** After writing the report, run
+   `python3 <skill-dir>/hooks/check-review-report.py <report.md>` (pass `--root <sub-project>` in a
+   monorepo). Exit `2` means the report asserts a structure with no `.coding-standards-structure` behind it
+   — the structure step (Step 4 / step 0) was skipped: resolve + record it and rewrite the report before
+   reporting done. Exit `1` is a declared skip — surface the reason. This is the back-stop for the
+   task-list item: the report can't read as complete while claiming a baseline that was never written. And
+   if you didn't check a rule, say so — a review with hidden gaps is worse than one that admits its scope.
 
 ### Fix
 

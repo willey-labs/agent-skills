@@ -112,7 +112,8 @@ For each worker N in {1, 2, 3}:
 
 7. **Run `hooks/review-files.py --json`** over the file set now — *after* the three workers, as the final deterministic pass. Every finding it returns is a violation to fix: the *existence* of the finding is deterministic and never re-litigated (an `any` is an `any`). For the ST-008 decl-count block, the *remedy* is the reviewer's judgement — a cohesive split, OR a recorded exemption (`.coding-standards-ignore` + reason, logged `accepted`) when the file is one cohesive job the proxy miscounts. A split that creates scatter or copies a sibling's machinery is itself an ST-008 + DP-007 violation, not a fix.
 8. **Merge** every worker's `findings` array + the linter findings. **Dedupe** by `(file, line, rule)` — when a worker finding and a linter finding collide, keep one. Then **order by file, then rule code** — there are no severity tiers; every finding is a violation to fix. The workers' `passed` / `skipped` arrays are the **coverage proof** — use them to state which rules were checked and clean, so the report is visibly comprehensive rather than a short list of hits.
-9. **Write the report file**, then **present** it to the user as a structured PASS/FAIL table — in full at or below the scope threshold; above it, trim chat to the shape defined in `references/review-report.md` (the file keeps everything). Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
+9. **Write the report file**, then **present** it to the user as a structured PASS/FAIL table — in full at or below the scope threshold; above it, trim chat to the shape defined in `references/review-report.md` (the file keeps everything). Cite rule codes. Do not editorialize. The report file — path, timestamped name, gitignore handling, the mandatory self-describing `Structure baseline` field, and the Markdown shape — is specified in `references/review-report.md`. End by telling the user the report path.
+10. **Verify the structure baseline.** Run `python3 <skill-dir>/hooks/check-review-report.py <report.md>` (pass `--root <sub-project>` in a monorepo). Exit `2` means the report asserts a structure with no `.coding-standards-structure` on disk — `STRUCTURE_MAP` was supposed to be built and recorded before Worker 1 (see the Step 7a invariant); resolve + record it and rewrite the report before reporting done. Exit `1` is a declared skip — surface the reason. This is the deterministic back-stop: the pipeline cannot report a grounded structural review while the baseline it names doesn't exist.
 
 ## Fix mode (`MODE: fix`) — apply review findings at scale
 
@@ -125,6 +126,14 @@ large finding set *triggers* fan-out instead of overflowing one context.
 in-session review's findings). If none exists, run Review first to produce one. If a
 non-done fix plan (`.coding-standards/fixes/<ts>.md`) already exists for that report,
 resume it instead of starting over — see "Resume" below.
+
+**Gate the input on a grounded structure baseline.** Before fanning out, run
+`python3 <skill-dir>/hooks/check-review-report.py <input-report.md>`. Exit `2` means
+the report's structural findings have no recorded baseline behind them — fixing them
+(reorganizing files against a structure that was never resolved) is unsound. Stop:
+resolve + record the structure and re-run Review to produce a grounded report, then
+fix. Exit `1` (declared skip) proceeds, but tell the user the fix carries no structural
+baseline.
 
 **Scope threshold — the one place these numbers live:** a fix is **milestone-driven**
 when the report holds **more than 20 findings or more than 10 files with findings**,

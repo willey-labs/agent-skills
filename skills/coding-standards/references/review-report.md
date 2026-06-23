@@ -22,7 +22,8 @@ The report file is excluded from future reviews — `**/.coding-standards/**` is
 # Coding-standards review — <timestamp>
 
 - **Scope:** <files reviewed>
-- **Framework / structure:** <framework> / <resolved structure>
+- **Framework:** <framework>
+- **Structure baseline:** <exactly one of the three forms below>
 - **Run mode:** orchestrator pipeline | inline
 
 ## Summary
@@ -39,6 +40,26 @@ findings: N (all must-fix) — <rules passed> passed, <rules skipped> skipped (n
 ```
 
 Findings are ordered by **file, then line, then rule code** — no severity grouping. A clean review still writes the table with a single `_none_` row, and the Coverage section is the comprehensiveness signal: it shows every rule was checked (passed/skipped), not quietly dropped.
+
+## The `Structure baseline` field is mandatory and self-describing
+
+Structural findings only mean something measured against a recorded structure (SKILL.md Step 4). The field records which one — in **exactly one** of three forms, and it names the file on disk so the claim is verifiable:
+
+```markdown
+- **Structure baseline:** follows feature-first — recorded at `.coding-standards-structure`
+- **Structure baseline:** custom — recorded at `apps/web/.coding-standards-structure`
+- **Structure baseline:** NOT RECORDED — structural review not grounded (<reason>)
+```
+
+The first two assert a recorded structure and **must** name the `.coding-standards-structure` file (the sub-project path in a monorepo). The third is the only legitimate way to omit a baseline, and only for a stated reason — an unsupported framework, or a below-threshold review that declined comprehension. There is no fourth form: a report that names a structure without a file behind it, or omits the field, is not a valid report.
+
+**Verify before reporting done.** After writing the report, run the field against disk:
+
+```bash
+python3 <skill-dir>/hooks/check-review-report.py <report.md> [--root <framework-project-root>]
+```
+
+Exit `0` grounded (file present), `1` declared skip (surface the reason to the user), `2` inconsistent — the field claims a structure with no file, or is missing. On `2`, the structure step was skipped: resolve + record it (Step 4), then rewrite the report. This is the deterministic back-stop for the task-list item — the report can't read as complete while asserting a baseline that was never written.
 
 ## Finding IDs (used by Fix mode)
 

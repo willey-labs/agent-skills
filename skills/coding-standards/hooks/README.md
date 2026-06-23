@@ -50,6 +50,26 @@ It always exits `0` (it reports; it never blocks). The skill's Review mode runs
 this as its final deterministic pass — after the judgement pass / specialist
 workers — and merges the findings in. Every finding is a violation to fix; there are no severity tiers.
 
+### `check-review-report.py` — verify the structure baseline
+
+A second driver, run on the review *report* (not the source files), after the
+report is written:
+
+```bash
+python3 check-review-report.py <report.md> [--root <framework-project-root>]
+```
+
+It reads the report's mandatory `Structure baseline:` field and checks it against
+disk. Exit `0` grounded (the field names a `.coding-standards-structure` that
+exists), `1` declared skip (`NOT RECORDED` with a reason — surface it), `2`
+inconsistent (the field claims a structure with no file behind it, or is missing).
+This closes the one gap a `Write`/`Edit` hook structurally can't: resolving and
+recording the project structure (SKILL.md Step 4) is a pre-review conversational
+step, not a write event, so nothing fires when it's skipped. The report is the
+artifact every review produces, and the file on disk is ground truth — a review
+that skipped Step 4 leaves no structure file, and exit `2` catches it. See
+`references/review-report.md`.
+
 ## Installation
 
 ### Step 1 — Install the skill files
