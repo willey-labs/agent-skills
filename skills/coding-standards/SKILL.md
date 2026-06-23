@@ -102,7 +102,10 @@ mode-picker payload in `references/activation.md` — the labels are what the ro
 Route the answer:
 
 - **Write code that follows these rules** → Write mode, full flow.
-- **Check existing code against these rules** → ask *what* to check (file, folder, diff, PR), then Review mode.
+- **Check existing code against these rules** → ask *what* to check (file, folder, diff, PR). Once the user
+  answers, the scope is known — so **build the whole-workflow task list now, before any reviewing starts**
+  (Step 6), with *resolve + record structure* as item 1, and fold any extra targets the user named in as
+  more items.
 - **Show me the rules** → resolve framework + structure silently, load references, present a one-screen
   rule index. No structure question, no run-mode question — nothing is written.
 
@@ -242,16 +245,27 @@ Name the shape's trigger (the table row, or "user choice"), and mark how structu
 
 ## Step 6 — Track the run with a task list
 
-On any real work — writing, editing, refactoring, or reviewing — open a task list before the substantive
-work starts. It's what makes the standards visible: the user sees each stage applied instead of trusting
-it happened. Use the host's task-list tool (`TodoWrite`, `TaskCreate`/`TaskUpdate`, …); skip the list only
-if the host has none, and skip it for pure rule Q&A — there's no multi-step work to track.
+On any real work — writing, editing, refactoring, or reviewing — open the task list **up front, the moment
+the scope is known**: for the Step 2 picker path, right after the "what to review / write" answer; for a
+plain message ("review this PR"), as soon as you've identified the files. Open it **before Steps 3–4**, so
+framework detection and *resolve + record structure* land on the list as the **first tracked items** —
+not untracked pre-work that runs before any list exists. That ordering gap (structure resolved at Step 4,
+list opened later) is exactly how the structure step gets silently skipped: it was finished, off-list,
+before the user ever saw a plan. The list is what makes the standards visible — the user sees each stage
+applied instead of trusting it happened. Use the host's task-list tool (`TodoWrite`,
+`TaskCreate`/`TaskUpdate`, …); skip the list only if the host has none, and skip it for pure rule Q&A —
+there's no multi-step work to track.
 
-Track the work the user cares about (fold in real file/feature names), keep exactly one item
-`in_progress`, and complete it before starting the next. A typical write/review list: detect framework +
-resolve structure → load rules → apply / review → run hooks → write result. The pipeline and Fix shapes
-add their worker/ledger stages — see `orchestrator-pipeline.md`. A milestone-driven fix adds one item per
-milestone at plan approval — a display mirror only; the plan file on disk stays the source of truth.
+Build the **whole** workflow at once, then extend it with any extra targets the user named. Track the work
+the user cares about (fold in real file/feature names), keep exactly one item `in_progress`, and complete
+it before starting the next. A typical review list: **resolve + record structure → detect framework →
+load rules → review → run hooks → write report**. The first item, *resolve + record structure*, may be
+marked `completed` **only when `.coding-standards-structure` exists** at the resolved project root —
+resolved one of three ways: matched a standard, asked-and-recorded, or a skip-reason logged (recognized-
+unsupported framework, or below the scope threshold). Having run a structure-comprehension agent is **not**
+completion; the file on disk is. The pipeline and Fix shapes add their worker/ledger stages — see
+`orchestrator-pipeline.md`. A milestone-driven fix adds one item per milestone at plan approval — a display
+mirror only; the plan file on disk stays the source of truth.
 
 ---
 
@@ -313,10 +327,12 @@ honor it. If some tool genuinely must generate a source file outside the Write p
 
 ### Review
 
-Walk the rules systematically — don't freelance. Seed the Step 6 list first; the numbered steps map onto
-it:
+Walk the rules systematically — don't freelance. Seed the Step 6 list first, the moment you know what's
+in scope and **before** you start reviewing; the numbered steps map onto it, and step 0 is the list's
+first item.
 
-0. **Comprehend the structure (above the scope threshold, and only when it isn't already recorded).** If
+0. **Resolve + record the structure — the first task item, done only when `.coding-standards-structure`
+   exists.** Above the scope threshold, and only when it isn't already recorded: if
    `.coding-standards-structure` already records the structure and the user didn't ask to restructure /
    review the structure, **skip this** — follow the recorded structure and review code against it; don't
    re-open the layout. Otherwise build the structure map (`references/structure-map.md`) over the tree,
