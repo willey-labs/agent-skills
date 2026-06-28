@@ -1,6 +1,6 @@
 # Next.js — structure catalog
 
-A **menu** of legitimate Next.js (App Router) project structures. None is "the one true way" — each is a real pattern used by serious teams. On first activation the skill detects the framework, scans the repo, and either **learns** the existing structure or asks the user to **pick** one of these.
+A **menu** of legitimate Next.js (App Router) project structures. None is "the one true way". On first activation the skill detects the framework, scans the repo, and either **learns** the existing structure or asks the user to **pick** one of these.
 
 The chosen (or learned) variant is written to `.coding-standards-structure` at the framework project root (the sub-project root in a monorepo, not the monorepo root), and from then on the skill reads that file instead of any bundled `structure.md` for layout decisions. Line-level rules (`common/`) always apply unchanged.
 

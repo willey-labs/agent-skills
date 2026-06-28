@@ -9,7 +9,7 @@ fix the violation before retrying — that's the enforcement.
 | Hook | Scope | What it catches |
 |---|---|---|
 | `block-junk-paths.py` | All languages (path-only; Write/Edit/MultiEdit) | ST-005 junk-drawer filenames (`utils.ts`, `helpers.py`, `common.go`, ...) **and folders** (a source file under `utils/`/`helpers/`/`common/`/`misc/`); ST-005 corollary top-level mega-files (`src/types.ts`, `src/constants.ts`, ...) |
-| `block-ts-violations.py` | `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue .svelte` | `any` (annotation, `as`/`satisfies`, `[]`, generic arg in any position incl. `Record<string, any>`, `type X = any`, `extends any`); NM-006 Hungarian (incl. class fields / interface members / object properties); ST-003 deep imports; parent traversal. For `.vue`/`.svelte`, `<script>` blocks are extracted and checked (regex + AST), line numbers aligned to the SFC. **AST checks (required — bootstrap installs tree-sitter):** FN-001 function length, FN-005 precise arg count (4+; exempts DI parameter-property constructors + the Express error-middleware shape), OD-004 hybrid class detection (OD-005 framework-boundary carve-out). Regex-only is a defensive fallback if the grammars are ever absent. AST checks/carve-outs live in `_ts_node_checks.py`; parse+walk in `_ts_ast.py`. |
+| `block-ts-violations.py` | `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue .svelte` | `any` (annotation, `as`/`satisfies`, `[]`, generic arg in any position incl. `Record<string, any>`, `type X = any`, `extends any`); NM-006 Hungarian (incl. class fields / interface members / object properties); ST-003 deep imports; parent traversal. For `.vue`/`.svelte`, `<script>` blocks are extracted and checked (regex + AST), line numbers aligned to the SFC. **AST checks (required — bootstrap installs tree-sitter):** FN-001 function length, FN-005 precise arg count (4+; exempts DI parameter-property constructors + the Express error-middleware shape), OD-004 hybrid class detection (OD-005 framework-boundary carve-out). Regex-only is a defensive fallback if the grammars are ever absent. |
 | `block-py-violations.py` | `.py .pyi` | `typing.Any` (annotation, subscript in any position incl. PEP 585 `dict[str, Any]`, PEP 604 `int | Any`, `cast(Any, …)`); NM-006 Hungarian snake_case; `from x import *`. **AST checks (always on — stdlib `ast`):** FN-001 function length, FN-005 precise arg count (5+ — Python has named args; exempts FastAPI bindings as `Depends()`/`Query()` defaults AND `Annotated[…, Depends()]` annotations, plus test functions / `@pytest.fixture`), OD-004 hybrid class detection with OD-005 framework-boundary carve-out (Model, BaseModel, Serializer, Form, etc.). |
 | `block-go-violations.py` | `.go` | `interface{}` / `any` (param/return/var/return-tuple/`map[K]any`/`map[any]V`/slice); NM-006 Hungarian (`strName`, multi-char prefixes; decl/short-var/param shapes); FN-005 4+ params (multi-line joined; `New*` constructor functions exempt); `import . "fmt"` dot imports |
 | `block-csharp-violations.py` | `.cs` | `dynamic` (var/list/dict); NM-006 Hungarian (`strName`, `m_field`, ...); FN-005 5+ params (named-arg language; records + constructors exempt; multi-line joined) |
@@ -23,8 +23,7 @@ fix the violation before retrying — that's the enforcement.
 ### What runs on every Write/Edit/MultiEdit
 
 All hooks run on each call. Each one checks the file extension first and
-exits 0 cleanly if the file doesn't match its language. There's no
-performance hit from registering them all.
+exits 0 cleanly if the file doesn't match its language.
 
 `block-junk-paths.py` is path-based and fires on `Write`, `Edit`, and
 `MultiEdit` — a junk-drawer name is a violation however the file got there, so

@@ -51,7 +51,7 @@ trace its files across the tree (grep its domain nouns; follow its entry point's
 capability's pieces are scattered across 3+ kind-named folders — folders named for a technical layer or
 artifact type rather than for what the product does — the map is filed by kind, not by capability; rebuild
 it on the capability axis before going further. The tell is a feature list whose names line up one-for-one
-with the folder names: that means you read the layout, not the product. This is not optional polish — it is
+with the folder names: that means you read the layout, not the product. That trace is
 the step that separates a map of what the code *does* from a relabeling of where the files *sit*.
 
 For large trees the orchestrator may dispatch a comprehension agent per top-level folder (read + return

@@ -64,8 +64,8 @@ model wherever the folders are yours to name.
 A folder or file name states **what it's about** — the part of the product it serves, or the job it does
 — never **what technical category it belongs to**.
 
-- ❌ named by kind: `controllers/`, `services/`, `models/`, `repositories/`, `utils/`, `helpers/`, `types/`
-- ✅ named by meaning: the area of the product, or the job performed (`<verb>-<noun>.<ext>`)
+- Bad — named by kind: `controllers/`, `services/`, `models/`, `repositories/`, `utils/`, `helpers/`, `types/`
+- Good — named by meaning: the area of the product, or the job performed (`<verb>-<noun>.<ext>`)
 
 This applies **at whatever level the names are yours to choose**. If the framework hands over a `Services/`
 folder, keep it — but inside it, group by area of the product; don't pile everything flat.
@@ -103,8 +103,10 @@ Single-file folder: callers may import it directly; add the front door when the 
 Cross-folder imports go through the destination's front door, never into its internals.
 
 ```
-✅ import { thing } from '<folder>'
-❌ import { thing } from '<folder>/<internal-file>'
+// Good
+import { thing } from '<folder>'
+// Bad
+import { thing } from '<folder>/<internal-file>'
 ```
 
 Reaching in couples the caller to private details, so renaming or moving those details breaks distant code.

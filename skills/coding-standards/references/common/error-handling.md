@@ -144,19 +144,19 @@ Asynchronous code — Promises, futures, async/await, channels, callbacks — do
 **1. The unawaited operation.** A function fires off async work without awaiting (or `.then`-ing) it. If that work fails, no caller handles the failure — and depending on the runtime, the process may crash with an "unhandled rejection" hours later.
 
 ```ts
-// ❌ Bug — error from sendEmail is unobserved
+// Bad — error from sendEmail is unobserved
 function notifyAndContinue(user) {
   sendEmail(user)            // returns Promise; not awaited, not .catch()ed
   return { ok: true }
 }
 
-// ✅ Fix — either await it (and let the caller see the failure)
+// Good — either await it (and let the caller see the failure)
 async function notifyAndContinue(user) {
   await sendEmail(user)
   return { ok: true }
 }
 
-// ✅ Or explicitly fire-and-forget with a documented catch
+// Good — or explicitly fire-and-forget with a documented catch
 function notifyAndContinue(user) {
   sendEmail(user).catch(e => logger.warn({ err: e }, 'best-effort email failed'))
   return { ok: true }

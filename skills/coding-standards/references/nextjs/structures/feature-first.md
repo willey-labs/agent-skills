@@ -2,7 +2,7 @@
 
 **Organize by capability.** Each feature is a self-contained module under `src/features/`. The router (`app/`) stays thin and *composes* features. Shared code sits at the top level.
 
-Source: [bulletproof-react](https://github.com/alan2207/bulletproof-react) — the most-referenced scalable React/Next structure. Folder names below are verbatim from its `docs/project-structure.md`.
+Source: [bulletproof-react](https://github.com/alan2207/bulletproof-react) — the most-referenced React/Next structure. Folder names below are verbatim from its `docs/project-structure.md`.
 
 > This variant follows `common/structure.md` for the inside of every folder; everything below is just its outer shape — where each feature's folder sits and how it exposes its public surface.
 
