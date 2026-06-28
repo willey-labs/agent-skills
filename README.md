@@ -43,6 +43,16 @@ Language-agnostic clean-code rules **plus** per-framework structure rules.
 
 The agent loads `common/` (all eight files) plus the matching framework `structure.md` on every code-writing or review task.
 
+### `writing-standards`
+
+The companion to `coding-standards`: that one governs code, this one governs **documents** — READMEs, specs, rules, skills, design docs, guides, reviews.
+
+Two rule sets (`skills/writing-standards/references/common/`):
+- `source-to-deliverable.md` (SD-*) — turn a *source* into a deliverable without echoing it: code→doc describes what the system does, with no code or code-identifiers; discussion→rule states the general principle, not the specific example just discussed.
+- `anti-slop.md` (SL-*) — the patterns that read as machine-padded filler (hedging, hype words, throat-clearing, cheerleading, reflexive formatting, padding), each with a fix.
+
+It does **not** block at write time — a document isn't a single Write the way a function is. Instead its bootstrap wires two hooks that inject a short reminder of the rules into the session: `SessionStart` at boot and `UserPromptSubmit` on every prompt, so the rules don't fade as the conversation grows. The full rules are read from `references/common/` when a document is actually written. The hook is stdlib-only — no dependency install, no venv. Wire it with `python3 skills/writing-standards/bootstrap.py` (or it auto-wires on first activation, like `coding-standards`); restart the session once.
+
 ## How the skill picks a framework
 
 `SKILL.md` Step 3 has the authoritative detection table (per-framework signals plus the file types each framework owns) — see it for the exact rules rather than relying on examples here, which drift. The shape: each row pairs a framework with repo signals (config files, dependency keys, distinctive file types). Matching is **file-type-aware** — a row only wins if it owns the extension of the file being edited, so a `.php` file in a Laravel + Inertia/Vue repo resolves to `laravel` while a `.vue` in the same repo resolves to `vue-nuxt`. In monorepos the agent picks per file, not per repo. When signals are missing, it asks rather than guesses.
@@ -61,9 +71,7 @@ npx skills add willey-labs/agent-skills
 npx skills add willey-labs/agent-skills -g
 ```
 
-Uses the [skills.sh](https://skills.sh) / [agentskills.io](https://agentskills.io)
-CLI from [`vercel-labs/skills`](https://github.com/vercel-labs/skills).
-The CLI auto-detects which agents you have installed (Claude Code, Cursor,
+The `skills` CLI auto-detects which agents you have installed (Claude Code, Cursor,
 Codex, OpenCode, and 50+ more); pass `-a claude-code` to target one explicitly.
 Installation reaches all of them; write-time **blocking** does not — that part is
 Claude Code only (see [the enforcement note](#what-enforcement-means-per-agent)

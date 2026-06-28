@@ -1,0 +1,20 @@
+{
+  "_comment": "Reference only — bootstrap.py wires this for you (and picks the right scope). Paste into ~/.claude/settings.json (global) or .claude/settings.json (project) if wiring by hand; MERGE into existing hooks.SessionStart / hooks.UserPromptSubmit rather than replacing them. For a global install, replace ${CLAUDE_PROJECT_DIR}/.claude with the absolute path to the skill dir. UserPromptSubmit takes no matcher (it fires on every prompt). The hook's stdout is added to Claude's context.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/writing-standards/hooks/inject-writing-standards.py" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/writing-standards/hooks/inject-writing-standards.py" }
+        ]
+      }
+    ]
+  }
+}

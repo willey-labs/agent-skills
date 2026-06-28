@@ -2,7 +2,7 @@
 
 Instructions for agents working **on this repo** (not consuming the skill — for that, the skill activates itself).
 
-This repo ships [Agent Skills](https://agentskills.io) for [Claude Code](https://claude.com/claude-code), [Cursor](https://cursor.com), [Codex](https://developers.openai.com/codex), [OpenCode](https://opencode.ai), and 50+ other agents listed in [`vercel-labs/skills`](https://github.com/vercel-labs/skills). The primary skill is `coding-standards`.
+This repo ships [Agent Skills](https://agentskills.io) for [Claude Code](https://claude.com/claude-code), [Cursor](https://cursor.com), [Codex](https://developers.openai.com/codex), [OpenCode](https://opencode.ai), and 50+ other agents supported by the `skills` CLI. The primary skill is `coding-standards`; a companion, `writing-standards`, governs documents (it injects a reminder via `SessionStart` + `UserPromptSubmit` hooks rather than blocking writes).
 
 ---
 
@@ -35,6 +35,14 @@ agent-skills/
       references/
         common/                      ← language-agnostic rules (FN-*, NM-*, OD-*, ST-*, EH-*, FMT-*, DP-*)
         <framework>/structure.md     ← per-framework architecture rules
+    writing-standards/               ← companion skill: standards for DOCUMENTS, not code
+      SKILL.md                       ← entrypoint; Step 0 runs bootstrap.py --verify then bootstrap.py
+      bootstrap.py                   ← wires SessionStart + UserPromptSubmit hooks into settings.json (stays at root: SKILL.md invokes it by this exact path; _bootstrap/paths anchors scope detection on it)
+      _bootstrap/                    ← installer internals, trimmed copy of coding-standards' (no deps/venv — the hook is stdlib-only): paths (symlink-preserving anchor), scope (project/global detection), settings (settings.json merge, recognizes our entry by the inject-script basename)
+      hooks/
+        inject-writing-standards.py  ← prints the reminder to stdout (→ Claude context); wired to BOTH events. NEVER exits non-zero — a non-zero UserPromptSubmit hook would block the user's prompt
+      references/
+        common/                      ← source-to-deliverable.md (SD-*) + anti-slop.md (SL-*)
 ```
 
 Paths inside `SKILL.md` are **relative to the SKILL.md file itself**, not the repo root — the skill is installed by symlink and must work from `~/.claude/skills/coding-standards/` or `<project>/.claude/skills/coding-standards/` identically.

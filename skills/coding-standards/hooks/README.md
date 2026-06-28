@@ -82,8 +82,6 @@ npx skills add willey-labs/agent-skills
 npx skills add willey-labs/agent-skills -g -a claude-code
 ```
 
-CLI reference: [`vercel-labs/skills`](https://github.com/vercel-labs/skills).
-
 ### Step 2 — Hooks auto-install on first skill activation
 
 The skill's `SKILL.md` declares a Step 0 directive that runs
