@@ -78,6 +78,14 @@ scaffolding on a technical note. Match the structure to the content's real shape
 Don't bolt safety warnings onto routine operations, and don't manufacture gray areas around binary
 facts to look balanced. State the fact. Warn only about real, non-obvious risk.
 
+## SL-012 — Don't narrate the document's own structure
+
+Write about the subject, not about the document. Cut sentences describing how the page is laid out,
+what it shares with sibling pages, or where to look next — "shared by every X; the per-X pages link
+here instead of repeating it", "as noted above", "see the section below", "this page covers A, the
+next covers B". The links and the layout already do that; saying it is plumbing the reader didn't
+ask for. State the fact and let the structure carry itself.
+
 ---
 
 ## Not rules — deliberately dropped
