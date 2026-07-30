@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regression test — bootstrap wiring matrix (AGENTS.md 6-test matrix + ISS-006).
 
-Automates the matrix that used to be manual: project/global wiring, idempotency,
+Automates the whole matrix: project/global wiring, idempotency,
 preservation of unrelated settings, refusal outside `.claude`, and the ISS-006
 additions (SessionStart health-check wiring, venv relocated outside the skill
 dir, degraded-enforcement warning). Everything runs in a temp `$HOME` sandbox —

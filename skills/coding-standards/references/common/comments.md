@@ -1,8 +1,20 @@
 # Comments
 
-Language-agnostic rules for comments and docstrings. A comment is the one part of a file the compiler never checks, so it rots silently — the only comment worth its upkeep is one the code itself cannot say. This is also where machine-generated code betrays itself most: narrating every line, restating every signature, sprinkling `Note:` / `Important:` preambles. Clean code reads like a person wrote it on purpose.
+Language-agnostic rules for comments and docstrings.
 
-**Enforcement:** these are **review-only** — no write-time hook. Narration can't be told from a legitimate explanatory comment by regex without a false-positive rate far above the ~1% bar a hard block needs (`AGENTS.md`), so the judgement lives in review (Worker 2). They are still must-fix violations like any other rule — not a soft tier. (The one comment concern that *is* hooked is FMT-005's commented-out-code advisory; CM-* is about prose, not disabled code.)
+**The default is none.** Write the code so it needs no sentence, and write no sentence. A file with zero comments is the normal, correct outcome — not an omission to fill in. A comment is the one part of a file the compiler never checks, so it rots silently; the only one that earns its upkeep carries what the code cannot say at all (CM-003). Everything else is noise the reader has to wade through, and it buries the rare comment that matters.
+
+Code that seems to need explaining is usually code that needs a better name or a smaller function. Fix that instead — the fix is permanent, the comment is upkeep forever.
+
+This is where machine-generated code betrays itself: narrating every line, restating every signature, sprinkling `Note:` / `Important:` preambles, and leaving the conversation that produced the code sitting in the file. Clean code reads like a person wrote it on purpose.
+
+**Enforcement** comes in three layers, because prose can't be regex'd and self-review can't be trusted:
+
+1. **Write time, mechanical** — `hooks/advise-comment-slop.py` flags decoration, edit narration, filler preambles, reader address, first-person deliberation and untracked `TODO` as an **advisory** (exit 0 + stderr; it never blocks, because a legitimate rationale comment may contain any word).
+2. **Turn end, judged** — `hooks/judge-comments.py` sends the comments the turn added to a **separate model call** with these rules, and holds the turn open until a delete or shorten verdict is applied. The second reader is the point: the pass that just wrote a paragraph of self-justification is the worst judge of whether it earns its place. Deleting or trimming a comment can't change behaviour, so the fix needs no approval. A finding that is genuinely wrong may be kept, with the reason stated in the reply.
+3. **Review** — Worker 2 owns the full prose judgement (is this narration, does it explain *what* instead of *why*, does the docstring add anything).
+
+Advisory, judge verdict or review finding, every one is a must-fix violation — there is no soft tier. (FMT-005 owns disabled code; CM-* owns prose.)
 
 ---
 
@@ -119,5 +131,32 @@ export function checkout(cart: Cart) { ... }
 // Good — no comment; the name and types are the documentation
 export function checkout(cart: Cart) { ... }
 ```
+
+---
+
+## CM-006 — No conversation in the source
+
+A source file is not a message to a reader and not a transcript of how the code came to be. The decision that survived is in the code; the deliberation that produced it belongs nowhere. Out:
+
+- **Addressing a person** — `// as requested`, `// let me know if you'd rather…`, `// feel free to change this`, `// as we discussed`, `// hope this helps`. There is no "you"; there is the next reader, who wants the code, not the correspondence.
+- **First-person deliberation** — `// I went with a map here, seemed cleaner`, `// I've kept the old branch just in case`. Thinking out loud is not documentation.
+- **Weighing alternatives inline** — `// we could also batch these`, `// we should probably revisit this`. A rejected option is only worth a line when it reads as a *constraint*, not a musing: `// the bulk endpoint drops ordering, so we send one per row`.
+- **Questions left in place** — `// not sure if this handles an empty list?`, `// does this need a lock?`. An open question in shipped code is a bug the author decided not to look at. Answer it, or make the uncertainty explicit as a failure the code handles.
+- **Untracked `TODO` / `FIXME`** — either do it now, or record it where work is actually tracked and cite that reference in the comment. A bare `// TODO: clean this up later` is a wish; nobody reads it again.
+
+```rust
+// Bad — the chat, pasted into the file
+// I switched this to a lookup table as you suggested — let me know if the loop
+// reads better. Not sure whether the empty case can even happen here?
+// TODO: maybe tidy up later
+fn tariff_for(code: &str) -> Tariff { ... }
+
+// Good
+fn tariff_for(code: &str) -> Tariff { ... }
+```
+
+The register is the giveaway: if the sentence would fit in a chat message or a pull-request comment, that is where it belongs. Put it there, and leave the file clean.
+
+---
 
 **The line for every comment:** would a competent reader who has the code in front of them be *better off* with this sentence than without it? If not, it's one of the above — delete it.

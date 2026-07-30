@@ -16,7 +16,16 @@ from pathlib import Path
 
 SKILL = Path(__file__).resolve().parent.parent.parent  # skills/coding-standards
 sys.path.insert(0, str(SKILL))
-from _bootstrap.settings import HOOK_FILES, SESSION_HEALTH_SCRIPT  # noqa: E402
+from _bootstrap.settings import (  # noqa: E402
+    HOOK_FILES,
+    POST_TOOL_USE_FILES,
+    SESSION_HEALTH_SCRIPT,
+    STOP_FILES,
+)
+
+
+def _basenames(entries: list) -> list[str]:
+    return [h["command"].split("/")[-1] for e in entries for h in e.get("hooks", [])]
 
 
 def main() -> int:
@@ -30,6 +39,17 @@ def main() -> int:
         failures.append(
             f"settings.example PreToolUse basenames {basenames} != HOOK_FILES {HOOK_FILES}"
         )
+
+    post = _basenames(hooks.get("PostToolUse", []))
+    if post != POST_TOOL_USE_FILES:
+        failures.append(f"settings.example PostToolUse {post} != {POST_TOOL_USE_FILES}")
+
+    stop_entries = hooks.get("Stop", [])
+    if any("matcher" in e for e in stop_entries):
+        failures.append("settings.example Stop entry carries a matcher (Stop takes none)")
+    stop = _basenames(stop_entries)
+    if stop != STOP_FILES:
+        failures.append(f"settings.example Stop {stop} != {STOP_FILES}")
 
     ss = hooks.get("SessionStart", [])
     ss_cmds = [h["command"] for e in ss for h in e.get("hooks", [])]

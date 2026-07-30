@@ -13,7 +13,7 @@ description: >
 license: MIT
 metadata:
   author: willey-labs
-  version: "5.0.0"
+  version: "5.1.0"
 ---
 
 # Coding Standards
@@ -316,6 +316,17 @@ short (the common rule).
 Apply the rules **proactively** — write compliant code the first time. If you catch a violation in code you
 just wrote, fix it before moving on. Don't ship a violation plus a "TODO: fix this".
 
+**Write no comments by default** (`comments.md`). Say it in the names and the shape of the code. A sentence
+earns a place in the file only when it carries what the code cannot — a constraint, a rationale, an external
+reference, a sharp edge. Never narrate the code, never narrate your edit, and never leave the conversation
+behind in the file: no `as requested`, no `I think`, no `we could also`, no untracked `TODO`, no emoji, no
+`Note:` preamble. If a thought belongs in the reply to the user, put it there and leave the file clean.
+
+A separate model judges the comments a turn wrote before that turn can end (`hooks/judge-comments.py`),
+so a comment that doesn't earn its place comes back as a fix to apply, not a note to ignore. Write it
+right the first time and the judge stays silent — it costs one short model call per turn that touched
+code, and none at all on a turn whose files gained no comments.
+
 **Always author and modify code through the `Write` / `Edit` / `MultiEdit` tools — never by shell
 redirection** (`> file`, `>>`, `tee`, `sed -i`, `cat <<EOF > file`). The enforcement hooks fire **only** on
 Write/Edit/MultiEdit; a file written through the shell silently bypasses every one of them. This is a real
@@ -343,7 +354,7 @@ first item.
    structure (Step 4).
 2. **Load references.** Every `common/` file, plus the resolved structure for each framework in the diff.
 3. **Judgement pass** — the rules regex/AST *can't* catch (FN-001 length nuance, FN-009 CQS, OD-003
-   Demeter, EH-002 boundaries, the CM-* comment rules, the `structure.md` rules). Per rule, report `PASS`, a finding as
+   Demeter, EH-002 boundaries, the CM-* comment-prose rules, the `structure.md` rules). Per rule, report `PASS`, a finding as
    `file.tsx:42 — <rule> — <what's wrong>`, or `SKIPPED — <why it doesn't apply>`.
 4. **Run the hooks as a linter** (deterministic pass, LAST — don't skip). The `block-*.py` hooks only fire
    on Write/Edit, so a review must invoke them explicitly:

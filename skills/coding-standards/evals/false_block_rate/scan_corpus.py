@@ -2,7 +2,7 @@
 """Run every content hook over the corpus and record what blocks.
 
 For each source file we build the same synthetic `Write` payload the hooks see at
-write time (file path + current content) and run each `block-*.py` hook against
+write time (file path + current content) and run each content hook against
 it — individually, so every block is attributed to the specific hook that fired
 (review-files.py merges hooks and loses that attribution, which the per-hook rate
 needs). A hook exiting 2 is a hard block; exiting 0 with stderr is an advisory.
@@ -38,9 +38,10 @@ HOOK_FILES: tuple[str, ...] = (
     "block-god-file.py",
     "block-swallowed-errors.py",
     "block-debug-artifacts.py",
+    "advise-comment-slop.py",
 )
 
-_RULE_CODE = re.compile(r"\b(?:FN|NM|OD|ST|EH|FMT|DP)-\d+\b")
+_RULE_CODE = re.compile(r"\b(?:FN|NM|OD|ST|EH|FMT|DP|CM)-\d+\b")
 
 
 @dataclass(frozen=True)

@@ -65,6 +65,9 @@ ADVISORY_PATTERNS: list[tuple[set[str], re.Pattern[str], str]] = [
 # bare closing bracket (a disabled block tail), or an identifier immediately
 # followed by `(` or `=` (a call or assignment). This deliberately avoids the
 # "ends in `;`" heuristic, which false-positives on wrapped prose ("…(all run;").
+# A call form allows NO space before its paren: `foo(x)` is code, while
+# `recognizes (and replaces)` is an English parenthetical, which prose uses
+# constantly. An assignment keeps the optional space (`x = 1` is code either way).
 # Shebangs and tool-directive comments are exempt.
 _COMMENT_CODE = re.compile(
     r"""(?://|\#)\s*
@@ -72,7 +75,7 @@ _COMMENT_CODE = re.compile(
             (?:return|const|let|var|func|def|class|import|export|public|private|protected|fn|val|throw|await|yield)\b
           | (?:if|for|while|switch|catch|foreach)\s*\(
           | [}\])]
-          | [\w$.]+\s*[(=]
+          | [\w$.]+(?:\(|\s*=)
         )
     """,
     re.VERBOSE,

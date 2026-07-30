@@ -15,7 +15,23 @@
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-god-file.py" },
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-swallowed-errors.py" },
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-debug-artifacts.py" },
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/advise-comment-slop.py" },
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-structure-file-violations.py" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/record-touched-files.py" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/judge-comments.py" }
         ]
       }
     ],

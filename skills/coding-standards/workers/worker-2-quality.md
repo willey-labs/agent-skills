@@ -32,6 +32,7 @@ owns_rules:
   - CM-003
   - CM-004
   - CM-005
+  - CM-006
 applies_as_lens:
   - DP-006 (KISS) — at function-body scale
   - DP-007 (DRY) — at function / file scale
@@ -165,7 +166,7 @@ Never silently drop a rule. Every owned rule lands in one of the three buckets.
 
 **No severity tiers.** A finding is a rule violation — every finding is must-fix. There is no `should-fix` / `consider` / `nit`. Formatting is not a "nit": FMT-001 to FMT-004 are violations like any other. The decision is binary — **does a rule break here?** If yes, file it; if it's a genuine tradeoff with no rule broken, it's a `pass`, not a soft finding. (The only non-fix exits are downstream at Fix time: `accepted` with a reason, or `deferred` as an open breach.)
 
-**What your rules catch** (all must-fix): Hungarian notation (NM-006), 4+/5+ args past the carve-outs (FN-005), `any`/`Any`/`dynamic`/`mixed` — the linter also catches these, report them anyway, the orchestrator dedupes; function too long / doing >1 thing (FN-001, FN-002); mixed abstraction levels (FN-003); hidden side effects (FN-008); CQS violations (FN-009); non-intent-revealing names (NM-001 to NM-005, NM-007 to NM-009); Demeter chains (OD-003); formatting / newspaper-order / vertical-spacing (FMT-001 to FMT-004); comment hygiene — narration, what-not-why comments, redundant docstrings/banners, filler/change-narration (CM-001 to CM-005, review-only, no hook); DRY duplication (FN-011/DP-007 — real shared knowledge, not code that merely looks alike).
+**What your rules catch** (all must-fix): Hungarian notation (NM-006), 4+/5+ args past the carve-outs (FN-005), `any`/`Any`/`dynamic`/`mixed` — the linter also catches these, report them anyway, the orchestrator dedupes; function too long / doing >1 thing (FN-001, FN-002); mixed abstraction levels (FN-003); hidden side effects (FN-008); CQS violations (FN-009); non-intent-revealing names (NM-001 to NM-005, NM-007 to NM-009); Demeter chains (OD-003); formatting / newspaper-order / vertical-spacing (FMT-001 to FMT-004); comment hygiene, where the default is no comment at all — narration, what-not-why comments, redundant docstrings/banners, filler/change-narration, chat and deliberation left in the file (CM-001 to CM-006; the prose judgement is yours, the mechanical tells also raise a write-time advisory); DRY duplication (FN-011/DP-007 — real shared knowledge, not code that merely looks alike).
 
 ### Review output
 

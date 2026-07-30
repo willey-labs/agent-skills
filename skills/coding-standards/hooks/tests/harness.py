@@ -69,12 +69,20 @@ def run_cases(cases: list[Case]) -> list[str]:
     return failures
 
 
+def report_failures(suite_name: str, failures: list[str], case_count: int) -> int:
+    """Print one line per failure, or the ok line, and return a process exit code.
+
+    Split out for the suites that assert something other than the exit code — an
+    advisory's stderr, a post-edit file state — and so run their own cases.
+    """
+    for failure in failures:
+        sys.stderr.write(f"FAIL {failure}\n")
+    if failures:
+        return 1
+    print(f"ok — {case_count} {suite_name} cases hold")
+    return 0
+
+
 def report(suite_name: str, cases: list[Case]) -> int:
     """Run cases, print one line per failure, return a process exit code."""
-    failures = run_cases(cases)
-    if failures:
-        for failure in failures:
-            sys.stderr.write(f"FAIL {failure}\n")
-        return 1
-    print(f"ok — {len(cases)} {suite_name} cases hold")
-    return 0
+    return report_failures(suite_name, run_cases(cases), len(cases))

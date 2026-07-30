@@ -14,7 +14,7 @@ The rules are organized by **what kind of question you're asking**, not by langu
 **File layout, vertical spacing, declaration placement, team conventions**
 → `references/common/formatting.md`
 
-**Comments & docstrings** — no narration, why-not-what, no redundant docstrings/banners, no filler or change-narration (review-only, no hook)
+**Comments & docstrings** — the default is none; no narration, why-not-what, no redundant docstrings/banners, no filler or change-narration, no chat left in the file (mechanical tells get a write-time advisory; a separate model judges the turn's comments before it can end; the full prose judgement is review's)
 → `references/common/comments.md`
 
 **Try/catch, exception design, error translation at boundaries**

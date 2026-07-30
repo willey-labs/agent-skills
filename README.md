@@ -100,7 +100,7 @@ of the skill runs `bootstrap.py`. That script:
 After the first run you'll see something like:
 
 ```
-coding-standards: Wired 11 PreToolUse hooks into /path/.claude/settings.json (project).
+coding-standards: Wired 12 PreToolUse hooks into /path/.claude/settings.json (project).
 ```
 
 **Restart the agent session once** for Claude Code to pick up the new
@@ -110,6 +110,20 @@ runs on every Write/Edit/MultiEdit automatically.
 
 See `skills/coding-standards/hooks/README.md` for what each hook catches
 per language.
+
+Two of the wired hooks work on comments rather than code. Comment prose is the one
+rule family a pattern can't settle — a constraint the next reader needs and an author
+defending an edit are made of the same words — and the pass that wrote a comment is
+the worst judge of whether it earns its place. So when a turn tries to end, the
+comments it added go to a **separate model call** with the comment rules, and a
+delete-or-shorten verdict holds the turn open until it's applied. Deleting or trimming
+a comment can't change behaviour, so it's applied without asking; a verdict that's
+genuinely wrong may be kept with the reason stated in the reply.
+
+That costs one short model call per turn that wrote source files, and none when those
+files gained no comments. It defaults to `sonnet`; set `CODING_STANDARDS_JUDGE_MODEL`
+to pick another. A session is held open at most twice, and every failure — no CLI, a
+timeout, an unparseable answer — lets the turn end.
 
 #### What enforcement means per agent
 
@@ -166,7 +180,7 @@ immediately instead of waiting, run `python3 <skill-dir>/bootstrap.py` and resta
 
 ### Turning it off
 
-Enforcement is always-on once wired — there is no rule toggle (toggles are blocked by design). To disable it, remove the skill's `PreToolUse` entry from the relevant `settings.json` (project or `~/.claude`), or uninstall the skill; for a single path or legacy file, add it to `.coding-standards-ignore` with a `# reason:`. Details in `skills/coding-standards/references/bootstrap.md`.
+Enforcement is always-on once wired — there is no rule toggle (toggles are blocked by design). To disable it, remove the skill's `PreToolUse` entry from the relevant `settings.json` (project or `~/.claude`), or uninstall the skill; for a single path or legacy file, add it to `.coding-standards-ignore` with a `# reason:`. The comment judge is the one part with a running cost, so it comes off separately: drop the `Stop` entry to stop the model call, and the `PostToolUse` entry with it. Details in `skills/coding-standards/references/bootstrap.md`.
 
 ## Status
 

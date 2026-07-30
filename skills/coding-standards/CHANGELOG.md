@@ -1,5 +1,57 @@
 # Changelog — coding-standards skill
 
+## 5.1.0 — 2026-07-29 — comments: the default is none
+
+The comment rules state their default explicitly and gain a write-time signal.
+
+- **`comments.md` opens with the default: write no comment.** A file with zero comments
+  is the normal outcome; a sentence earns its place only by carrying what the code
+  cannot say. Code that seems to need explaining needs a better name or a smaller
+  function instead.
+- **CM-006 — no conversation in the source.** Bans what a chat leaves behind in a file:
+  text addressed to a person, first-person deliberation, alternatives weighed inline,
+  questions left in place, and `TODO`/`FIXME` with nothing tracking it. A rejected
+  option earns a line only when it reads as a constraint.
+- **`advise-comment-slop.py`** flags the mechanical tells on every Write/Edit across all
+  source languages — emoji, exclamations, edit and history narration, filler preambles,
+  banner comments, reader address, first-person deliberation, untracked `TODO`. Advisory
+  only: comment prose can't be hard-blocked at the false-positive bar, so the judgement
+  calls stay in review. Comments and Python docstrings are read with string literals
+  blanked; linter pragmas, shebangs and SPDX lines are exempt.
+- **Write mode names the rule up front.** The instruction to write no comments by
+  default sits in SKILL.md's Write section, not only in the reference.
+
+### The comment judge — a second reader, wired to two new events
+
+Comment prose is the one rule family no pattern settles, and write-time self-review is
+the weakest possible check on it: the pass that just wrote a paragraph of
+self-justification will also approve it. So the judgement moved to a separate reader
+that runs before a turn can end.
+
+- **`record-touched-files.py` (PostToolUse)** ledgers each source file a turn wrote,
+  outside the repo, skipping excluded, generated and non-source files.
+- **`judge-comments.py` (Stop)** sends the comments on lines that turn changed —
+  with the rules — to a separate `claude -p` call (one turn, no tools, no MCP, no
+  hooks), and exits 2 on a delete or shorten verdict, which holds the turn open with
+  the findings as the fix to apply. Trimming a comment can't change behaviour, so it
+  needs no approval; a verdict that is genuinely wrong may be kept with the reason
+  stated.
+- **Bounds:** one short model call per turn that wrote source files, none when those
+  files gained no comments; `sonnet` by default, `CODING_STANDARDS_JUDGE_MODEL` to
+  change it; at most two holds per session; every failure path — no CLI, timeout,
+  unparseable answer, an active Stop hook, the judge's own nested call — lets the turn
+  end. Only changed lines are judged, so a legacy file's comments are never dragged in.
+- **Wiring split by job (ST-008):** `_bootstrap/hook_registry.py` lists which script
+  runs under which event, `hook_entries.py` builds one entry per event,
+  `hook_identity.py` recognizes ours on re-run, and `settings.py` is left with reading,
+  merging and writing settings.json.
+
+### FMT-005 precision
+
+The commented-out-code advisory no longer reads an English parenthetical as a disabled
+call: a call form now requires its paren glued to the identifier. Assignments keep the
+spaced form.
+
 ## 5.0.0 — 2026-06-13 — production-readiness hardening
 
 A full audit (see the repo-root `AUDIT.md`) found gaps that let the enforcement

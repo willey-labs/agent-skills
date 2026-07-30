@@ -75,14 +75,20 @@ from _bootstrap.paths import HOOKS_DIR
 from _bootstrap.permissions import wire_skill_permissions
 from _bootstrap.readiness import find_compatible_python, print_readiness, readiness_report
 from _bootstrap.scope import IGNORE_FILENAME, detect_scope_and_targets, seed_ignore_template
+from _bootstrap.hook_entries import (
+    build_hook_entry,
+    build_post_tool_use_entry,
+    build_session_start_entry,
+    build_stop_entry,
+)
+from _bootstrap.hook_identity import is_our_entry
 from _bootstrap.settings import (
     HOOK_FILES,
-    build_hook_entry,
-    build_session_start_entry,
-    is_our_entry,
     load_settings,
     merge_hook_entry,
+    merge_post_tool_use_entry,
     merge_session_start_entry,
+    merge_stop_entry,
     write_settings,
 )
 
@@ -120,6 +126,7 @@ class WiringResult:
     commands_dir: Path
     hooks_action: str
     session_action: str
+    judge_action: str
     cmd_action: str
     perms_changed: bool
     hook_python: str
@@ -133,6 +140,7 @@ def report_install_result(result: WiringResult) -> int:
     if (
         result.hooks_action == "noop"
         and result.session_action == "noop"
+        and result.judge_action == "noop"
         and result.cmd_action == "noop"
         and not result.perms_changed
         and result.ignore_action != "created"
@@ -155,6 +163,8 @@ def report_install_result(result: WiringResult) -> int:
         f"  Hooks dir: {HOOKS_DIR}\n"
         f"  SessionStart health check: {result.session_action} (warns loudly if "
         f"enforcement ever goes dead — wiped venv / moved skill dir).\n"
+        f"  Comment judge: {result.judge_action} (PostToolUse records what a turn wrote; "
+        f"Stop has a separate model judge the comments in it).\n"
         f"  Restart your agent if hooks or commands don't activate on the next tool call."
     )
     if result.perms_changed:
@@ -344,12 +354,17 @@ def main(argv: list[str] | None = None) -> int:
     updated, hooks_action = merge_hook_entry(settings, entry)
     # SessionStart health check (ISS-006) — makes silently-dead enforcement loud.
     _, session_action = merge_session_start_entry(updated, build_session_start_entry(scope))
+    # PostToolUse + Stop: the comment judge. The recorder notes which files a turn
+    # wrote; the judge reads them when the turn tries to end.
+    _, post_action = merge_post_tool_use_entry(updated, build_post_tool_use_entry(scope))
+    _, stop_action = merge_stop_entry(updated, build_stop_entry(scope))
     # Permissions: global → into the committed `updated`; project → into the
     # git-ignored settings.local.json so machine-absolute paths never get committed
     # (ISS-012). perms_changed reflects whichever file was touched.
     perms_changed = wire_skill_permissions(scope, settings_path, updated)
     committed_changed = (
         hooks_action != "noop" or session_action != "noop"
+        or post_action != "noop" or stop_action != "noop"
         or (scope == "global" and perms_changed)
     )
     if committed_changed:
@@ -363,6 +378,7 @@ def main(argv: list[str] | None = None) -> int:
         commands_dir=commands_dir,
         hooks_action=hooks_action,
         session_action=session_action,
+        judge_action=("noop" if post_action == "noop" and stop_action == "noop" else "wired"),
         cmd_action=cmd_action,
         perms_changed=perms_changed,
         hook_python=hook_python,

@@ -30,6 +30,7 @@ HOOK_FILES: tuple[str, ...] = (
     "block-god-file.py",
     "block-swallowed-errors.py",
     "block-debug-artifacts.py",
+    "advise-comment-slop.py",
 )
 
 

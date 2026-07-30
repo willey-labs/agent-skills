@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Run the coding-standards hooks against EXISTING files (review mode).
 
-The `block-*.py` hooks are PreToolUse hooks: they fire only when Claude Code is
+The content hooks are PreToolUse hooks: they fire only when Claude Code is
 about to Write/Edit a file. In Review mode nothing is written, so the hooks
 never fire on their own — yet a review should still benefit from their
 deterministic checks (`any`/`Any`/`dynamic`/`mixed`, Hungarian notation, 4+
 argument functions, junk-drawer paths, deep imports, and the TS/Python AST
 checks).
 
-This driver feeds each file's CURRENT content to every `block-*.py` hook as a
+This driver feeds each file's CURRENT content to every content hook as a
 synthetic `Write` payload — the exact contract the hooks use at write time — so
 review findings match write-time blocking byte-for-byte. Excluded files
 (node_modules, generated code, migrations, lock files, ...) are skipped by the
@@ -128,9 +128,10 @@ DEGRADED_FINDING = (
 # all against every file mirrors how they register as PreToolUse hooks (all run;
 # each picks its own). All findings are violations to fix (no severity tiers); the
 # EXIT CODE only distinguishes a hard block (exit 2) from an advisory (exit 0 +
-# stderr, tagged "[advisory]" so the reviewer knows it's the blunt size/flat-folder
-# proxy to adjudicate). block-god-file does both — it blocks on too many behavioral
-# declarations and advises on raw size / flat folders.
+# stderr, tagged "[advisory]" so the reviewer knows it's a blunt proxy to
+# adjudicate). block-god-file does both — it blocks on too many behavioral
+# declarations and advises on raw size / flat folders; advise-comment-slop only ever
+# advises (comment prose can't be hard-blocked at the precision bar).
 # block-structure-file-violations is omitted: it guards the config file, not source.
 HOOK_FILES = (
     "block-junk-paths.py",
@@ -143,6 +144,7 @@ HOOK_FILES = (
     "block-god-file.py",
     "block-swallowed-errors.py",
     "block-debug-artifacts.py",
+    "advise-comment-slop.py",
 )
 
 
@@ -160,8 +162,9 @@ def check_file(path: str) -> list[str]:
     """Return the hook-level violations for one existing file (empty if clean).
 
     Exit 2 → would have blocked at write time. Exit 0 with stderr → advisory,
-    tagged "[advisory]" so the reviewer knows it's the blunt size/flat-folder proxy
-    to adjudicate. Both are violations to fix — there are no severity tiers."""
+    tagged "[advisory]" so the reviewer knows it's a blunt proxy to adjudicate
+    (size, flat folders, comment prose). Both are violations to fix — there are no
+    severity tiers."""
     try:
         content = Path(path).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
