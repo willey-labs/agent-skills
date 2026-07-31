@@ -19,8 +19,9 @@ sys.path.insert(0, str(SKILL))
 from _bootstrap.settings import (  # noqa: E402
     HOOK_FILES,
     POST_TOOL_USE_FILES,
-    SESSION_HEALTH_SCRIPT,
+    SESSION_START_FILES,
     STOP_FILES,
+    USER_PROMPT_SUBMIT_FILES,
 )
 
 
@@ -51,10 +52,16 @@ def main() -> int:
     if stop != STOP_FILES:
         failures.append(f"settings.example Stop {stop} != {STOP_FILES}")
 
-    ss = hooks.get("SessionStart", [])
-    ss_cmds = [h["command"] for e in ss for h in e.get("hooks", [])]
-    if not any(SESSION_HEALTH_SCRIPT in c for c in ss_cmds):
-        failures.append("settings.example missing SessionStart health-check command")
+    session = _basenames(hooks.get("SessionStart", []))
+    if session != SESSION_START_FILES:
+        failures.append(f"settings.example SessionStart {session} != {SESSION_START_FILES}")
+
+    prompt_entries = hooks.get("UserPromptSubmit", [])
+    if any("matcher" in e for e in prompt_entries):
+        failures.append("settings.example UserPromptSubmit carries a matcher (it takes none)")
+    prompt = _basenames(prompt_entries)
+    if prompt != USER_PROMPT_SUBMIT_FILES:
+        failures.append(f"settings.example UserPromptSubmit {prompt} != {USER_PROMPT_SUBMIT_FILES}")
 
     if failures:
         for f in failures:

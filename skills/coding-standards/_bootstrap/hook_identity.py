@@ -16,8 +16,9 @@ from .hook_registry import (
     HOOK_FILES,
     POST_TOOL_USE_FILES,
     RETIRED_HOOK_FILES,
-    SESSION_HEALTH_SCRIPT,
+    SESSION_START_FILES,
     STOP_FILES,
+    USER_PROMPT_SUBMIT_FILES,
 )
 
 
@@ -36,8 +37,15 @@ def is_our_entry(entry: dict) -> bool:
 
 
 def is_our_session_entry(entry: dict) -> bool:
-    """A SessionStart entry of ours: every command runs the health check."""
-    return _runs_only(entry, [SESSION_HEALTH_SCRIPT])
+    """A SessionStart entry of ours: every command runs the health check or the
+    reminder. An entry wired before the reminder shipped carries only the health check
+    and is still recognized, so an upgrade replaces it instead of appending a copy."""
+    return _runs_only(entry, SESSION_START_FILES)
+
+
+def is_our_user_prompt_submit_entry(entry: dict) -> bool:
+    """A UserPromptSubmit entry of ours: every command runs the reminder."""
+    return _runs_only(entry, USER_PROMPT_SUBMIT_FILES)
 
 
 def is_our_post_tool_use_entry(entry: dict) -> bool:

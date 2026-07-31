@@ -15,9 +15,10 @@ from .hook_registry import (
     EVENT_INTERPRETER,
     HOOK_FILES,
     POST_TOOL_USE_FILES,
-    SESSION_HEALTH_SCRIPT,
+    SESSION_START_FILES,
     SESSION_START_MATCHER,
     STOP_FILES,
+    USER_PROMPT_SUBMIT_FILES,
     WRITE_MATCHER,
 )
 from .paths import HOOKS_DIR
@@ -48,7 +49,7 @@ def build_hook_entry(scope: str, hook_python: str) -> dict:
 
 
 def build_session_start_entry(scope: str) -> dict:
-    """The SessionStart entry that runs the enforcement health check.
+    """The SessionStart entry: the enforcement health check, then the rule reminder.
 
     Uses the SAME path prefix as the PreToolUse hooks so scope detection inside the
     spawned `bootstrap.py --verify` works. See SessionStart hook docs: stdout →
@@ -56,8 +57,17 @@ def build_session_start_entry(scope: str) -> dict:
     """
     return {
         "matcher": SESSION_START_MATCHER,
-        "hooks": _commands(scope, EVENT_INTERPRETER, [SESSION_HEALTH_SCRIPT]),
+        "hooks": _commands(scope, EVENT_INTERPRETER, SESSION_START_FILES),
     }
+
+
+def build_user_prompt_submit_entry(scope: str) -> dict:
+    """The UserPromptSubmit entry that re-injects the rule reminder each turn.
+
+    UserPromptSubmit takes no matcher. A non-zero exit here blocks the user's prompt,
+    which is why the injected script never returns one.
+    """
+    return {"hooks": _commands(scope, EVENT_INTERPRETER, USER_PROMPT_SUBMIT_FILES)}
 
 
 def build_post_tool_use_entry(scope: str) -> dict:

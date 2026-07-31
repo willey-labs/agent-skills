@@ -26,6 +26,7 @@ HOOK_FILES = [
     "block-swallowed-errors.py",
     "block-debug-artifacts.py",
     "advise-comment-slop.py",
+    "block-added-comments.py",
     "block-structure-file-violations.py",
 ]
 
@@ -51,6 +52,12 @@ STOP_FILES = [
 # most damage (a whole session of unchecked writes).
 SESSION_HEALTH_SCRIPT = "session-health-check.py"
 SESSION_START_MATCHER = "startup"
+
+# The reminder rides SessionStart for the opening context and UserPromptSubmit for
+# every turn after it, because a rule read once is buried by the time code is written.
+INJECT_SCRIPT = "inject-coding-standards.py"
+SESSION_START_FILES = [SESSION_HEALTH_SCRIPT, INJECT_SCRIPT]
+USER_PROMPT_SUBMIT_FILES = [INJECT_SCRIPT]
 
 # The health check, the recorder and the judge run under a stable `python3`, NOT the
 # venv the health check polices: none of them needs the grammars, and a wiped venv

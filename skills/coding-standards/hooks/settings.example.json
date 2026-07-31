@@ -16,6 +16,7 @@
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-swallowed-errors.py" },
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-debug-artifacts.py" },
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/advise-comment-slop.py" },
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-added-comments.py" },
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-structure-file-violations.py" }
         ]
       }
@@ -39,7 +40,15 @@
       {
         "matcher": "startup",
         "hooks": [
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/session-health-check.py" }
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/session-health-check.py" },
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/inject-coding-standards.py" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/inject-coding-standards.py" }
         ]
       }
     ]

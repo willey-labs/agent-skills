@@ -23,14 +23,18 @@ from .hook_identity import (
     is_our_post_tool_use_entry,
     is_our_session_entry,
     is_our_stop_entry,
+    is_our_user_prompt_submit_entry,
 )
 from .hook_registry import (  # noqa: F401  (re-exported for callers and tests)
     HOOK_FILES,
+    INJECT_SCRIPT,
     POST_TOOL_USE_FILES,
     RETIRED_HOOK_FILES,
     SESSION_HEALTH_SCRIPT,
+    SESSION_START_FILES,
     SESSION_START_MATCHER,
     STOP_FILES,
+    USER_PROMPT_SUBMIT_FILES,
 )
 
 
@@ -101,6 +105,13 @@ def merge_post_tool_use_entry(settings: dict, new_entry: dict) -> tuple[dict, st
 def merge_stop_entry(settings: dict, new_entry: dict) -> tuple[dict, str]:
     """Merge our Stop entry. Returns (settings, 'noop'|'added'|'updated')."""
     return settings, _merge_entry(settings, "Stop", new_entry, is_our_stop_entry)
+
+
+def merge_user_prompt_submit_entry(settings: dict, new_entry: dict) -> tuple[dict, str]:
+    """Merge our UserPromptSubmit entry. Returns (settings, 'noop'|'added'|'updated')."""
+    return settings, _merge_entry(
+        settings, "UserPromptSubmit", new_entry, is_our_user_prompt_submit_entry
+    )
 
 
 def write_settings(path: Path, settings: dict) -> None:

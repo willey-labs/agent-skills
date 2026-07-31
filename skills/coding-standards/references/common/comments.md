@@ -10,7 +10,7 @@ This is where machine-generated code betrays itself: narrating every line, resta
 
 **Enforcement** comes in three layers, because prose can't be regex'd and self-review can't be trusted:
 
-1. **Write time, mechanical** — `hooks/advise-comment-slop.py` flags decoration, edit narration, filler preambles, reader address, first-person deliberation and untracked `TODO` as an **advisory** (exit 0 + stderr; it never blocks, because a legitimate rationale comment may contain any word).
+1. **Write time, mechanical** — `hooks/block-added-comments.py` **refuses** (exit 2) any comment block a write *adds* that runs past one line of prose (CM-007); blocks already in the file on disk are never re-judged, so the check governs new prose only. Alongside it, `hooks/advise-comment-slop.py` flags decoration, edit narration, filler preambles, reader address, first-person deliberation and untracked `TODO` as an **advisory** (exit 0 + stderr; it never blocks, because a legitimate rationale comment may contain any word).
 2. **Turn end, judged** — `hooks/judge-comments.py` sends the comments the turn added to a **separate model call** with these rules, and holds the turn open until a delete or shorten verdict is applied. The second reader is the point: the pass that just wrote a paragraph of self-justification is the worst judge of whether it earns its place. Deleting or trimming a comment can't change behaviour, so the fix needs no approval. A finding that is genuinely wrong may be kept, with the reason stated in the reply.
 3. **Review** — Worker 2 owns the full prose judgement (is this narration, does it explain *what* instead of *why*, does the docstring add anything).
 
@@ -156,6 +156,31 @@ fn tariff_for(code: &str) -> Tariff { ... }
 ```
 
 The register is the giveaway: if the sentence would fit in a chat message or a pull-request comment, that is where it belongs. Put it there, and leave the file clean.
+
+---
+
+## CM-007 — One line, or none
+
+A comment that earns its place fits on one line. Past that it has stopped stating the constraint and started arguing for the decision — and the argument is addressed to a reviewer, who is not the audience. Keep the fact the next reader needs in order not to break the code; cut the case for why the author chose it.
+
+The paragraph shape is the tell: a sentence of fact, then a sentence conceding the alternative, then a sentence explaining why the alternative loses. Only the first is durable. The other two answer a question nobody reading the file is asking, and they answer it against a codebase that will have moved on.
+
+```php
+// Bad — one fact, then two sentences of self-defence
+/** Retries are capped at three. A higher cap was tempting given how often the
+ *  sandbox flakes, but the upstream gateway holds the connection open for the
+ *  whole window, and a fourth attempt would outlast the caller's own deadline
+ *  rather than buying another chance at success. */
+$client->retry(3);
+
+// Good — the constraint only, in the one line that carries it
+// A 4th retry outlasts the caller's deadline; the gateway holds the connection open.
+$client->retry(3);
+```
+
+A file-header docstring is exempt: it describes the whole unit rather than a line, and it is the one place a paragraph is the right shape. Everything below the header answers to the one-line limit.
+
+**Test:** cut every line of the block but one. If the code is still safe from the next reader, the lines you cut were argument.
 
 ---
 

@@ -51,9 +51,9 @@ Everything else goes. Flag:
 
 Be strict, and judge line by line. The bar is not "does this contain something
 true" — it is "does every line carry a fact the next reader cannot get from the
-code". A block over two lines is a defect unless each line carries a distinct such
-fact; if one line can carry it, the verdict is "shorten" with that line, however
-correct the rest is.
+code". CM-007: a comment that earns its place fits on ONE line. A block running past
+one line of prose is a defect, and the verdict is "shorten" to that single line
+however correct the rest is. A file-header docstring is the one exemption.
 
 Two things that look like rationale but are not: explaining the change to a reviewer,
 and arguing that a branch is justified. Keep the fact a reader needs to avoid
@@ -171,7 +171,7 @@ def findings_from(answer: dict, blocks: list[CommentBlock]) -> list[Finding]:
 def render(findings: list[Finding]) -> str:
     """The instruction a held-open turn is given."""
     lines = [
-        "coding-standards comment judge (CM-001..CM-006) — these comments must change "
+        "coding-standards comment judge (CM-001..CM-007) — these comments must change "
         "before this turn ends.",
         "Apply each edit now (deleting or trimming a comment cannot change behaviour), "
         "then finish. If a specific finding is wrong, keep that comment and say why in "

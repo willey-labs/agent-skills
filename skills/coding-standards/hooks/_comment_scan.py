@@ -40,8 +40,12 @@ _DIRECTIVE = re.compile(
 
 
 def is_directive(raw: str) -> bool:
-    """True for a machine directive — a linter pragma, shebang, encoding or SPDX line."""
-    return bool(_DIRECTIVE.search(raw))
+    """True for a machine directive — a linter pragma, shebang, encoding or SPDX line.
+
+    Matched against the prose as well as the raw line: a pragma written in block-comment
+    syntax carries its marker on the same line, and the anchored pattern would miss it.
+    """
+    return bool(_DIRECTIVE.search(raw) or _DIRECTIVE.search(strip_marker(raw)))
 
 
 def strip_marker(raw: str) -> str:

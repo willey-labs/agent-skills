@@ -80,6 +80,7 @@ from _bootstrap.hook_entries import (
     build_post_tool_use_entry,
     build_session_start_entry,
     build_stop_entry,
+    build_user_prompt_submit_entry,
 )
 from _bootstrap.hook_identity import is_our_entry
 from _bootstrap.settings import (
@@ -89,6 +90,7 @@ from _bootstrap.settings import (
     merge_post_tool_use_entry,
     merge_session_start_entry,
     merge_stop_entry,
+    merge_user_prompt_submit_entry,
     write_settings,
 )
 
@@ -358,6 +360,11 @@ def main(argv: list[str] | None = None) -> int:
     # wrote; the judge reads them when the turn tries to end.
     _, post_action = merge_post_tool_use_entry(updated, build_post_tool_use_entry(scope))
     _, stop_action = merge_stop_entry(updated, build_stop_entry(scope))
+    # UserPromptSubmit: re-inject the rule reminder each turn, so a rule read once at
+    # session start is still in context by the time code gets written.
+    _, prompt_action = merge_user_prompt_submit_entry(
+        updated, build_user_prompt_submit_entry(scope)
+    )
     # Permissions: global → into the committed `updated`; project → into the
     # git-ignored settings.local.json so machine-absolute paths never get committed
     # (ISS-012). perms_changed reflects whichever file was touched.
@@ -365,6 +372,7 @@ def main(argv: list[str] | None = None) -> int:
     committed_changed = (
         hooks_action != "noop" or session_action != "noop"
         or post_action != "noop" or stop_action != "noop"
+        or prompt_action != "noop"
         or (scope == "global" and perms_changed)
     )
     if committed_changed:
