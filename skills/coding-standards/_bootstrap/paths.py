@@ -14,6 +14,12 @@ module's own. Python preserves the symlinked path for the main script's
 would land on the canonical install path (no `.claude` ancestor) and break scope
 detection. `sys.argv[0]` is the fallback when `__main__.__file__` is absent
 (e.g. an embedded interpreter). Both point at `bootstrap.py` as invoked.
+
+Every path that ends up inside a settings.json hook command goes through
+`command_path` first. Hook commands are handed to a shell — Git Bash on Windows —
+which eats each backslash of a native Windows path as an escape and leaves the
+command pointing at a mangled filename; forward slashes need no escaping and
+Windows accepts them wherever it accepts a path.
 """
 
 from __future__ import annotations
@@ -65,6 +71,11 @@ SKILL_DIR = SCRIPT_PATH.parent
 # Hooks dir resolved to its real location so the command paths in settings.json
 # work from any cwd.
 HOOKS_DIR = (SKILL_DIR / "hooks").resolve()
+
+
+def command_path(path: Path | str) -> str:
+    """A path bound for a shell command string — forward slashes only."""
+    return str(path).replace("\\", "/")
 
 
 def _managed_venv_dir() -> Path:

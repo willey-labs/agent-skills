@@ -14,6 +14,8 @@ import shutil
 import sys
 from pathlib import Path
 
+from .paths import command_path
+
 
 def hook_interpreter(scope: str, python_command: str, venv_python: Path | None) -> str:
     """The interpreter string written into each hook command.
@@ -27,8 +29,8 @@ def hook_interpreter(scope: str, python_command: str, venv_python: Path | None) 
     that silently drops AST checks to regex).
     """
     if venv_python is not None:
-        return str(venv_python)
-    return python_command if scope == "project" else sys.executable
+        return command_path(venv_python)
+    return python_command if scope == "project" else command_path(sys.executable)
 
 
 def interpreter_note(scope: str, venv_python: Path | None) -> str:

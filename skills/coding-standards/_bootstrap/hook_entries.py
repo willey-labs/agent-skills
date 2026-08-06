@@ -21,7 +21,7 @@ from .hook_registry import (
     USER_PROMPT_SUBMIT_FILES,
     WRITE_MATCHER,
 )
-from .paths import HOOKS_DIR
+from .paths import HOOKS_DIR, command_path
 
 
 def path_prefix(scope: str) -> str:
@@ -30,7 +30,7 @@ def path_prefix(scope: str) -> str:
     variable); the resolved hooks dir for a global one."""
     if scope == "project":
         return "${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks"
-    return str(HOOKS_DIR)
+    return command_path(HOOKS_DIR)
 
 
 def _commands(scope: str, interpreter: str, names: list[str]) -> list[dict]:

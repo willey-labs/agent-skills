@@ -16,7 +16,7 @@ import json
 import shutil
 from pathlib import Path
 
-from .paths import HOOKS_DIR
+from .paths import HOOKS_DIR, command_path
 
 INJECT_SCRIPT = "inject-writing-standards.py"
 INTERPRETER = "python3"
@@ -30,7 +30,7 @@ def _command(scope: str) -> str:
     if scope == "project":
         prefix = "${CLAUDE_PROJECT_DIR}/.claude/skills/writing-standards/hooks"
     else:
-        prefix = str(HOOKS_DIR)
+        prefix = command_path(HOOKS_DIR)
     return f"{INTERPRETER} {prefix}/{INJECT_SCRIPT}"
 
 

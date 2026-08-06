@@ -13,6 +13,12 @@ module's own `__file__`. Python preserves the symlinked path for the main script
 but RESOLVES the symlink for an imported module's `__file__` — which would land on
 the canonical install path and break scope detection. See the same note in
 coding-standards' _bootstrap/paths.py; this is a trimmed copy (no venv).
+
+Every path that ends up inside a settings.json hook command goes through
+`command_path` first. Hook commands are handed to a shell — Git Bash on Windows —
+which eats each backslash of a native Windows path as an escape and leaves the
+command pointing at a mangled filename; forward slashes need no escaping and
+Windows accepts them wherever it accepts a path.
 """
 
 from __future__ import annotations
@@ -54,3 +60,8 @@ SCRIPT_PATH = _invocation_path().absolute()
 SKILL_DIR = SCRIPT_PATH.parent
 # Hooks dir resolved to its real location so settings.json command paths work from any cwd.
 HOOKS_DIR = (SKILL_DIR / "hooks").resolve()
+
+
+def command_path(path: Path | str) -> str:
+    """A path bound for a shell command string — forward slashes only."""
+    return str(path).replace("\\", "/")

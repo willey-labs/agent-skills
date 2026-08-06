@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .paths import SKILL_DIR
+from .paths import SKILL_DIR, command_path
 from .settings import load_settings, write_settings
 
 
@@ -55,9 +55,10 @@ def ensure_skill_permissions(settings: dict, include_dirs: bool = True) -> bool:
     if not isinstance(allow, list):
         allow = []
         perms["allow"] = allow
+    skill_dir = command_path(SKILL_DIR)
     for py in ("python3", "python"):
         for script in ("bootstrap.py", "hooks/review-files.py"):
-            rule = f"Bash({py} {SKILL_DIR}/{script}*)"
+            rule = f"Bash({py} {skill_dir}/{script}*)"
             if rule not in allow:
                 allow.append(rule)
                 changed = True
