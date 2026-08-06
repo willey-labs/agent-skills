@@ -171,12 +171,15 @@ git -C ~/projects/willey-labs/agent-skills pull
 ```
 
 You **don't** need to re-run anything by hand, or tell your team to. `bootstrap.py`
-is idempotent, and the skill re-runs it on activation (`SKILL.md` Step 0 — "after a
-skill update"), so the next session picks up any new hooks **and** re-applies the
-permission allow-rules (reading the skill's references and running its scripts
-without a prompt). Because settings are read at session start, the *first* session
-after an update may still prompt once; the next session is clean. To apply
-immediately instead of waiting, run `python3 <skill-dir>/bootstrap.py` and restart.
+is idempotent, and a `SessionStart` hook runs it for you: at every session start it
+checks whether every hook the version ships is actually wired, and re-runs the
+installer itself when any is missing. So an update picks up new hooks **and**
+re-applies the permission allow-rules (reading the skill's references and running its
+scripts without a prompt) without anyone being asked to act. That rewrites your
+`settings.json` — deliberately, because a session that silently checks nothing is the
+worse outcome. Because settings are read at session start, the repair lands on the
+*next* session; the check says so when it runs. To apply immediately instead of
+waiting, run `python3 <skill-dir>/bootstrap.py` and restart.
 
 ### Turning it off
 

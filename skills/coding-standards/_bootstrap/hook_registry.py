@@ -2,7 +2,7 @@
 """What this skill ships and under which event each script runs.
 
 Four events carry the enforcement: PreToolUse blocks a bad write, SessionStart
-reports dead enforcement, PostToolUse records what a turn wrote, and Stop judges the
+repairs dead enforcement, PostToolUse records what a turn wrote, and Stop judges the
 comments in it. Adding a script means adding its basename to the right list here and
 nowhere else — the entry builders, the recognizers and the config-sync test all read
 these lists.
@@ -47,7 +47,7 @@ STOP_FILES = [
     "judge-comments.py",
 ]
 
-# The health check reports dead enforcement (ISS-006). `startup` is the verified
+# The health check repairs dead enforcement (ISS-006). `startup` is the verified
 # matcher value for a new session — the case where silently-dead enforcement does the
 # most damage (a whole session of unchecked writes).
 SESSION_HEALTH_SCRIPT = "session-health-check.py"

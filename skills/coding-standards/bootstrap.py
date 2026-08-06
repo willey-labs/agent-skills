@@ -18,6 +18,7 @@ This file is the orchestrator and the public entry point. The work lives in the
   _bootstrap/install       the mandatory dependency install flow (+ venv fallback)
   _bootstrap/scope         project/global scope detection + the ignore-file template
   _bootstrap/settings      settings.json wiring (hook entry + permissions)
+  _bootstrap/verify        the read-only `--verify` readiness answer
   _bootstrap/command       /coding-standards slash-command install (symlink or copy)
 
 `bootstrap.py` stays at the skill root because SKILL.md Step 0 and the slash
@@ -59,11 +60,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from _bootstrap.dependencies import (
-    MIN_PYTHON,
-    interpreter_has_packages,
-    required_packages_available,
-)
+from _bootstrap.dependencies import MIN_PYTHON, required_packages_available
 from _bootstrap.command import install_slash_command
 from _bootstrap.install import ensure_global_venv, ensure_required_packages
 from _bootstrap.interpreter import (
@@ -82,7 +79,7 @@ from _bootstrap.hook_entries import (
     build_stop_entry,
     build_user_prompt_submit_entry,
 )
-from _bootstrap.hook_identity import is_our_entry, missing_wired_scripts
+from _bootstrap.verify import already_set_up as verify_already_set_up
 from _bootstrap.settings import (
     HOOK_FILES,
     load_settings,
@@ -163,8 +160,8 @@ def report_install_result(result: WiringResult) -> int:
         f"  Hook commands use: {result.hook_python}\n"
         f"    ({interpreter_note(result.scope, result.venv_python)}).\n"
         f"  Hooks dir: {HOOKS_DIR}\n"
-        f"  SessionStart health check: {result.session_action} (warns loudly if "
-        f"enforcement ever goes dead — wiped venv / moved skill dir).\n"
+        f"  SessionStart health check: {result.session_action} (re-wires enforcement if "
+        f"it ever goes dead, and says so; reports when it can't).\n"
         f"  Comment judge: {result.judge_action} (PostToolUse records what a turn wrote; "
         f"Stop has a separate model judge the comments in it).\n"
         f"  Restart your agent if hooks or commands don't activate on the next tool call."
@@ -196,81 +193,6 @@ def _block_on_missing_packages(report: dict) -> None:
         f"  Hooks are NOT wired until they load — they back the skill's "
         f"checks (currently the FN-001/FN-005/OD-004 AST checks on TS/JS)."
     )
-
-
-def _wired_hook_interpreter(pre_tool_use: list) -> str | None:
-    """The interpreter our wired hook commands run under (first token of the
-    command), or None if no entry of ours is present."""
-    for entry in pre_tool_use:
-        if not (isinstance(entry, dict) and is_our_entry(entry)):
-            continue
-        for hook in entry.get("hooks") or []:
-            command = (hook or {}).get("command", "")
-            parts = command.split()
-            if parts:
-                return parts[0]
-    return None
-
-
-def _wired_hook_scripts(pre_tool_use: list) -> list[str]:
-    """The hook SCRIPT paths (second token) of every wired command of ours."""
-    scripts: list[str] = []
-    for entry in pre_tool_use:
-        if not (isinstance(entry, dict) and is_our_entry(entry)):
-            continue
-        for hook in entry.get("hooks") or []:
-            command = (hook or {}).get("command", "")
-            parts = command.split()
-            if len(parts) >= 2:
-                scripts.append(parts[1])
-    return scripts
-
-
-def _all_wired_scripts_exist(scripts: list[str]) -> bool:
-    """True unless a resolvable wired script path is missing on disk (ISS-015) —
-    a moved/renamed skill dir leaves the wiring intact but every hook exits 127,
-    the same silent death as a wiped venv. Paths still holding an unexpanded
-    ${VAR} (project scope when CLAUDE_PROJECT_DIR isn't set in this process) are
-    skipped: can't verify, so don't false-negative into a needless re-bootstrap."""
-    for script in scripts:
-        expanded = os.path.expandvars(script)
-        if "${" in expanded:
-            continue
-        if not Path(expanded).exists():
-            return False
-    return True
-
-
-def verify_already_set_up() -> int:
-    """`--verify`: 0 when the wiring is complete and live, non-zero when bootstrap must run."""
-    report = readiness_report()
-    if not report["python_version_ok"]:
-        return 1
-    try:
-        scope, settings_path, _commands = detect_scope_and_targets()
-        settings = load_settings(settings_path)
-    except SystemExit:
-        return 1
-    hooks_section = settings.get("hooks") if isinstance(settings, dict) else None
-    pre_tool_use = hooks_section.get("PreToolUse") if isinstance(hooks_section, dict) else None
-    is_list = isinstance(pre_tool_use, list)
-    interpreter = _wired_hook_interpreter(pre_tool_use) if is_list else None
-    scripts = _wired_hook_scripts(pre_tool_use) if is_list else []
-    absent = missing_wired_scripts(settings)
-    if absent:
-        print(
-            f"coding-standards: {len(absent)} registered hook(s) not wired ({scope}) — "
-            "bootstrap needed:\n" + "".join(f"    - {name}\n" for name in absent)
-        )
-        return 1
-    if (
-        interpreter is not None
-        and interpreter_has_packages(interpreter)
-        and _all_wired_scripts_exist(scripts)
-    ):
-        print(f"coding-standards: already set up ({scope}) — no bootstrap needed.")
-        return 0
-    return 1
 
 
 # Env sentinel so a re-exec can't loop (set before exec, checked on entry).

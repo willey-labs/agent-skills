@@ -52,8 +52,8 @@ def build_session_start_entry(scope: str) -> dict:
     """The SessionStart entry: the enforcement health check, then the rule reminder.
 
     Uses the SAME path prefix as the PreToolUse hooks so scope detection inside the
-    spawned `bootstrap.py --verify` works. See SessionStart hook docs: stdout →
-    Claude context, exit 2 → stderr to user, never blocks.
+    spawned bootstrap works. See SessionStart hook docs: it never blocks, and stdout
+    reaches Claude's context only on exit 0 — exit 2 discards it.
     """
     return {
         "matcher": SESSION_START_MATCHER,
