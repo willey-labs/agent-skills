@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Regression test — CM-007, the one-line limit on comment blocks a write adds.
 
-Three properties decide whether this hook is usable: it refuses a multi-line block
-mid-file, it stays silent on the shapes that legitimately span lines (file-header
-docstrings, stacked machine pragmas), and it never re-judges prose already on disk.
-That last one is the whole reason the check can be a hard block rather than an
-advisory, so it is tested against a real file rather than a synthetic path.
+Checks that a multi-line block mid-file is refused, that a real file-header docstring
+and stacked machine pragmas are not, and that prose already on disk is never
+re-judged. The disk cases run against a real file.
 
     python3 hooks/tests/test-added-comments.py
 """
@@ -86,6 +84,29 @@ CASES = [
         "/tmp/cs/src/g.py",
         "x = 1\n\n\ndef f():\n    # type: ignore[arg-type]\n    # pylint: disable=broad-except\n    # noqa: E402\n    return x\n",
         block=False,
+    ),
+    Case(
+        "a block opening a function body is refused",
+        HOOK,
+        "/tmp/cs/src/j.py",
+        "def total(values):\n    # Sums the values and returns the result.\n    # A manual loop was tempting but sum() reads better at this size.\n    return sum(values)\n",
+        block=True,
+        rule="CM-007",
+    ),
+    Case(
+        "an encoding line before the header block is exempt",
+        HOOK,
+        "/tmp/cs/src/k.py",
+        '# -*- coding: utf-8 -*-\n"""What this module does.\n\nA second line and a third, describing the unit rather than any one line of it.\n"""\n\n\ndef f():\n    return 1\n',
+        block=False,
+    ),
+    Case(
+        "a block under the module docstring is refused",
+        HOOK,
+        "/tmp/cs/src/l.py",
+        '"""What this module does."""\n\n# Rounds half-up so the figure matches\n# the invoice the finance team generates.\nRATE = 1\n',
+        block=True,
+        rule="CM-007",
     ),
     Case(
         "a file with no comments passes",
