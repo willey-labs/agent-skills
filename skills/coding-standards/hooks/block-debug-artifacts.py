@@ -8,7 +8,7 @@ blocks):
   `debugger` (JS/TS), `breakpoint()` / `pdb.set_trace()` / `import pdb` (Python),
   `dd()` / `var_dump()` (PHP/Laravel). Effectively zero false positives — nobody
   commits these on purpose.
-- **ADVISORY (exit 0 + stderr)** — print-style residue (`console.log`, `print(`,
+- **ADVISORY (exit 0, emitted as tool-result context)** — print-style residue (`console.log`, `print(`,
   `fmt.Println`, `Console.WriteLine`, `System.out.print`, Kotlin `println`) and
   commented-out code. These have legitimate uses (a CLI prints; a comment explains),
   so the blunt signal warns rather than blocks. Under the review model every
@@ -19,7 +19,7 @@ Debug-residue patterns run on text with strings AND comments stripped (so a stri
 commented-out-code check runs on RAW lines (it needs the comment text), kept
 conservative to limit noise even as an advisory.
 
-Stdlib only. Exit 2 hard-block; exit 0 (with stderr) advisory; exit 0 silent clean.
+Stdlib only. Exit 2 hard-block (stderr); exit 0 advisory (stdout context); exit 0 silent clean.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _hook_run import read_payload, resolve_target  # noqa: E402
+from _hook_run import advise, advisory_message, read_payload, resolve_target  # noqa: E402
 
 JS_EXTS = {".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"}
 PY_EXTS = {".py", ".pyi"}
@@ -146,11 +146,7 @@ def main() -> int:
         )
         return 2
     if advisory:
-        sys.stderr.write(
-            "coding-standards (advisory: not hard-blocked, but each is still a "
-            "must-fix violation — fix it or record it accepted with a reason):\n"
-            + "".join(f"  - {m}\n" for m in advisory)
-        )
+        return advise(advisory_message(advisory))
     return 0
 
 

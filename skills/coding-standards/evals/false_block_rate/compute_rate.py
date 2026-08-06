@@ -9,7 +9,7 @@ violation) and, for false positives, an `fp_kind`:
   - "stance"  — the match is correct, but it blocks idiomatic code on a deliberate
     rule position.
 
-Advisories (exit 0 + stderr) are excluded; they never stop a write. Reports the
+Advisories (exit 0) are excluded; they never stop a write. Reports the
 misfire rate per hook and the share of scanned files blocked on idiomatic code.
 
 Stdlib only.

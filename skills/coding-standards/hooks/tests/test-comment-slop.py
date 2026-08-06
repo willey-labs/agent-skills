@@ -6,8 +6,8 @@ stays silent on a legitimate rationale comment (precision is the whole bar for a
 prose check), and it never exits 2 — every finding is an advisory.
 
 `harness.run_cases` asserts exit codes, so this test drives the hook directly and
-borrows only the harness reporter: the signal here is the rule code on stderr, not
-the exit status.
+borrows only the harness reporter: the signal here is the rule code in the context
+the hook hands Claude, not the exit status.
 
     python3 hooks/tests/test-comment-slop.py
 """
@@ -26,11 +26,14 @@ from harness import report_failures  # noqa: E402
 HOOKS_DIR = Path(__file__).resolve().parent.parent
 HOOK = HOOKS_DIR / "advise-comment-slop.py"
 
+sys.path.insert(0, str(HOOKS_DIR))
+from _hook_run import advisory_text  # noqa: E402
+
 
 @dataclass
 class Case:
-    """One advisory case. `rule` is the code expected on stderr, or None for a file
-    that must come back silent."""
+    """One advisory case. `rule` is the code expected in the message, or None for a
+    file that must come back silent."""
 
     name: str
     file_path: str
@@ -122,26 +125,26 @@ def run(case: Case) -> tuple[int, str]:
     proc = subprocess.run(
         [sys.executable, str(HOOK)], input=payload, capture_output=True, text=True
     )
-    return proc.returncode, proc.stderr
+    return proc.returncode, advisory_text(proc.stdout) + proc.stderr
 
 
 def check(case: Case) -> str | None:
-    code, stderr = run(case)
+    code, message = run(case)
     if code != 0:
         return f"{case.name}: advisory must exit 0, got {code}"
     if case.rule is None:
-        return f"{case.name}: expected silence, got {stderr.strip()}" if stderr.strip() else None
-    if case.rule not in stderr:
-        return f"{case.name}: expected {case.rule} on stderr, got {stderr.strip() or '<silence>'}"
+        return f"{case.name}: expected silence, got {message.strip()}" if message.strip() else None
+    if case.rule not in message:
+        return f"{case.name}: expected {case.rule} in the message, got {message.strip() or '<silence>'}"
     return None
 
 
 def cap_failure() -> str | None:
     """The per-file finding cap keeps a chatty file from flooding the transcript."""
     content = "".join(f"// TODO: item {i}\n" for i in range(20))
-    _code, stderr = run(Case("cap", "/tmp/cs/src/u.ts", content, "CM-006"))
-    if "(+5 more" not in stderr:
-        return f"cap: expected 15 findings plus a '+5 more' tail, got {stderr.strip()}"
+    _code, message = run(Case("cap", "/tmp/cs/src/u.ts", content, "CM-006"))
+    if "(+5 more" not in message:
+        return f"cap: expected 15 findings plus a '+5 more' tail, got {message.strip()}"
     return None
 
 

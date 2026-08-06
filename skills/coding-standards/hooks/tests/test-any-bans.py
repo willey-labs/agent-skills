@@ -61,9 +61,10 @@ CASES: list[Case] = [
     Case("py dict-str-int ok", PY, "/tmp/x/g.py",
          "x: dict[str, int] = {}\ny: list[str] = []\n", block=False),
 
-    # Go `any` is now an ADVISORY (exit 0 + stderr), NOT a hard block — it fired on
-    # ~60% of idiomatic Go files in the GAP-002 corpus. These must NOT block; the
-    # advisory-stderr assertion lives in test-idiomatic-carveouts.py.
+    # Go `any` is an ADVISORY (exit 0), NOT a hard block — it fired on ~60% of
+    # idiomatic Go files in the GAP-002 corpus. These must NOT block; the advisory's
+    # content is asserted in test-idiomatic-carveouts.py, its channel in
+    # test-advisory-channel.py.
     Case("go return-tuple any advisory", GO, "/tmp/x/a.go",
          "package p\nfunc Load() (any, error) { return nil, nil }\n", block=False),
     Case("go map[any] key advisory", GO, "/tmp/x/b.go",

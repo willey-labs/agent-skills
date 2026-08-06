@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """PreToolUse hook — CM-004/CM-005/CM-006 comment slop (all source languages).
 
-ADVISORY ONLY: exit 0, findings on stderr, never exit 2. The CM-* rules are about
+ADVISORY ONLY: exit 0, findings handed to Claude as tool-result context, never exit
+2 (`_hook_run.advise`). The CM-* rules are about
 prose, and a legitimate rationale comment may contain any word at all, so no regex
 here clears the ~1% false-positive bar a hard block needs (`AGENTS.md`). What this
 hook catches is the *mechanical* subset — the tells that are almost never anything
@@ -33,8 +34,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _comment_scan import commented_lines, is_directive, strip_marker  # noqa: E402
-from _hook_run import read_payload, resolve_target  # noqa: E402
+from _hook_run import advise, advisory_message, read_payload, resolve_target  # noqa: E402
 from _languages import SOURCE_EXTENSIONS  # noqa: E402
+
+ADVISORY_LEAD = (
+    "coding-standards (advisory: not hard-blocked, but each is still a must-fix "
+    "violation — delete the comment or record it accepted with a reason).\n"
+    "The default for a comment is none: see "
+    "skills/coding-standards/references/common/comments.md.\n"
+)
 
 MAX_FINDINGS = 15
 
@@ -182,16 +190,9 @@ def main() -> int:
         return 0
 
     shown = findings[:MAX_FINDINGS]
-    tail = len(findings) - len(shown)
-    sys.stderr.write(
-        "coding-standards (advisory: not hard-blocked, but each is still a must-fix "
-        "violation — delete the comment or record it accepted with a reason).\n"
-        "The default for a comment is none: see "
-        "skills/coding-standards/references/common/comments.md.\n"
-        + "".join(f"  - {m}\n" for m in shown)
-        + (f"  - (+{tail} more comment findings in this file)\n" if tail else "")
-    )
-    return 0
+    hidden = len(findings) - len(shown)
+    tail = f"  - (+{hidden} more comment findings in this file)\n" if hidden else ""
+    return advise(advisory_message(shown, ADVISORY_LEAD, tail))
 
 
 if __name__ == "__main__":

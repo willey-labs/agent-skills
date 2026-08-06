@@ -3,7 +3,7 @@
 
 Four changes, each because the rule was hard-blocking idiomatic professional code:
 
-  - Go `interface{}` / `any` is an ADVISORY (exit 0 + stderr), not a hard block —
+  - Go `interface{}` / `any` is an ADVISORY (exit 0, emitted as context), not a hard block —
     it fired on ~60% of idiomatic Go files (gin) in the corpus. Hungarian and
     FN-005 on Go still hard-block.
   - shadcn/ui's `lib/utils.ts` (the cn() helper) is exempt from the ST-005 junk
@@ -27,19 +27,23 @@ import sys
 from pathlib import Path
 
 HOOKS = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(HOOKS))
+from _hook_run import advisory_text  # noqa: E402
+
 GO = "block-go-violations.py"
 JUNK = "block-junk-paths.py"
 PY = "block-py-violations.py"
 
 
 def run(hook: str, file_path: str, content: str) -> tuple[int, str]:
+    """(exit code, the message the hook emitted) — stderr blocks, stdout advisories."""
     payload = json.dumps(
         {"tool_name": "Write", "tool_input": {"file_path": file_path, "content": content}}
     )
     proc = subprocess.run(
         [sys.executable, str(HOOKS / hook)], input=payload, capture_output=True, text=True
     )
-    return proc.returncode, proc.stderr
+    return proc.returncode, proc.stderr + advisory_text(proc.stdout)
 
 
 def _expect(failures: list[str], name: str, ok: bool) -> None:

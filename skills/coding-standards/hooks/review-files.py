@@ -35,6 +35,9 @@ from pathlib import Path
 HOOK_DIR = Path(__file__).resolve().parent
 SKILL_DIR = HOOK_DIR.parent
 
+sys.path.insert(0, str(HOOK_DIR))
+from _hook_run import advisory_text  # noqa: E402
+
 
 def _imports_tree_sitter(interpreter: str) -> bool:
     try:
@@ -127,9 +130,10 @@ DEGRADED_FINDING = (
 # file extension and exits 0 when the file isn't its language — so running them
 # all against every file mirrors how they register as PreToolUse hooks (all run;
 # each picks its own). All findings are violations to fix (no severity tiers); the
-# EXIT CODE only distinguishes a hard block (exit 2) from an advisory (exit 0 +
-# stderr, tagged "[advisory]" so the reviewer knows it's a blunt proxy to
-# adjudicate). block-god-file does both — it blocks on too many behavioral
+# EXIT CODE only distinguishes a hard block (exit 2, message on stderr) from an
+# advisory (exit 0, message in the stdout context envelope, tagged "[advisory]" so
+# the reviewer knows it's a blunt proxy to adjudicate). block-god-file does both —
+# it blocks on too many behavioral
 # declarations and advises on raw size / flat folders; advise-comment-slop only ever
 # advises (comment prose can't be hard-blocked at the precision bar).
 # block-structure-file-violations is omitted: it guards the config file, not source.
@@ -148,10 +152,10 @@ HOOK_FILES = (
 )
 
 
-def _bullets(stderr: str) -> list[str]:
-    """The `- ` bullet lines of a hook's stderr, headers dropped."""
+def _bullets(message: str) -> list[str]:
+    """The `- ` bullet lines of a hook's message, headers dropped."""
     out = []
-    for line in stderr.splitlines():
+    for line in message.splitlines():
         stripped = line.strip()
         if stripped.startswith("- "):
             out.append(stripped[2:].strip())
@@ -187,12 +191,12 @@ def check_file(path: str) -> list[str]:
             capture_output=True,
             text=True,
         )
-        if not proc.stderr.strip():
-            continue
         if proc.returncode == 2:
             violations.extend(_bullets(proc.stderr))
-        else:
-            violations.extend("[advisory] " + b for b in _bullets(proc.stderr))
+            continue
+        violations.extend(
+            "[advisory] " + bullet for bullet in _bullets(advisory_text(proc.stdout))
+        )
     return violations
 
 

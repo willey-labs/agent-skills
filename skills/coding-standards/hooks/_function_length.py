@@ -5,7 +5,7 @@ TS/JS and Python get a precise statement-count FN-001 block from their AST layer
 (_ts_node_checks / _py_ast). Go, C#, Java, Kotlin, and PHP have no stdlib parser
 here, so a precise count isn't available — and a blunt line count can't clear the
 ~1% false-positive bar a hard block requires (AGENTS.md). So this is an *advisory*
-(exit 0 + stderr via block-god-file's advisory path): it warns when a function body
+(exit 0 via block-god-file's advisory path): it warns when a function body
 runs long, the reviewer confirms whether it's really doing more than one thing.
 
 Body length is measured by brace-matching from the function's opening `{` (over

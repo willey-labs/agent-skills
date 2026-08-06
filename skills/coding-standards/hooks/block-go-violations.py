@@ -9,7 +9,7 @@ violates high-precision rules that regex can catch reliably:
 - Function signatures with 4+ named positional parameters (FN-005). Go's
   grouped-type syntax (`func F(a, b, c, d int)`) is also caught.
 
-`interface{}` / `any` is an **advisory** (exit 0 + stderr), NOT a hard block.
+`interface{}` / `any` is an **advisory** (exit 0, emitted as tool-result context), NOT a hard block.
 Go genuinely needs `any` for heterogeneous JSON, reflection, and generic
 constraints (`[T any]`, `map[string]any`), so hard-blocking it fights the
 language — the GAP-002 corpus measured it firing on ~60% of idiomatic Go files.
@@ -27,7 +27,14 @@ from typing import Iterable
 
 sys.path.insert(0, str(Path(__file__).parent))
 # Shared PreToolUse lifecycle (gate, payload read, block emit) — see _hook_run.
-from _hook_run import block, join_wrapped_signatures, read_payload, resolve_target  # noqa: E402
+from _hook_run import (  # noqa: E402
+    advise,
+    advisory_message,
+    block,
+    join_wrapped_signatures,
+    read_payload,
+    resolve_target,
+)
 
 GO_EXTENSIONS = {".go"}
 
@@ -210,11 +217,7 @@ def main() -> int:
 
     advisory = list(iter_any_violations(clean_lines, file_path))
     if advisory:
-        sys.stderr.write(
-            "coding-standards (advisory: not hard-blocked, but each is still a "
-            "must-fix violation — fix it or record it accepted with a reason):\n"
-            + "".join(f"  - {m}\n" for m in advisory)
-        )
+        return advise(advisory_message(advisory))
     return 0
 
 

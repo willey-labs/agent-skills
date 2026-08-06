@@ -82,7 +82,7 @@ from _bootstrap.hook_entries import (
     build_stop_entry,
     build_user_prompt_submit_entry,
 )
-from _bootstrap.hook_identity import is_our_entry
+from _bootstrap.hook_identity import is_our_entry, missing_wired_scripts
 from _bootstrap.settings import (
     HOOK_FILES,
     load_settings,
@@ -242,11 +242,7 @@ def _all_wired_scripts_exist(scripts: list[str]) -> bool:
 
 
 def verify_already_set_up() -> int:
-    """`--verify`: 0 if the skill is genuinely ready (wired AND the hooks'
-    interpreter can import the required packages); non-zero if a full bootstrap
-    run is needed. Read-only — touches no files. Lets the skill skip bootstrap
-    when ready without falsely passing a wired-but-broken install (e.g. the
-    dedicated venv was wiped by a reinstall)."""
+    """`--verify`: 0 when the wiring is complete and live, non-zero when bootstrap must run."""
     report = readiness_report()
     if not report["python_version_ok"]:
         return 1
@@ -260,13 +256,13 @@ def verify_already_set_up() -> int:
     is_list = isinstance(pre_tool_use, list)
     interpreter = _wired_hook_interpreter(pre_tool_use) if is_list else None
     scripts = _wired_hook_scripts(pre_tool_use) if is_list else []
-    # Ready means three things, all of which silently fail-open if broken:
-    #   1. our entry is wired,
-    #   2. the interpreter those hooks use can import the required packages
-    #      (a wiped venv / deps-less python3 would exit 127 and never block), and
-    #   3. the wired hook SCRIPT files still exist (a moved/renamed skill dir
-    #      leaves wiring intact but every hook exits 127 — ISS-006/ISS-015).
-    # Any failure reads as "not ready", triggering a real bootstrap that rebuilds.
+    absent = missing_wired_scripts(settings)
+    if absent:
+        print(
+            f"coding-standards: {len(absent)} registered hook(s) not wired ({scope}) — "
+            "bootstrap needed:\n" + "".join(f"    - {name}\n" for name in absent)
+        )
+        return 1
     if (
         interpreter is not None
         and interpreter_has_packages(interpreter)

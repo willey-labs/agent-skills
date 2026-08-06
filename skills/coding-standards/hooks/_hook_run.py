@@ -11,6 +11,13 @@ runner.
 `strip_strings_and_comments` is deliberately NOT here: each language blanks
 different literal/comment syntax (Python triple-quotes, JS template literals,
 PHP heredocs), so those are genuinely distinct implementations, not duplication.
+
+A block and an advisory leave by different doors. Stderr reaches Claude only when
+the hook exits 2; on an exit-0 hook it goes to the debug log and no further, so an
+advisory written there is never read by the writer it exists to correct. Advisories
+therefore leave as `hookSpecificOutput.additionalContext` on stdout, which Claude
+Code delivers alongside the tool result. `advise` writes that envelope and
+`advisory_text` reads it back, so the reviewer CLI and the tests see what Claude saw.
 """
 
 from __future__ import annotations
@@ -28,6 +35,11 @@ _RULE_CODE = re.compile(r"\b(?:FN|NM|OD|ST|EH|FMT|DP)-\d+\b")
 # The fixed first line of every block message; the per-hook "See ..." line
 # follows it (see `block`).
 _BLOCK_LEAD = "coding-standards hook blocked this write — fix the violations and try again.\n"
+
+ADVISORY_LEAD = (
+    "coding-standards (advisory: not hard-blocked, but each is still a must-fix "
+    "violation — fix it or record it accepted with a reason):\n"
+)
 
 
 def read_payload() -> dict | None:
@@ -133,3 +145,32 @@ def block(violations: list[str], see_line: str) -> int:
     header = _BLOCK_LEAD + see_line + "\n"
     sys.stderr.write(header + "\n".join(f"  - {v}" for v in violations) + "\n")
     return 2
+
+
+def advise(text: str) -> int:
+    """Emit an advisory to Claude as tool-result context and return the pass code."""
+    sys.stdout.write(
+        json.dumps(
+            {"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": text}}
+        )
+    )
+    return 0
+
+
+def advisory_text(stdout: str) -> str:
+    """The advisory body carried by a hook's stdout, or empty when it emitted none."""
+    try:
+        payload = json.loads(stdout or "{}")
+    except json.JSONDecodeError:
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    specific = payload.get("hookSpecificOutput")
+    if not isinstance(specific, dict):
+        return ""
+    return specific.get("additionalContext") or ""
+
+
+def advisory_message(findings: list[str], lead: str = ADVISORY_LEAD, tail: str = "") -> str:
+    """The advisory body: lead, one bullet per finding, then any trailing note."""
+    return lead + "".join(f"  - {finding}\n" for finding in findings) + tail

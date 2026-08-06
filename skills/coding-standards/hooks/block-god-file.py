@@ -57,6 +57,7 @@ from _exclusions import is_excluded_path, has_generation_marker  # noqa: E402
 # FN-001 length advisory for the languages with no AST statement-count (Go, C#,
 # Java, Kotlin, PHP). TS/JS/Python get a precise FN-001 block from their AST hooks.
 from _function_length import iter_long_functions  # noqa: E402
+from _hook_run import advise, advisory_message  # noqa: E402
 
 # Source extensions this rule applies to — shared so it can't drift from the
 # other hooks' sets (ISS-010). One canonical set in _languages.py.
@@ -312,11 +313,7 @@ def main() -> int:
         return 2
 
     if advisories:
-        sys.stderr.write(
-            "coding-standards (advisory: not hard-blocked, but each is still a "
-            "must-fix violation — fix it or record it accepted with a reason):\n"
-            + "".join(f"  - {m}\n" for m in advisories)
-        )
+        return advise(advisory_message(advisories))
     return 0
 
 
