@@ -67,6 +67,7 @@ For each worker N in {1, 2, 3}:
      FRAMEWORK: <detected framework key from SKILL.md Step 3>
      STRUCTURE: <resolved structure from SKILL.md Step 4 — the chosen structures/<name>.md, the project's .coding-standards-structure custom layout, or the framework default structure.md>
      STRUCTURE_MAP: <the comprehension map from Phase 0 — the confirmed B→F→SF→U model + relationship deltas; omitted below the scope threshold>
+     EXISTING_CODE: <write mode only. Full text of the 2-3 existing files nearest the write target>
      MODE: write | review
      WORKER_<N-1>_OUTPUT: <previous worker's JSON, omit for Worker 1>
      ```
@@ -81,6 +82,13 @@ For each worker N in {1, 2, 3}:
    - When Phase 0 produced a map, include `STRUCTURE_MAP`. Workers treat it as the intended shape: a
      file's placement, a folder's promotion, a feature's duplication are judged against the map, not
      re-derived per file.
+   - **`EXISTING_CODE` is mandatory in write mode.** Pass the **full text** of the 2-3 closest existing
+     files: those in the destination folder, else the nearest feature in the same language and framework.
+     They carry what the rules leave open (naming vocabulary, module entry style, import order, domain
+     error types). Precedence, restated in every brief: **a rule beats the project's convention; the
+     project's convention beats the worker's default.** An existing file that breaks a rule stays as it
+     is; a write task never reorganizes existing files. Pass `EXISTING_CODE: none (new area)` when
+     nothing comparable exists. Omit the field in review mode.
 3. **Call the `Agent` tool** with:
    - `subagent_type: "general-purpose"`
    - `description: "coding-standards worker <N>"`
@@ -89,7 +97,7 @@ For each worker N in {1, 2, 3}:
    - Retry once with a clarifying message: "Your previous response was not valid JSON. Return ONLY the JSON object specified in the brief."
    - If still failing, fall back to inline (load all references yourself, do the work, write files).
 5. **Validate the output**:
-   - **Write mode:** worker only modified files it had authority over (check `must_not_touch`); its `changes_made` / `decisions` / `error_handling_added` cite a rule code it owns; it introduced no abstractions outside its rule list (no new Strategy patterns from Worker 2; no new layers from Worker 3).
+   - **Write mode — coverage, then lane.** Every enumerable owned rule appears in exactly one of `applied` / `already_met` / `not_applicable`: **reject and re-dispatch a write that drops one**, the same bar review mode holds. Worker 1's framework rules are not enumerable, so require one `framework_coverage` line instead (e.g. `"nextjs/structure: placement follows feature-first"`). Then check the lane: the worker only modified files it had authority over (`must_not_touch`); its `changes_made` / `decisions` / `error_handling_added` cite a rule code it owns; it introduced no abstractions outside its rule list (no new Strategy patterns from Worker 2; no new layers from Worker 3).
    - **Review mode:** every owned **enumerable `common/` rule** (each `ST-*`, `OD-*`, etc. the worker owns) appears in exactly one of `findings` / `passed` / `skipped` — **reject (and re-dispatch) a review that silently drops one**, since that is the thin-review failure mode. Worker 1 additionally owns the framework structure rules (`<framework>/*`), which aren't a fixed enumerable list — so for those require a single **framework-coverage line** in `passed`/`skipped` stating the structure file was checked against the resolved layout (e.g. `"nextjs/structure: checked against feature-first — placement conforms"`), not a per-rule enumeration. Each `findings` entry cites a rule and carries `file`, `line`, and a concrete `fix` (no severity — every finding is a violation to fix).
 6. **If validation fails**, redispatch the worker with the specific violation noted. After one retry, fall back to inline.
 

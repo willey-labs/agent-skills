@@ -48,7 +48,10 @@ You may introduce **error-specific** new types (`TransactionFailed`, `SlotUnavai
 TASK: <original user task>
 FRAMEWORK: <detected framework key>
 WORKER_2_OUTPUT: <JSON from Worker 2 — refined files, changes_made, notes_for_worker_3>
+EXISTING_CODE: <write mode. Full text of the 2-3 existing files nearest the write target>
 ```
+
+`EXISTING_CODE` shows how this project already fails: which domain error types exist and where they live, whether a boundary throws or returns a result, how causes are attached. Reuse them rather than defining a second vocabulary beside a working one. **A rule beats the project's convention; the project's convention beats your default**, so an existing `PaymentFailed` wins over an equivalent `PaymentError` you would have named, while a file that swallows an exception earns no imitation. `none (new area)` means you define the error vocabulary for this feature.
 
 ## References to load
 
@@ -65,7 +68,8 @@ Skip everything else.
 **This procedure is for `MODE: write`.** For `MODE: review`, skip to [Review mode](#review-mode-mode-review).
 
 1. **Read Worker 2's output and notes.** Identify functions Worker 2 flagged as needing error handling.
-2. **For each function that performs fallible work** (network calls, file I/O, parsing, external SDKs, database calls, third-party APIs):
+2. **Read `EXISTING_CODE`.** List the domain error types already defined, the module they live in, and the mechanism a boundary uses to report failure. Reuse them; a new type needs a meaning none of them carries.
+3. **For each function that performs fallible work** (network calls, file I/O, parsing, external SDKs, database calls, third-party APIs):
    - Pick the **boundary** where translation happens (per EH-002). The right boundary is where the meaningful operation completes — `withdraw()` translates SQL errors to `TransactionFailed`, not `db.fetchAccount()`.
    - Design a domain error type (or use one already in the project's `errors/` / `exceptions/` module).
    - Write the **try/catch contract first** per EH-003:
@@ -79,18 +83,20 @@ Skip everything else.
      }
      ```
    - **Separate the algorithm body from the error body** (EH-001). If the function had `if (err) return Error.X` lines interleaved with business logic, refactor to a clean try/catch block (or `?` chain in Rust, or wrapped `errors.Is` in Go) so the body reads as the algorithm and the catch reads as the error handler. Extract a helper if needed.
-3. **For each language, use the idiomatic mechanism** (FN-010):
+4. **For each language, use the idiomatic mechanism** (FN-010):
    - **JS/TS, Python, Java, C#, Ruby, PHP**: throw / try / catch.
    - **Rust, Kotlin, Swift, OCaml, F#**: `Result` / `Either` / `Try` with `?` / `map` / `flatMap` / for-comprehension.
    - **Go**: `(T, error)` returns + `fmt.Errorf("...: %w", err)` wrapping at boundaries.
    - Never use error codes in a language that supports exceptions. Never use exceptions in Rust/Go.
-4. **For every async operation** (EH-004):
+5. **For every async operation** (EH-004):
    - Every Promise/Future is awaited, returned, or attached to an explicit handler that documents the choice to ignore. Never leave a floating Promise.
    - For parallel composition, pick the right shape: `Promise.all` (all-or-nothing), `Promise.allSettled` (best-effort, return all outcomes), `Promise.any` (first success), `Promise.race` (rare; first settle).
    - For resources (files, connections, transactions, locks): acquire and schedule release on the next line (`try/finally`, `using`, `with`, RAII, `defer`).
-5. **Apply KISS lens.** If you find yourself building an error-translation framework when one try/catch would do, back it out.
-6. **Apply DRY lens.** When several functions translate the same failure to the same domain error with the same shape, that boundary-translation is duplicated — extract one helper they share instead of repeating the try/catch (e.g. a single `wrapPersistence(fn)` around the repeated pattern).
-7. **Never swallow.** No `catch (e) {}`, no `_ = err`, no `.unwrap_or_default()` on a real error without an explicit reason comment.
+6. **Apply KISS lens.** If you find yourself building an error-translation framework when one try/catch would do, back it out.
+7. **Apply DRY lens.** When several functions translate the same failure to the same domain error with the same shape, that boundary-translation is duplicated — extract one helper they share instead of repeating the try/catch (e.g. a single `wrapPersistence(fn)` around the repeated pattern).
+8. **Never swallow.** No `catch (e) {}`, no `_ = err`, no `.unwrap_or_default()` on a real error without an explicit reason comment.
+9. **Trace one failure end to end as the caller** (FN-012). If you cannot name what a caller catches and what it can do about it, the boundary is in the wrong place or the type is too vague. Fix it here.
+10. **Account for every rule you own.** Walk `owns_rules` against the final files and file each rule under `applied`, `already_met`, or `not_applicable`. Re-read the reference for any rule you had not considered before this step. Dropping a rule silently gets the output rejected.
 
 ## Output format
 
@@ -123,8 +129,14 @@ Return **ONLY valid JSON**:
       "what": "Awaited unawaited sendEmail promise"
     }
   ],
+  "applied": ["EH-001", "EH-002", "EH-004"],
+  "already_met": ["FN-010"],
+  "not_applicable": [
+    { "rule": "EH-003", "why": "no fallible operation in two of the three files" }
+  ],
+  "reused_error_types": ["SlotUnavailable (from scheduling/errors)"],
   "new_error_types": [
-    { "name": "PaymentFailed", "file": "<path-to-errors-file>" }
+    { "name": "PaymentFailed", "file": "<path-to-errors-file>", "why": "no existing type carries a declined-charge meaning" }
   ]
 }
 ```

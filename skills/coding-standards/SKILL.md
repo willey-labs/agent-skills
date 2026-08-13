@@ -257,7 +257,9 @@ there's no multi-step work to track.
 Build the **whole** workflow at once, then extend it with any extra targets the user named. Track the work
 the user cares about (fold in real file/feature names), keep exactly one item `in_progress`, and complete
 it before starting the next. A typical review list: **resolve + record structure → detect framework →
-load rules → review → run hooks → write report**. The first item, *resolve + record structure*, may be
+load rules → review → run hooks → write report**. A typical write list: **resolve + record structure →
+detect framework → read existing code → load rules → draft → rewrite the draft → sweep the rules → write
+the files**. The first item, *resolve + record structure*, may be
 marked `completed` **only when `.coding-standards-structure` exists** at the resolved project root —
 resolved one of three ways: matched a standard, asked-and-recorded, or a skip-reason logged (recognized-
 unsupported framework, or below the scope threshold). Having run a structure-comprehension agent is **not**
@@ -313,8 +315,25 @@ short (the common rule).
 
 ### Write
 
-Apply the rules **proactively** — write compliant code the first time. If you catch a violation in code you
-just wrote, fix it before moving on. Don't ship a violation plus a "TODO: fix this".
+Writing gets the same rule-by-rule walk as reviewing. Most `common/` rules have no write-time hook, so a
+rule you don't name is a rule you don't apply. Seed these steps into the Step 6 task list. Step 1 runs once
+per area, not once per file.
+
+1. **Read the existing code.** Open the 2-3 files closest to where the new code lands: those in the
+   destination folder, else the nearest comparable feature in the same language. Note the project's verb
+   for each recurring operation, what an entry file exports, how a feature divides into units, which domain
+   error types exist, how imports are ordered. **A rule beats the project's convention; the project's
+   convention beats the default you would otherwise reach for.** An existing file that breaks a rule stays
+   as it is; a write task does not reorganize what is already there. In a genuinely new area you set the
+   vocabulary, so keep it consistent across every file you write.
+2. **Load the references** (Step 7b): all eight `common/` files plus the resolved structure.
+3. **Draft it.** Get the behavior right first. A messy first draft is permitted (FN-012).
+4. **Rewrite the draft.** Reread each file as its first reader: split the function you excused at 25 lines,
+   replace the name you settled for, delete the parameter nobody needs.
+5. **Sweep the rules one at a time.** Walk `common/` against what you wrote and file each rule under
+   applied, already met, or not applicable with a reason. Re-read the reference for any rule you had not
+   considered before this step. Report the buckets in your reply, not in the file.
+6. **Fix what you find now.** A violation ships fixed or does not ship. Never pair one with a `TODO`.
 
 **Write no comments by default** (`comments.md`). Say it in the names and the shape of the code. A sentence
 earns a place in the file only when it carries what the code cannot — a constraint, a rationale, an external

@@ -60,11 +60,14 @@ FRAMEWORK: <detected framework key, e.g. nextjs, django, go-http>
 STRUCTURE: <resolved structure from SKILL.md Step 4 — a structures/<name>.md, the project's .coding-standards-structure custom layout, or the framework default structure.md>
 STRUCTURE_MAP: <the confirmed comprehension map, if provided>
 EXISTING_PATHS: <list of paths already in the project, if any>
+EXISTING_CODE: <write mode. Full text of the 2-3 existing files nearest your write target>
 ```
 
 `STRUCTURE` is the layout the project follows — already resolved (and confirmed with the user when custom). **Check placement against it, not against a default you pick yourself.**
 
 When given, check the real tree against the map; each relationship delta is a candidate finding you confirm against the loaded rules.
+
+`EXISTING_CODE` shows how the project already solves the shape you are solving: folder names, what an entry file exports, how a feature divides into units. Follow it wherever the rules leave a choice open. **A rule beats the project's convention; the project's convention beats your default.** An existing file that breaks a rule stays as it is: list it in `existing_mismatches`, never reorganize it. `none (new area)` means you set the layout from `STRUCTURE`.
 
 ## References to load (only these — keep context lean)
 
@@ -82,12 +85,13 @@ Do not load `functions.md`, `naming.md`, `formatting.md`, or `error-handling.md`
 **This procedure is for `MODE: write`.** For `MODE: review`, skip to [Review mode](#review-mode-mode-review).
 
 1. **Read the inputs** — understand the task and the framework constraints.
-2. **Decide file paths.** For each artifact the task implies (a use case, a service, a route, an entity, etc.), pick the path per ST-001 (business-shaped folders), ST-002 (folder = module), ST-005 (no junk-drawer names), ST-006 (domain-qualified vs generic), ST-007 (co-location), and the framework's layout rules.
+2. **Read `EXISTING_CODE`.** Name the closest existing feature's folder name, entry-file exports, and unit split before choosing any path. That is your default wherever the rules leave a choice.
+3. **Decide file paths.** For each artifact the task implies (a use case, a service, a route, an entity, etc.), pick the path per ST-001 (business-shaped folders), ST-002 (folder = module), ST-005 (no junk-drawer names), ST-006 (domain-qualified vs generic), ST-007 (co-location), and the framework's layout rules.
    - **ST-008 (no god-files):** for each artifact, if it would hold 2+ unrelated
      responsibilities, plan it as multiple named sibling units up front. Promote a
      group of 3+ related units to a sub-feature folder; never make a folder for one
      file. Stop at the feature tier when a handful of flat units suffice (KISS).
-3. **Decide class/module shape.** For each artifact:
+4. **Decide class/module shape.** For each artifact:
    - Is it a behavior-exposing object (per OD-001) or a data structure (per OD-002)?
    - Is it a framework-boundary class (DTO, entity, controller — see OD-005)?
    - If it's a class, does it have one reason to change (DP-001 SRP)?
@@ -97,14 +101,15 @@ Do not load `functions.md`, `naming.md`, `formatting.md`, or `error-handling.md`
    - If there's inheritance, do subtypes honor the parent contract (DP-003 LSP)?
    - If interfaces exist, are they segregated (DP-004 ISP)?
    - Does business logic depend on abstractions, not concrete infrastructure (DP-005 DIP)?
-4. **Write the skeleton.** For each file:
+5. **Write the skeleton.** For each file:
    - Full path.
    - Imports / re-exports.
    - Type / class / function **signatures** only.
    - Placeholder bodies (`// TODO body`, `pass`, `panic("TODO")`, etc. — whatever the language uses).
    - Module's public entry (`index.ts`, `__init__.py`, `mod.rs`, etc.) if the folder has 2+ files.
-5. **Apply KISS lens.** For each architectural decision, check: would a simpler shape work? Don't add layers, interfaces, or abstractions you can't name a current need for. If you find yourself adding `<T>` or "for future flexibility," delete it.
-6. **Apply DRY lens.** Check at module / data shape level: are you defining the same shape in two places? Same constant in two configs? Pick one source of truth.
+6. **Apply KISS lens.** For each architectural decision, check: would a simpler shape work? Don't add layers, interfaces, or abstractions you can't name a current need for. If you find yourself adding `<T>` or "for future flexibility," delete it.
+7. **Apply DRY lens.** Check at module / data shape level: are you defining the same shape in two places? Same constant in two configs? Pick one source of truth.
+8. **Account for every rule you own.** Walk `owns_rules` against the skeleton you produced and file each rule under `applied`, `already_met`, or `not_applicable`. Re-read the reference for any rule you had not considered before this step. Dropping a rule silently gets the output rejected. Cover `<framework>/*` with one line naming the resolved layout and how placement follows it.
 
 ## Messy / custom project
 
@@ -138,6 +143,12 @@ Return **ONLY valid JSON**, no prose around it:
       "why": "Change axis is new operations, not new types — data structures + free functions wins"
     }
   ],
+  "applied": ["ST-001", "ST-008", "OD-002"],
+  "already_met": ["ST-003", "ST-006", "DP-005"],
+  "not_applicable": [
+    { "rule": "DP-003", "why": "no inheritance in this feature" }
+  ],
+  "framework_coverage": "nextjs/structure: placement follows the resolved feature-first layout — route segment thin, logic under the feature folder",
   "existing_mismatches": [
     { "path": "src/lib/checkoutUtils.ts", "rule": "ST-005", "why": "Junk-drawer name; doesn't match resolved structure — left in place, flag for migration" }
   ],

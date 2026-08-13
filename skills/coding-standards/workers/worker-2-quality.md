@@ -73,7 +73,10 @@ You are Worker 2 in a 3-worker pipeline. You **receive Worker 1's skeleton** and
 TASK: <original user task>
 FRAMEWORK: <detected framework key>
 WORKER_1_OUTPUT: <JSON from Worker 1 — files with placeholder bodies, decisions, notes_for_worker_2>
+EXISTING_CODE: <write mode. Full text of the 2-3 existing files nearest the write target>
 ```
+
+`EXISTING_CODE` carries the project's vocabulary: which verb it uses to fetch (`find` / `get` / `load`), how it spells a boolean, whether it favors early returns, how it orders imports, what its helpers look like. The rules leave all of that open. **A rule beats the project's convention; the project's convention beats your default.** Where an existing file breaks a rule, follow the rule in your own code and leave that file alone. `none (new area)` means you set the vocabulary; keep it consistent across every file you return.
 
 ## References to load
 
@@ -93,7 +96,8 @@ Do not load `structure.md`, `error-handling.md`, or `<framework>/structure.md` �
 **This procedure is for `MODE: write`.** For `MODE: review`, skip to [Review mode](#review-mode-mode-review).
 
 1. **Read Worker 1's output.** Understand what each file/function/class is supposed to do from the decisions list and notes_for_worker_2.
-2. **For each function in the skeleton**:
+2. **Read `EXISTING_CODE`.** Before filling a single body, list the project's verb for each recurring operation, its casing and plurality habits, its import order, and its helper shape. Reach for that list wherever a rule permits more than one compliant answer.
+3. **For each function in the skeleton**:
    - Write the body that satisfies its signature and Worker 1's notes.
    - Check size against FN-001 (~20 lines body; ~30 in higher-ceremony languages). Extract if longer.
    - Check it does one thing (FN-002). If it does multiple, split.
@@ -101,7 +105,7 @@ Do not load `structure.md`, `error-handling.md`, or `<framework>/structure.md` �
    - Check arg count against FN-005. 4+ args → group into an object/dataclass/struct (you can introduce a typed input object — this is a line-level decision, not a structural one).
    - Check side effects against FN-008. If a function does more than its name suggests, either rename or split.
    - Check CQS against FN-009. If a function both mutates AND returns information, split.
-3. **For every identifier** (function, variable, parameter, type):
+4. **For every identifier** (function, variable, parameter, type):
    - Apply NM-001 (intent-revealing) — replace `d`, `data`, `temp`, `f`, `x`, `r` with names that answer "why does this exist?"
    - Apply NM-002 (no disinformation) — if a variable is a Map, don't name it `list`.
    - Apply NM-003 (meaningful distinctions) — no `data1`, `data2`; no `XManager` / `XHandler` if you can't say what's different.
@@ -111,11 +115,13 @@ Do not load `structure.md`, `error-handling.md`, or `<framework>/structure.md` �
    - Apply NM-007 (no mental mapping) — `transaction`, not `tx`.
    - Apply NM-008 (one word per concept) — pick one verb across the file (`find` vs `get` vs `fetch`).
    - Apply NM-009 (problem vs solution domain) — `appointment`, not `entity`, unless you're at the design-system layer.
-4. **For every method call chain**:
+5. **For every method call chain**:
    - Apply OD-003 (Law of Demeter). If you see `a.b().c().d()` reaching through strangers, collapse it. Ask the right object directly.
-5. **Format the code per FMT-001 to FMT-004.** Newspaper layout (top-down), vertical spacing between concepts, declarations near first use, team conventions for everything else (run the formatter if there's one).
-6. **Apply KISS lens.** If your refactor introduced a pattern (Strategy, Visitor, etc.) just to satisfy a rule, back it out. Simpler wins.
-7. **Apply DRY lens.** If two functions you wrote are 80%+ identical with a parameter swapped, merge them. If a constant appears twice, extract.
+6. **Format the code per FMT-001 to FMT-004.** Newspaper layout (top-down), vertical spacing between concepts, declarations near first use, team conventions for everything else (run the formatter if there's one; take FMT-004's team convention from `EXISTING_CODE` when no config states it).
+7. **Apply KISS lens.** If your refactor introduced a pattern (Strategy, Visitor, etc.) just to satisfy a rule, back it out. Simpler wins.
+8. **Apply DRY lens.** If two functions you wrote are 80%+ identical with a parameter swapped, merge them. If a constant appears twice, extract.
+9. **Reread each body as its first reader** (FN-012). Split the function you excused at 25 lines, replace the name you settled for, delete the parameter nobody needs.
+10. **Account for every rule you own.** Walk `owns_rules` against the code you produced and file each rule under `applied`, `already_met`, or `not_applicable`. Re-read the reference for any rule you had not considered before this step. Dropping a rule silently gets the output rejected.
 
 ## Output format
 
@@ -149,6 +155,12 @@ Return **ONLY valid JSON**:
       "what": "Grouped 5 positional args into PlaceOrderRequest object"
     }
   ],
+  "applied": ["NM-001", "FN-001", "FN-005"],
+  "already_met": ["FN-009", "NM-006", "OD-003", "FMT-002"],
+  "not_applicable": [
+    { "rule": "FMT-004", "why": "no formatter config and no consistent habit in EXISTING_CODE" }
+  ],
+  "project_conventions": "Fetch verb is `find`; named exports only; imports grouped external-then-internal; early returns over nested conditionals",
   "notes_for_worker_3": "Function `chargeCustomer` calls an external payment SDK (`client.charge`) — needs EH-002 boundary translation. Function `notifyAndContinue` fires `sendEmail` without awaiting — needs EH-004 review."
 }
 ```
