@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -126,7 +127,7 @@ def check_global_and_refuse(home: Path, venv: str, tmp: Path) -> list[str]:
         fails.append("global: bootstrap exited nonzero")
     s = json.loads((home / ".claude" / "settings.json").read_text())
     pre, ss = commands(s, "PreToolUse"), commands(s, "SessionStart")
-    if not all(c.split()[1].startswith("/") for c in pre):
+    if not all(shlex.split(c)[1].startswith("/") for c in pre):
         fails.append("global: PreToolUse should use absolute paths")
     if any("${CLAUDE_PROJECT_DIR}" in c for c in pre):
         fails.append("global: PreToolUse must not use ${CLAUDE_PROJECT_DIR}")

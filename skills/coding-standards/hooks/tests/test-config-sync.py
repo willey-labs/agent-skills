@@ -11,6 +11,7 @@ This asserts the example's PreToolUse command basenames equal HOOK_FILES exactly
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 from pathlib import Path
 
@@ -25,8 +26,12 @@ from _bootstrap.settings import (  # noqa: E402
 )
 
 
+def _script_name(command: str) -> str:
+    return shlex.split(command)[-1].split("/")[-1]
+
+
 def _basenames(entries: list) -> list[str]:
-    return [h["command"].split("/")[-1] for e in entries for h in e.get("hooks", [])]
+    return [_script_name(h["command"]) for e in entries for h in e.get("hooks", [])]
 
 
 def main() -> int:
@@ -35,7 +40,7 @@ def main() -> int:
     hooks = example.get("hooks", {})
 
     pre = hooks.get("PreToolUse", [])
-    basenames = [c["command"].split("/")[-1] for c in (pre[0]["hooks"] if pre else [])]
+    basenames = [_script_name(c["command"]) for c in (pre[0]["hooks"] if pre else [])]
     if basenames != HOOK_FILES:
         failures.append(
             f"settings.example PreToolUse basenames {basenames} != HOOK_FILES {HOOK_FILES}"

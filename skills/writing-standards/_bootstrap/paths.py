@@ -1,24 +1,9 @@
 #!/usr/bin/env python3
-"""Filesystem paths shared across the _bootstrap package.
+"""Filesystem paths shared across the _bootstrap package, anchored to the skill ROOT (one level above this package, the dir holding bootstrap.py).
 
-Anchored to the skill ROOT — the directory holding the `bootstrap.py` entry script
-(one level ABOVE this package). Uses `.absolute()` not `.resolve()`: the skill is
-symlinked from a canonical install location into `~/.claude/skills/<name>/` or
-`<project>/.claude/skills/<name>/`. Resolving the symlink lands on the canonical
-path, which has no `.claude` ancestor, breaking scope detection; we need the path
-as the agent sees it, through the symlink.
+Uses `.absolute()`, not `.resolve()`, and anchors to the MAIN script's invocation path rather than this module's own `__file__`: Python resolves symlinks for an imported module's `__file__` but preserves them for the main script's, and the skill is symlinked into `~/.claude/skills/<name>/` or `<project>/.claude/skills/<name>/` — resolving the symlink lands on the canonical install path, which has no `.claude` ancestor, and breaks scope detection. (Same constraint as coding-standards' _bootstrap/paths.py; this copy omits the venv helpers.)
 
-CRITICAL: anchor to the MAIN script's invocation path (`bootstrap.py`), NOT this
-module's own `__file__`. Python preserves the symlinked path for the main script
-but RESOLVES the symlink for an imported module's `__file__` — which would land on
-the canonical install path and break scope detection. See the same note in
-coding-standards' _bootstrap/paths.py; this is a trimmed copy (no venv).
-
-Every path that ends up inside a settings.json hook command goes through
-`command_path` first. Hook commands are handed to a shell — Git Bash on Windows —
-which eats each backslash of a native Windows path as an escape and leaves the
-command pointing at a mangled filename; forward slashes need no escaping and
-Windows accepts them wherever it accepts a path.
+Every path that reaches a settings.json hook command goes through `command_path` first: forward slashes avoid Git Bash on Windows mangling backslash-escaped paths, and `shell_quote` wraps any part containing a space or a `${...}` placeholder so the shell doesn't split it into two arguments.
 """
 
 from __future__ import annotations
@@ -65,3 +50,8 @@ HOOKS_DIR = (SKILL_DIR / "hooks").resolve()
 def command_path(path: Path | str) -> str:
     """A path bound for a shell command string — forward slashes only."""
     return str(path).replace("\\", "/")
+
+
+def shell_quote(part: str) -> str:
+    """Double quotes, never single: a `${...}` inside the part must still expand."""
+    return f'"{part}"' if " " in part or "${" in part else part

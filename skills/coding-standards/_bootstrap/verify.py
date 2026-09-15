@@ -21,6 +21,7 @@ Stdlib only.
 from __future__ import annotations
 
 import os
+import shlex
 from pathlib import Path
 
 from .dependencies import MIN_PYTHON, interpreter_has_packages
@@ -31,6 +32,14 @@ from .scope import detect_scope_and_targets
 from .settings import load_settings
 
 
+def command_parts(command: str) -> list[str]:
+    """Shell-aware, so a quoted path holding a space stays one part; `${VAR}` stays literal."""
+    try:
+        return shlex.split(command)
+    except ValueError:
+        return command.split()
+
+
 def _wired_hook_interpreter(pre_tool_use: list) -> str | None:
     """The interpreter our wired commands run under, or None when none are wired."""
     for entry in pre_tool_use:
@@ -38,7 +47,7 @@ def _wired_hook_interpreter(pre_tool_use: list) -> str | None:
             continue
         for hook in entry.get("hooks") or []:
             command = (hook or {}).get("command", "")
-            parts = command.split()
+            parts = command_parts(command)
             if parts:
                 return parts[0]
     return None
@@ -52,7 +61,7 @@ def _wired_hook_scripts(pre_tool_use: list) -> list[str]:
             continue
         for hook in entry.get("hooks") or []:
             command = (hook or {}).get("command", "")
-            parts = command.split()
+            parts = command_parts(command)
             if len(parts) >= 2:
                 scripts.append(parts[1])
     return scripts

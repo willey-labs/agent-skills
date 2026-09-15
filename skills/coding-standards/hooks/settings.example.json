@@ -5,19 +5,19 @@
       {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-junk-paths.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-ts-violations.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-py-violations.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-go-violations.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-csharp-violations.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-php-violations.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-jvm-violations.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-god-file.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-swallowed-errors.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-debug-artifacts.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/advise-comment-slop.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-added-comments.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-structure-file-violations.py" }
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-junk-paths.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-ts-violations.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-py-violations.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-go-violations.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-csharp-violations.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-php-violations.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-jvm-violations.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-god-file.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-swallowed-errors.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-debug-artifacts.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/advise-comment-slop.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-added-comments.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/block-structure-file-violations.py\"" }
         ]
       }
     ],
@@ -25,14 +25,14 @@
       {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/record-touched-files.py" }
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/record-touched-files.py\"" }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/judge-comments.py" }
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/judge-comments.py\"" }
         ]
       }
     ],
@@ -40,15 +40,15 @@
       {
         "matcher": "startup",
         "hooks": [
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/session-health-check.py" },
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/inject-coding-standards.py" }
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/session-health-check.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/inject-coding-standards.py\"" }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/inject-coding-standards.py" }
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/inject-coding-standards.py\"" }
         ]
       }
     ]

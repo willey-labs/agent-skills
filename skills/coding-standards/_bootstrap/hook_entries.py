@@ -21,7 +21,7 @@ from .hook_registry import (
     USER_PROMPT_SUBMIT_FILES,
     WRITE_MATCHER,
 )
-from .paths import HOOKS_DIR, command_path
+from .paths import HOOKS_DIR, command_path, shell_quote
 
 
 def path_prefix(scope: str) -> str:
@@ -35,7 +35,11 @@ def path_prefix(scope: str) -> str:
 
 def _commands(scope: str, interpreter: str, names: list[str]) -> list[dict]:
     prefix = path_prefix(scope)
-    return [{"type": "command", "command": f"{interpreter} {prefix}/{name}"} for name in names]
+    runner = shell_quote(interpreter)
+    return [
+        {"type": "command", "command": f"{runner} {shell_quote(f'{prefix}/{name}')}"}
+        for name in names
+    ]
 
 
 def build_hook_entry(scope: str, hook_python: str) -> dict:

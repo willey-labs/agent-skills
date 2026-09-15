@@ -16,7 +16,7 @@ import json
 import shutil
 from pathlib import Path
 
-from .paths import HOOKS_DIR, command_path
+from .paths import HOOKS_DIR, command_path, shell_quote
 
 INJECT_SCRIPT = "inject-writing-standards.py"
 INTERPRETER = "python3"
@@ -31,7 +31,7 @@ def _command(scope: str) -> str:
         prefix = "${CLAUDE_PROJECT_DIR}/.claude/skills/writing-standards/hooks"
     else:
         prefix = command_path(HOOKS_DIR)
-    return f"{INTERPRETER} {prefix}/{INJECT_SCRIPT}"
+    return f"{INTERPRETER} {shell_quote(f'{prefix}/{INJECT_SCRIPT}')}"
 
 
 def build_session_start_entry(scope: str) -> dict:
