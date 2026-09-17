@@ -5,14 +5,14 @@
       {
         "matcher": "startup",
         "hooks": [
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/writing-standards/hooks/inject-writing-standards.py" }
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/writing-standards/hooks/inject-writing-standards.py\"" }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/skills/writing-standards/hooks/inject-writing-standards.py" }
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/writing-standards/hooks/inject-writing-standards.py\"; exit 0" }
         ]
       }
     ]

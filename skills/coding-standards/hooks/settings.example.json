@@ -48,7 +48,7 @@
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/inject-coding-standards.py\"" }
+          { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/skills/coding-standards/hooks/inject-coding-standards.py\"; exit 0" }
         ]
       }
     ]

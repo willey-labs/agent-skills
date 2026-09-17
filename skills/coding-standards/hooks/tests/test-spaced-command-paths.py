@@ -58,11 +58,16 @@ def _global_commands(hooks_dir: str, interpreter: str) -> list[str]:
     return [hook["command"] for entry in entries for hook in entry["hooks"]]
 
 
+def _invocation(command: str) -> list[str]:
+    """The interpreter and script of a wired command, minus any trailing shell guard."""
+    return shlex.split(command.split(";")[0])
+
+
 def check_global_commands() -> list[str]:
     """Every command a spaced global install wires parses back into interpreter + script."""
     out: list[str] = []
     for command in _global_commands(SPACED_HOOKS, SPACED_PYTHON):
-        parts = shlex.split(command)
+        parts = _invocation(command)
         if len(parts) != 2:
             out.append(f"splits into {len(parts)} parts: {command}")
         elif not parts[1].startswith(f"{SPACED_HOOKS}/"):

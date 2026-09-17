@@ -27,7 +27,8 @@ from _bootstrap.settings import (  # noqa: E402
 
 
 def _script_name(command: str) -> str:
-    return shlex.split(command)[-1].split("/")[-1]
+    """The wired script's basename, past any shell guard trailing the path."""
+    return shlex.split(command.split(";")[0])[-1].split("/")[-1]
 
 
 def _basenames(entries: list) -> list[str]:

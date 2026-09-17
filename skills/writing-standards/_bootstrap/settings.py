@@ -21,6 +21,8 @@ from .paths import HOOKS_DIR, command_path, shell_quote
 INJECT_SCRIPT = "inject-writing-standards.py"
 INTERPRETER = "python3"
 SESSION_START_MATCHER = "startup"
+# The one fail-open form sh, Git Bash and PowerShell all honour.
+FAIL_OPEN = "; exit 0"
 
 
 def _command(scope: str) -> str:
@@ -45,8 +47,10 @@ def build_session_start_entry(scope: str) -> dict:
 
 def build_userprompt_entry(scope: str) -> dict:
     """UserPromptSubmit entry — no matcher (the event ignores one; it fires on
-    every prompt). stdout → Claude context, so the reminder rides every turn."""
-    return {"hooks": [{"type": "command", "command": _command(scope)}]}
+    every prompt). stdout → Claude context, so the reminder rides every turn.
+    Guarded to exit 0: a command that cannot start exits 2, which on this event
+    erases the prompt."""
+    return {"hooks": [{"type": "command", "command": f"{_command(scope)}{FAIL_OPEN}"}]}
 
 
 def is_our_entry(entry: dict) -> bool:
