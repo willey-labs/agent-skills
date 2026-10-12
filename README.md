@@ -57,7 +57,7 @@ Blocked at write time on TypeScript/JavaScript, Python, Go, C#, PHP, Java and Ko
 - junk-drawer files and folders (`utils`, `helpers`, `common`, `misc`)
 - deep imports, star imports, parent-path traversal
 - files with more than 10 top-level functions or classes
-- added comments longer than one line (`CODING_STANDARDS_MAX_COMMENT_LINES` sets the limit); file headers and doc comments on a declaration (JSDoc, Javadoc, `///`, Go doc comments, Python docstrings) may run longer
+- added comment blocks of more than one sentence (one sentence may wrap across lines); file headers and doc comments on a declaration (JSDoc, Javadoc, `///`, Go doc comments, Python docstrings) may run longer
 
 Large files, print statements outside a program's entry point, commented-out code, filler comments and Go's `any`/`interface{}` get a warning instead of a block.
 

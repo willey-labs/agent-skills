@@ -114,6 +114,11 @@ _VERDICTS: dict[tuple[str, str], tuple[str, str, str]] = {
     ("vitesse", "ST-005"): ("fp", "stance", "top-level `src/types.ts` — deliberate ST-005 mega-file ban"),
 }
 
+_CM007_VERDICT = (
+    "fp", "stance",
+    "a multi-sentence explanatory comment block in idiomatic code; the one-sentence limit is the stance",
+)
+
 # ST-008 is judged by declaration count, not a flat cluster verdict: a genuinely
 # huge file is a real god-file; a cohesive file just over the blunt 10-decl proxy
 # is the "accepted exemption" case the skill's own Review mode describes.
@@ -137,6 +142,8 @@ def classify_block(block: dict[str, object]) -> dict[str, object]:
     rule = str(block.get("rule_code"))
     if rule == "ST-008":
         verdict, kind, reason = _st008_verdict(str(block.get("message")))
+    elif rule == "CM-007":
+        verdict, kind, reason = _CM007_VERDICT
     else:
         verdict, kind, reason = _VERDICTS.get((repo, rule), ("unclassified", "", "no verdict rule for this cluster"))
     return {**block, "verdict": verdict, "fp_kind": kind, "verdict_reason": reason}

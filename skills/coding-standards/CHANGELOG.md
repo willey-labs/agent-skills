@@ -1,5 +1,29 @@
 # Changelog — coding-standards skill
 
+## 5.3.0 — 2026-10-12 — CM-007 counts sentences
+
+### Rules
+- **CM-007 allows one sentence.** A comment block a write adds may wrap one sentence
+  across as many lines as the project's line length needs; a block over one line that
+  carries a second sentence is refused. A one-line comment always passes.
+- A `/**` block carrying a documentation tag (`@param`, `@returns`, `@typedef`,
+  `@example`, `@swagger`, …) is a doc comment wherever it sits. A `/**` or `///` doc
+  comment may sit a blank line above its declaration, and JSDoc on interface, type and
+  object-literal members counts.
+
+### Precision
+- The comment scanner reads strings, comments and docstrings in one pass: `/*` or `#`
+  inside a string is not a comment, and an apostrophe inside a comment does not open a
+  string.
+- `//` is not a comment in Python, and `#[...]` is a PHP attribute.
+- A triple-quoted string passed as a call argument is not a docstring.
+- Trailing comments on adjacent lines do not form a block.
+- On the pinned false-block corpus, written as new files, CM-007 blocks 6.3% of idiomatic
+  files, down from 16.4%; across all hooks the rate is 11.3%, with no misfire found.
+
+### Evals
+- The false-block scan covers CM-007 and hands it each file as a new write.
+
 ## 5.2.0 — 2026-10-10 — consent, opt-in judge, doc comments
 
 ### Install

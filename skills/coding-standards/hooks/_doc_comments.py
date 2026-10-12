@@ -4,7 +4,10 @@
 A doc comment documents a contract a caller relies on — parameters, return value,
 errors — and documentation tools render it, so it may run past one line. The
 syntax alone is not enough: the same opener above a statement is a paragraph of
-prose, and stays under the one-line limit.
+prose, and stays under the one-sentence limit. A `/**` block carrying a contract or
+type tag (`@param`, `@returns`, `@typedef`, `@swagger`, …) is a doc comment
+wherever it sits, since tools read the tags. Blank lines may separate a `/**` or
+triple-slash doc comment from its declaration.
 
   /** ... */  TS/JS, Java, Kotlin, PHP, C#, Swift
   ///         C#, Rust, Swift
@@ -29,7 +32,12 @@ _SLASH_DECLARATION = re.compile(
     r"|(?!(?:return|throw|await|yield|new|else|case|delete|typeof|if|for|while|switch)\b)"
     r"[\w$<>\[\]?,.]+\s+[\w$]+\s*[(<]"
     r"|(?!(?:if|for|while|switch|catch|return)\b)[A-Za-z_$][\w$]*\s*(?:<[^>]*>)?\s*\([^;]*$"
+    r"|[A-Za-z_$][\w$]*[?!]?\s*:(?!:)"
     r")"
+)
+_DOC_TAG = re.compile(
+    r"@(?:param|returns?|throws|typedef|callback|property|type|template|example|default"
+    r"|deprecated|see|swagger|openapi)\b"
 )
 _GO_DECLARATION = re.compile(r"^(?:func|type|var|const|package)\b|^\s+[A-Z]\w*\b")
 _RUBY_DECLARATION = re.compile(r"^\s*(?:def|class|module|attr_\w+)\b")
@@ -47,6 +55,14 @@ def _line(source_lines: list[str], lineno: int) -> str:
 
 def _previous_code_line(source_lines: list[str], lineno: int) -> str:
     for candidate in range(lineno - 1, 0, -1):
+        text = _line(source_lines, candidate)
+        if text.strip():
+            return text
+    return ""
+
+
+def _next_code_line(source_lines: list[str], lineno: int) -> str:
+    for candidate in range(lineno + 1, len(source_lines) + 1):
         text = _line(source_lines, candidate)
         if text.strip():
             return text
@@ -72,5 +88,7 @@ def is_doc_comment(source_lines: list[str], group: list[tuple[int, str]], ext: s
     if ext == ".rb":
         return opener.startswith("#") and bool(_RUBY_DECLARATION.match(below))
     if ext in SLASH_DOC_EXTS and opener.startswith(("/**", "///")):
-        return bool(_SLASH_DECLARATION.match(below))
+        if any(_DOC_TAG.search(raw) for _lineno, raw in group):
+            return True
+        return bool(_SLASH_DECLARATION.match(_next_code_line(source_lines, last)))
     return False

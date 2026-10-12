@@ -27,9 +27,10 @@ REMINDER = f"""\
 Comments — the default is NONE (CM-001..CM-007). Say it in the name and the shape of the code.
   - A comment earns its place only by carrying what the code cannot: a constraint, a sharp edge,
     an external reference. Never narrate the code, the edit, or your own reasoning.
-  - ONE line, or none (CM-007). A block past one line of prose is refused at write time. Past one
-    line you have stopped stating the constraint and started arguing the decision to a reviewer —
-    keep the fact the next reader needs, cut the case for the choice. Exempt: a file-header
+  - ONE sentence, or none (CM-007). The sentence may wrap across lines; a block carrying a second
+    sentence is refused at write time. Past one sentence you have stopped stating the constraint
+    and started arguing the decision to a reviewer — keep the fact the next reader needs, cut the
+    case for the choice. Exempt: a file-header
     docstring, and a doc comment (/** */, ///, Go doc, Python docstring) on the declaration below.
   - Nothing addressed to a person, no first-person deliberation, no weighed alternatives, no
     untracked TODO, no emoji, no `Note:` preamble. If a thought belongs in the reply, put it there.

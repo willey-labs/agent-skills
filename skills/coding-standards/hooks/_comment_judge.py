@@ -51,9 +51,10 @@ Everything else goes. Flag:
 
 Be strict, and judge line by line. The bar is not "does this contain something
 true" — it is "does every line carry a fact the next reader cannot get from the
-code". CM-007: a comment that earns its place fits on ONE line. A block running past
-one line of prose is a defect, and the verdict is "shorten" to that single line
-however correct the rest is. Two shapes are exempt from the line count: a file-header
+code". CM-007: a comment that earns its place states one fact in ONE sentence, which
+may wrap across lines. A block carrying a second sentence is a defect, and the verdict
+is "shorten" to the one sentence that carries the fact however correct the rest is.
+Two shapes are exempt from the sentence limit: a file-header
 docstring, and a doc comment (/** */, ///, a Go doc comment, a Python docstring)
 directly above the declaration it documents. Judge each line of a doc comment by
 the other rules: it must state the contract a caller relies on (parameters, return

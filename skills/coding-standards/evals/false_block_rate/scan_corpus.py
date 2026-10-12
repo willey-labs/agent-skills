@@ -24,9 +24,7 @@ from pathlib import Path
 
 from corpus import RepoSpec, SKIP_DIR_NAMES, is_test_file
 
-# Mirrors review-files.py HOOK_FILES (the source-file hooks; the structure-file
-# guard is config-only and excluded). Kept in sync by hand — a config-sync test
-# already asserts the bootstrap list; this list is the review subset.
+# review-files.py's HOOK_FILES plus the write-only comment-block limit.
 HOOK_FILES: tuple[str, ...] = (
     "block-junk-paths.py",
     "block-ts-violations.py",
@@ -39,7 +37,11 @@ HOOK_FILES: tuple[str, ...] = (
     "block-swallowed-errors.py",
     "block-debug-artifacts.py",
     "advise-comment-slop.py",
+    "block-added-comments.py",
 )
+
+# These subtract the file on disk, so each file reaches them as a brand-new write.
+NEW_FILE_HOOKS: frozenset[str] = frozenset({"block-added-comments.py"})
 
 _RULE_CODE = re.compile(r"\b(?:FN|NM|OD|ST|EH|FMT|DP|CM)-\d+\b")
 
@@ -117,17 +119,24 @@ def _run_hook(context: ScanContext, hook: str, payload: str) -> tuple[int, list[
     return proc.returncode, _bullets(proc.stderr)
 
 
+def _write_payload(file_path: Path, content: str) -> str:
+    return json.dumps(
+        {"tool_name": "Write", "tool_input": {"file_path": str(file_path), "content": content}}
+    )
+
+
 def scan_file(context: ScanContext, file_path: Path, spec: RepoSpec, root: Path) -> list[BlockRecord]:
     try:
         content = file_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return []
-    payload = json.dumps(
-        {"tool_name": "Write", "tool_input": {"file_path": str(file_path), "content": content}}
-    )
     rel = str(file_path.relative_to(root))
+    unwritten_path = root.with_name(f"{root.name}.unwritten") / rel
+    rewrite_payload = _write_payload(file_path, content)
+    new_file_payload = _write_payload(unwritten_path, content)
     records: list[BlockRecord] = []
     for hook in HOOK_FILES:
+        payload = new_file_payload if hook in NEW_FILE_HOOKS else rewrite_payload
         code, bullets = _run_hook(context, hook, payload)
         if not bullets:
             continue

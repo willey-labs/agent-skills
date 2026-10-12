@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Regression test — CM-007, the one-line limit on comment blocks a write adds.
+"""Regression test — CM-007, the one-sentence limit on comment blocks a write adds.
 
-Checks that a multi-line block mid-file is refused, that a real file-header docstring
+Checks that a multi-sentence block mid-file is refused while one sentence wrapped across
+lines passes, that a real file-header docstring
 and stacked machine pragmas are not, and that prose already on disk is never
 re-judged. The disk cases run against a real file.
 
@@ -44,7 +45,7 @@ CASES = [
         "two-line block is refused",
         HOOK,
         "/tmp/cs/src/b.ts",
-        "const a = 1;\n\n// Rounds half-up so the figure matches\n// the invoice PDF finance generates.\nconst b = a;\n",
+        "const a = 1;\n\n// Rounds half-up so the figure matches the invoice.\n// Finance generates that PDF from the same totals.\nconst b = a;\n",
         block=True,
         rule="CM-007",
     ),
@@ -74,7 +75,7 @@ CASES = [
         "plain line comments above a TS function are refused",
         HOOK,
         "/tmp/cs/src/c4.ts",
-        "const a = 1;\n\n// Formats the amount for the invoice header,\n// rounding half-up to match the PDF.\nexport function fmt(n: number) {\n  return n;\n}\n",
+        "const a = 1;\n\n// Formats the amount for the invoice header.\n// Rounds half-up to match the PDF.\nexport function fmt(n: number) {\n  return n;\n}\n",
         block=True,
         rule="CM-007",
     ),
@@ -89,7 +90,7 @@ CASES = [
         "Go comment block inside a function body is refused",
         HOOK,
         "/tmp/cs/money/sum.go",
-        "package money\n\nfunc Sum(xs []int) int {\n\t// The bulk endpoint drops ordering, so we send\n\t// one row per request.\n\ttotal := 0\n\treturn total\n}\n",
+        "package money\n\nfunc Sum(xs []int) int {\n\t// The bulk endpoint drops ordering.\n\t// We send one row per request instead.\n\ttotal := 0\n\treturn total\n}\n",
         block=True,
         rule="CM-007",
     ),
@@ -111,7 +112,7 @@ CASES = [
         "three-line python block is refused",
         HOOK,
         "/tmp/cs/src/d.py",
-        'x = 1\n\n\ndef f():\n    # The bulk endpoint drops ordering, so we send\n    # one row per request and reassemble client side\n    # once every response has landed.\n    return x\n',
+        'x = 1\n\n\ndef f():\n    # The bulk endpoint drops ordering, so we send\n    # one row per request. The client reassembles the rows\n    # once every response has landed.\n    return x\n',
         block=True,
         rule="CM-007",
     ),
@@ -155,7 +156,7 @@ CASES = [
         "a block under the module docstring is refused",
         HOOK,
         "/tmp/cs/src/l.py",
-        '"""What this module does."""\n\n# Rounds half-up so the figure matches\n# the invoice the finance team generates.\nRATE = 1\n',
+        '"""What this module does."""\n\n# Rounds half-up so the figure matches the invoice.\n# The finance team generates that invoice.\nRATE = 1\n',
         block=True,
         rule="CM-007",
     ),
@@ -171,6 +172,127 @@ CASES = [
         HOOK,
         "/tmp/cs/node_modules/pkg/i.ts",
         "const a = 1;\n\n// Rounds half-up so the figure matches\n// the invoice PDF finance generates.\nconst b = a;\n",
+        block=False,
+    ),
+    Case(
+        "python floor division is not a comment",
+        HOOK,
+        "/tmp/cs/src/m.py",
+        "def split(total, parts):\n    share = total // parts\n    rest = total // 3\n    return share, rest\n",
+        block=False,
+    ),
+    Case(
+        "a triple-quoted call argument is a string, not a docstring",
+        HOOK,
+        "/tmp/cs/src/n.py",
+        'def rows(db):\n    return db.run(\n        """\n        SELECT id, name\n        FROM users\n        """\n    )\n',
+        block=False,
+    ),
+    Case(
+        "JSDoc on an interface property is exempt",
+        HOOK,
+        "/tmp/cs/src/o.ts",
+        "export interface Options {\n  /**\n   * Base URL prepended to the input.\n   * Must end with a slash.\n   */\n  prefixUrl: string;\n}\n",
+        block=False,
+    ),
+    Case(
+        "JSDoc on an optional type member is exempt",
+        HOOK,
+        "/tmp/cs/src/p.ts",
+        "export type Options = {\n  /**\n   * Request timeout in ms.\n   * Set false to disable.\n   */\n  timeout?: number | false;\n};\n",
+        block=False,
+    ),
+    Case(
+        "JSDoc on an object-literal key is exempt",
+        HOOK,
+        "/tmp/cs/src/q.ts",
+        "export const defaults = {\n  /**\n   * Retry count.\n   * Zero disables retries.\n   */\n  limit: 2,\n};\n",
+        block=False,
+    ),
+    Case(
+        "a /* inside a string is not a comment",
+        HOOK,
+        "/tmp/cs/src/s.ts",
+        "export const accepts = {\n  text: 'text/*',\n  json: 'application/json',\n  blob: '*/*',\n} as const;\n",
+        block=False,
+    ),
+    Case(
+        "PHP attributes are not comments",
+        HOOK,
+        "/tmp/cs/app/Models/User.php",
+        "<?php\n\nnamespace App\\Models;\n\n#[Fillable(['name', 'email'])]\n#[Hidden(['password'])]\nclass User extends Model\n{\n}\n",
+        block=False,
+    ),
+    Case(
+        "trailing comments on adjacent lines are not a block",
+        HOOK,
+        "/tmp/cs/src/t.ts",
+        "export function resetHeader(headers: Headers) {\n  return headers.get('X-RateLimit-Reset') // GitHub\n    ?? headers.get('X-Rate-Limit-Reset'); // Twitter\n}\n",
+        block=False,
+    ),
+    Case(
+        "JSDoc with @param above an assigned function is exempt",
+        HOOK,
+        "/tmp/cs/src/u.js",
+        "const schema = {};\n\n/**\n * Check if email is taken\n * @param {string} email - the email to check\n */\nschema.statics.isEmailTaken = async function (email) {\n  return Boolean(email);\n};\n",
+        block=False,
+    ),
+    Case(
+        "JSDoc with @example above a call signature is exempt",
+        HOOK,
+        "/tmp/cs/src/z.ts",
+        "export type Reader = {\n  read: {\n    /**\n    Reads the body as text.\n    Decodes with the response charset.\n\n    @example\n    const text = await reader.read();\n    */\n    <T>(): Promise<T>;\n  };\n};\n",
+        block=False,
+    ),
+    Case(
+        "a Javadoc separated from its class by a blank line is exempt",
+        HOOK,
+        "/tmp/cs/src/PetTypeRepository.java",
+        "package petclinic;\n\nimport java.util.List;\n\n/**\n * Repository for pet types.\n *\n * @author Someone\n */\n\npublic interface PetTypeRepository {\n}\n",
+        block=False,
+    ),
+    Case(
+        "a plain block comment above a statement is refused",
+        HOOK,
+        "/tmp/cs/src/v.ts",
+        "export function start() {\n  /* Do not place any code after the app starts.\n     It will not run on iOS. */\n  run();\n}\n",
+        block=True,
+        rule="CM-007",
+    ),
+    Case(
+        "line comments above an interface property are refused",
+        HOOK,
+        "/tmp/cs/src/r.ts",
+        "export interface Options {\n  // Base URL prepended to the input.\n  // It must end with a slash.\n  prefixUrl: string;\n}\n",
+        block=True,
+        rule="CM-007",
+    ),
+    Case(
+        "one sentence wrapped over two lines passes",
+        HOOK,
+        "/tmp/cs/src/w.py",
+        "def flush(queue):\n    # The broker acks a batch only after every message in it lands, so a\n    # partial flush would replay the messages that already went through.\n    queue.flush_all()\n",
+        block=False,
+    ),
+    Case(
+        "one sentence wrapped over three lines passes",
+        HOOK,
+        "/tmp/cs/src/x.ts",
+        "export function open(store: Store) {\n  // The cache is warmed before the socket opens because the first\n  // subscriber reads from it synchronously and would otherwise see\n  // an empty snapshot\n  store.warm();\n}\n",
+        block=False,
+    ),
+    Case(
+        "an e.g. inside a sentence does not end it",
+        HOOK,
+        "/tmp/cs/ledger/post.go",
+        "package ledger\n\nfunc Post(e Entry) {\n\t// Closed periods (e.g. a filed quarter) reject late entries, which\n\t// the caller retries against the next open period.\n\twrite(e)\n}\n",
+        block=False,
+    ),
+    Case(
+        "two sentences on one line pass",
+        HOOK,
+        "/tmp/cs/src/y.ts",
+        "export function cap() {\n  // Three retries. A fourth outlasts the gateway deadline.\n  return 3;\n}\n",
         block=False,
     ),
 ]
@@ -201,7 +323,7 @@ def disk_failures() -> list[str]:
         failures.append("existing block re-judged: editing code near old prose must pass")
     added = run_against_disk(
         EXISTING_BLOCK,
-        EXISTING_BLOCK + "\n// Pinned to light because the design system\n// authors no dark surfaces.\nexport const theme = 'light';\n",
+        EXISTING_BLOCK + "\n// Pinned to light.\n// The design system authors no dark surfaces.\nexport const theme = 'light';\n",
     )
     if added != 2:
         failures.append(f"new block alongside an existing one must be refused, got exit {added}")

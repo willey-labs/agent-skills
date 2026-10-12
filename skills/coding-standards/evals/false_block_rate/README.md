@@ -52,3 +52,6 @@ code, which biases the number toward stance blocks over true positives. Pick is 
 silent. Frameworks with no corpus entry are listed in `corpus.py` so the rate is
 never mistaken for full coverage. Classification is judgement, recorded in
 `classify.py` so it can be argued with and re-run.
+
+The comment-block limit judges only the comments a write adds, so the scan hands
+it every file as a new write; the other hooks see a rewrite of the file in place.

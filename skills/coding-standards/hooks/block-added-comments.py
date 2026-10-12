@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""PreToolUse hook — CM-007, the one-line limit on comment blocks (all languages).
+"""PreToolUse hook — CM-007, the one-sentence limit on comment blocks (all languages).
+
+A comment block may carry one sentence, wrapped across as many lines as the project's
+line length needs. A block over one line with a second sentence is refused. Sentences end
+at `.`, `!` or `?` before whitespace; `e.g.`, `i.e.`, `etc.`, `vs.` and `cf.` do not end one.
 
 Judges only the prose a write ADDS: the file on disk is read first and its existing
 comment lines subtracted, so re-writing a file or editing beside an old block passes.
@@ -11,7 +15,12 @@ the block, not what line it sits on. Blank lines and machine directives may come
 first; one line of code disqualifies it. For an `Edit` that test reads the fragment
 rather than the file, so a fragment opening with a block is exempt.
 
-Limit: `CODING_STANDARDS_MAX_COMMENT_LINES` prose lines, default 1.
+`CODING_STANDARDS_MAX_COMMENT_LINES` raises the line count a multi-sentence block may
+reach, default 1.
+
+Precision: on the pinned false-block corpus, written as new files, it blocks 6.3% of
+idiomatic files, every block a multi-sentence comment the rule refuses on purpose; a
+hand-checked sample held no misfire.
 
 Stdlib only. Exit 2 on block, 0 on pass.
 """
@@ -19,12 +28,13 @@ Stdlib only. Exit 2 on block, 0 on pass.
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _comment_blocks import group_blocks  # noqa: E402
-from _comment_scan import commented_lines, is_directive, strip_marker  # noqa: E402
+from _comment_scan import commented_lines, is_directive, own_line_comments, strip_marker  # noqa: E402
 from _doc_comments import is_doc_comment  # noqa: E402
 from _hook_run import block, read_payload, resolve_target  # noqa: E402
 from _languages import SOURCE_EXTENSIONS  # noqa: E402
@@ -33,6 +43,9 @@ DEFAULT_MAX_LINES = 1
 MAX_REPORTED = 10
 
 SEE_LINE = "See references/common/comments.md#cm-007 — the default for a comment is none."
+
+_SENTENCE_END = re.compile(r"(?<!\be\.g)(?<!\bi\.e)(?<!\betc)(?<!\bvs)(?<!\bcf)[.!?]+(?=\s|$)")
+_TERMINATORS = (".", "!", "?")
 
 
 def max_lines() -> int:
@@ -44,11 +57,18 @@ def max_lines() -> int:
         return DEFAULT_MAX_LINES
 
 
+def sentence_count(prose: list[str]) -> int:
+    """Sentences in the prose, a closing fragment without a full stop counting as one."""
+    text = " ".join(prose).strip()
+    fragment = 0 if text.endswith(_TERMINATORS) else 1
+    return max(1, len(_SENTENCE_END.findall(text)) + fragment)
+
+
 def prose_blocks(source: str, ext: str) -> list[tuple[int, list[str]]]:
     """(start line, prose lines) for every comment block carrying prose, doc comments excluded."""
     found: list[tuple[int, list[str]]] = []
     source_lines = source.splitlines()
-    for group in group_blocks(commented_lines(source, ext)):
+    for group in group_blocks(own_line_comments(source, ext)):
         if is_doc_comment(source_lines, group, ext):
             continue
         prose = [
@@ -91,10 +111,13 @@ def added_violations(new_content: str, file_path: str, ext: str, limit: int) -> 
         added = [line for line in prose if line not in already]
         if len(added) <= limit:
             continue
+        sentences = sentence_count(added)
+        if sentences <= 1:
+            continue
         violations.append(
-            f"{file_path}:{start} — CM-007: comment block adds {len(added)} lines of prose "
-            f"(limit {limit}). State the constraint in one line, or delete it — "
-            f'starts "{added[0][:60]}"'
+            f"{file_path}:{start} — CM-007: comment block adds {sentences} sentences over "
+            f"{len(added)} lines (limit: one sentence). State the constraint in one sentence, "
+            f'or delete it — starts "{added[0][:60]}"'
         )
     return violations
 
