@@ -4,6 +4,8 @@
 Judges only the prose a write ADDS: the file on disk is read first and its existing
 comment lines subtracted, so re-writing a file or editing beside an old block passes.
 
+A doc comment on the declaration below it is exempt (see `_doc_comments.py`).
+
 A file-header block is exempt, and only a real one — the exemption asks what precedes
 the block, not what line it sits on. Blank lines and machine directives may come
 first; one line of code disqualifies it. For an `Edit` that test reads the fragment
@@ -23,6 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from _comment_blocks import group_blocks  # noqa: E402
 from _comment_scan import commented_lines, is_directive, strip_marker  # noqa: E402
+from _doc_comments import is_doc_comment  # noqa: E402
 from _hook_run import block, read_payload, resolve_target  # noqa: E402
 from _languages import SOURCE_EXTENSIONS  # noqa: E402
 
@@ -42,9 +45,12 @@ def max_lines() -> int:
 
 
 def prose_blocks(source: str, ext: str) -> list[tuple[int, list[str]]]:
-    """(start line, prose lines) for every comment block carrying prose."""
+    """(start line, prose lines) for every comment block carrying prose, doc comments excluded."""
     found: list[tuple[int, list[str]]] = []
+    source_lines = source.splitlines()
     for group in group_blocks(commented_lines(source, ext)):
+        if is_doc_comment(source_lines, group, ext):
+            continue
         prose = [
             strip_marker(raw) for _lineno, raw in group if strip_marker(raw) and not is_directive(raw)
         ]

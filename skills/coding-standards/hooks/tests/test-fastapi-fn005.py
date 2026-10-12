@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression test — FN-005 FastAPI + pytest carve-outs (ISS-017).
+"""Regression test — FN-005 FastAPI + pytest carve-outs.
 
 A handler whose params are FastAPI bindings via the no-default `Annotated[T,
 Depends(...)]` style (what FastAPI now recommends) must not count toward FN-005;

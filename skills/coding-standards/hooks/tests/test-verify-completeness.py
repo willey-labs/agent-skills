@@ -17,10 +17,18 @@ from pathlib import Path
 
 SKILL = Path(__file__).resolve().parent.parent.parent  # skills/coding-standards
 sys.path.insert(0, str(SKILL))
-from _bootstrap.hook_identity import HOOK_FILES_BY_EVENT, missing_wired_scripts  # noqa: E402
+from _bootstrap.hook_identity import (  # noqa: E402
+    COMMENT_JUDGE_EVENTS,
+    HOOK_FILES_BY_EVENT,
+    missing_wired_scripts,
+)
 
 COMMAND_PREFIX = "python3 /somewhere/.claude/skills/coding-standards/hooks/"
 REGISTERED_TOTAL = sum(len(names) for names in HOOK_FILES_BY_EVENT.values())
+REQUIRED_BY_EVENT = {
+    event: names for event, names in HOOK_FILES_BY_EVENT.items() if event not in COMMENT_JUDGE_EVENTS
+}
+REQUIRED_TOTAL = sum(len(names) for names in REQUIRED_BY_EVENT.values())
 
 
 def settings_wiring(names_by_event: dict[str, list[str]]) -> dict:
@@ -42,19 +50,27 @@ def check_current_wiring_is_clean(failures: list[str]) -> None:
 
 
 def check_stale_wiring_is_caught(failures: list[str]) -> None:
-    """The shape an install wired before the comment hooks shipped: PreToolUse minus
-    the comment checkers, SessionStart minus the reminder, no PostToolUse or Stop."""
+    """An install wired before the comment hooks: PreToolUse without them, SessionStart without the reminder."""
     pre_tool_use = [name for name in HOOK_FILES_BY_EVENT["PreToolUse"] if "comment" not in name]
     session_start = [name for name in HOOK_FILES_BY_EVENT["SessionStart"] if "inject" not in name]
     absent = missing_wired_scripts(
         settings_wiring({"PreToolUse": pre_tool_use, "SessionStart": session_start})
     )
-    expected = REGISTERED_TOTAL - len(pre_tool_use) - len(session_start)
+    expected = REQUIRED_TOTAL - len(pre_tool_use) - len(session_start)
     if len(absent) != expected:
         failures.append(f"stale wiring reported {len(absent)} missing scripts, want {expected}")
-    for event in ("PostToolUse", "Stop", "UserPromptSubmit"):
-        if not any(name.startswith(f"{event}:") for name in absent):
-            failures.append(f"stale wiring did not report the unwired {event} script")
+    if not any(name.startswith("UserPromptSubmit:") for name in absent):
+        failures.append("stale wiring did not report the unwired UserPromptSubmit script")
+
+
+def check_comment_judge_is_opt_in(failures: list[str]) -> None:
+    """Without the judge nothing of it is missing; half a judge reports the other half."""
+    absent = missing_wired_scripts(settings_wiring(REQUIRED_BY_EVENT))
+    if absent:
+        failures.append(f"settings without the comment judge reported missing scripts: {absent}")
+    half_judge = settings_wiring({**REQUIRED_BY_EVENT, "PostToolUse": HOOK_FILES_BY_EVENT["PostToolUse"]})
+    if not any(name.startswith("Stop:") for name in missing_wired_scripts(half_judge)):
+        failures.append("a judge wired without its Stop script did not report it")
 
 
 def check_unwired_settings_reports_everything(failures: list[str]) -> None:
@@ -64,9 +80,9 @@ def check_unwired_settings_reports_everything(failures: list[str]) -> None:
         ("hooks is not a mapping", {"hooks": []}),
     ):
         absent = missing_wired_scripts(settings)
-        if len(absent) != REGISTERED_TOTAL:
+        if len(absent) != REQUIRED_TOTAL:
             failures.append(
-                f"{label} settings reported {len(absent)} missing, want {REGISTERED_TOTAL}"
+                f"{label} settings reported {len(absent)} missing, want {REQUIRED_TOTAL}"
             )
 
 
@@ -91,6 +107,7 @@ def main() -> int:
     failures: list[str] = []
     check_current_wiring_is_clean(failures)
     check_stale_wiring_is_caught(failures)
+    check_comment_judge_is_opt_in(failures)
     check_unwired_settings_reports_everything(failures)
     check_malformed_event_is_not_read_as_wired(failures)
     check_foreign_entry_counts_as_wired(failures)

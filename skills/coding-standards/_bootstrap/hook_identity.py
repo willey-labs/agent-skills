@@ -33,6 +33,7 @@ HOOK_FILES_BY_EVENT = {
     "SessionStart": SESSION_START_FILES,
     "UserPromptSubmit": USER_PROMPT_SUBMIT_FILES,
 }
+COMMENT_JUDGE_EVENTS = ("PostToolUse", "Stop")
 
 
 def _runs_only(entry: dict, names: list[str]) -> bool:
@@ -83,11 +84,27 @@ def _commands_under(entries: object) -> list[str]:
     ]
 
 
-def missing_wired_scripts(settings: dict) -> list[str]:
-    """Registry scripts that no command in `settings` runs, as `event: script`."""
+def comment_judge_wired(settings: dict) -> bool:
+    """True when any comment-judge script is wired — the judge is opt-in."""
     hooks = settings.get("hooks") if isinstance(settings, dict) else None
+    if not isinstance(hooks, dict):
+        return False
+    return any(
+        name in command
+        for event in COMMENT_JUDGE_EVENTS
+        for command in _commands_under(hooks.get(event))
+        for name in HOOK_FILES_BY_EVENT[event]
+    )
+
+
+def missing_wired_scripts(settings: dict) -> list[str]:
+    """Registry scripts no command runs, as `event: script`; the judge counts only once wired."""
+    hooks = settings.get("hooks") if isinstance(settings, dict) else None
+    judge_expected = comment_judge_wired(settings)
     absent: list[str] = []
     for event, names in HOOK_FILES_BY_EVENT.items():
+        if event in COMMENT_JUDGE_EVENTS and not judge_expected:
+            continue
         commands = _commands_under(hooks.get(event) if isinstance(hooks, dict) else None)
         absent.extend(
             f"{event}: {name}"

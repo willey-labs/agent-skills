@@ -13,7 +13,7 @@ description: >
 license: MIT
 metadata:
   author: willey-labs
-  version: "5.1.0"
+  version: "5.2.0"
 ---
 
 # Coding Standards
@@ -44,11 +44,34 @@ pre-approved permission rule, so it won't prompt):
 python3 <skill-dir>/bootstrap.py --verify
 ```
 
-Exit 0 → hooks are wired; go to Step 1. Non-zero → run the full install and act on its output:
+Exit 0 → hooks are wired; go to Step 1.
+
+Output starts `not installed` → **ask the user first; do not install without a yes.** Name every change
+the install makes:
+
+- adds this skill's hooks to the scope's `.claude/settings.json` (project scope: the file the team
+  commits) and a `/coding-standards` slash command;
+- installs the `tree-sitter` Python packages (into a dedicated venv on a global install or a PEP 668
+  system);
+- adds allow-rules so the skill reads its own references and runs its own scripts without prompts
+  (project scope: in the git-ignored `settings.local.json`, plus a `.gitignore` line for it);
+- seeds a commented `.coding-standards-ignore` template at the project root;
+- at each session start, re-wires any of these hooks that goes missing.
+
+Ask separately whether to enable the **comment judge**: at the end of each turn that adds comments, a
+separate model call reviews them — one short call per such turn, `sonnet` unless
+`CODING_STANDARDS_JUDGE_MODEL` names another model. It stays off unless they say yes.
+
+Any other non-zero output is an existing install that needs repair; the user already agreed to it, so
+run the install without asking. On a first install, run it after their yes, adding
+`--with-comment-judge` only if they enabled the judge:
 
 ```bash
 python3 <skill-dir>/bootstrap.py --auto-install
 ```
+
+If they decline, skip the install, do not ask again this session, and continue: the rules still apply,
+and `python3 <skill-dir>/hooks/review-files.py <file> …` runs as a manual linter over what you touch.
 
 - `Wired` / `Updated` / `Install OK` → tell the user to **restart the session** so hooks activate.
   **Until they do, the PreToolUse hooks are NOT active in *this* session** (Claude Code reads
@@ -143,7 +166,7 @@ language.
 | `fastapi` | `.py` | `fastapi` in deps **or** `from fastapi import FastAPI` **and** not Django |
 | `flask` | `.py` | `flask` in deps **or** `from flask import Flask` **and** not Django/FastAPI |
 | `go-http` | `.go` | `go.mod` + a router (`gin`, `echo`, `fiber`, `chi`, `mux`) or net/http handler routing |
-| `unsupported` | (any) | A framework/ecosystem the skill recognizes but has **no structure reference** for. Web: Angular (`@angular/core` / `angular.json`), Svelte / SvelteKit (`.svelte`, `svelte` in `package.json`, `svelte.config.*`), Astro (`astro` dep / `astro.config.*` / `.astro`), Remix (`@remix-run/*`), Ember, SolidStart, Qwik. Game engines: Unity (`Assets/` + `ProjectSettings/`), Godot (`project.godot`). Other ecosystems not yet covered in v5: Ruby/Rails, Rust, Swift/iOS, Flutter/Dart, Android native. … |
+| `unsupported` | (any) | A framework/ecosystem the skill recognizes but has **no structure reference** for. Web: Angular (`@angular/core` / `angular.json`), Svelte / SvelteKit (`.svelte`, `svelte` in `package.json`, `svelte.config.*`), Astro (`astro` dep / `astro.config.*` / `.astro`), Remix (`@remix-run/*`), Ember, SolidStart, Qwik. Game engines: Unity (`Assets/` + `ProjectSettings/`), Godot (`project.godot`). Other ecosystems without a structure reference: Ruby/Rails, Rust, Swift/iOS, Flutter/Dart, Android native. … |
 | `vanilla-js` | `.ts .js` | Plain `.ts` / `.js` that fits none of the above **and is not one of the recognized-unsupported frameworks** (libraries, CLIs, scripts, browserless projects) |
 
 - **If two rows of the SAME language could apply** (e.g. a `.ts` that's both Next.js and vue-nuxt-eligible),
@@ -341,10 +364,10 @@ reference, a sharp edge. Never narrate the code, never narrate your edit, and ne
 behind in the file: no `as requested`, no `I think`, no `we could also`, no untracked `TODO`, no emoji, no
 `Note:` preamble. If a thought belongs in the reply to the user, put it there and leave the file clean.
 
-A separate model judges the comments a turn wrote before that turn can end (`hooks/judge-comments.py`),
-so a comment that doesn't earn its place comes back as a fix to apply, not a note to ignore. Write it
-right the first time and the judge stays silent — it costs one short model call per turn that touched
-code, and none at all on a turn whose files gained no comments.
+When the user has enabled the comment judge, a separate model judges the comments a turn wrote before
+that turn can end (`hooks/judge-comments.py`), so a comment that doesn't earn its place comes back as a
+fix to apply, not a note to ignore. Write it right the first time and the judge stays silent — it costs
+one short model call per turn that touched code, and none at all on a turn whose files gained no comments.
 
 **Always author and modify code through the `Write` / `Edit` / `MultiEdit` tools — never by shell
 redirection** (`> file`, `>>`, `tee`, `sed -i`, `cat <<EOF > file`). The enforcement hooks fire **only** on

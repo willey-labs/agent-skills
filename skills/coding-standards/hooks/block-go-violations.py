@@ -47,18 +47,18 @@ ANY_RULES: list[tuple[re.Pattern[str], str]] = [
     # Go return shape: `) any {` or `) any\n`
     (re.compile(r"\)\s*any\b"), "return type `any`"),
     # `any` as a member of a parenthesised return/param tuple: `(any, error)`,
-    # `(x, any)`. The `[,)]` boundary keeps it off identifiers like `anyVar` (ISS-014).
+    # `(x, any)`. The `[,)]` boundary keeps it off identifiers like `anyVar`.
     (re.compile(r"[(,]\s*any\s*[,)]"), "`any` in a return/param tuple"),
     # Go var/const decl: `var x any = ...`
     (re.compile(r"\b(?:var|const)\s+\w+\s+any\b"), "var/const `any` type"),
     (re.compile(r"\bmap\s*\[\s*\w+\s*\]\s*any\b"), "`map[K]any`"),
-    (re.compile(r"\bmap\s*\[\s*any\s*\]"), "`map[any]V` (any key)"),  # ISS-014
+    (re.compile(r"\bmap\s*\[\s*any\s*\]"), "`map[any]V` (any key)"),
     (re.compile(r"\bmap\s*\[\s*\w+\s*\]\s*interface\s*\{\s*\}"), "`map[K]interface{}`"),
     (re.compile(r"\[\s*\]\s*any\b"), "`[]any`"),
     (re.compile(r"\[\s*\]\s*interface\s*\{\s*\}"), "`[]interface{}`"),
 ]
 
-# NM-006 — Hungarian notation (ISS-018). Same multi-char prefix policy as C#/TS:
+# NM-006 — Hungarian notation. Same multi-char prefix policy as C#/TS:
 # single-char prefixes are NOT matched (too many false positives), and the
 # `[A-Z][a-z]+` after the prefix guards legit names (`strings`, `strconv`,
 # `strategy` never match — the char after the prefix is lowercase). Three
@@ -76,10 +76,10 @@ GO_HUNGARIAN_PATTERNS = [
 DOT_IMPORT = re.compile(r'^\s*(?:import\s+)?\.\s+"[^"]+"\s*$')
 
 # FN-005 — Go signature with 4+ parameters. Go has three shapes:
-#   func Foo(a int, b int, c int, d int)   — named function
-#   func Foo(a, b, c, d int)               — grouped-type named function
-#   func (r *Recv) Foo(a, b, c, d int)     — method (receiver before the name)
-#   func(a, b, c, d int) { ... }           — anonymous function literal
+#   `func Foo(a int, b int, c int, d int)`   — named function
+#   `func Foo(a, b, c, d int)`               — grouped-type named function
+#   `func (r *Recv) Foo(a, b, c, d int)`     — method (receiver before the name)
+#   `func(a, b, c, d int) { ... }`           — anonymous function literal
 # A method's FIRST paren group is the RECEIVER, not the params — matching the
 # first paren after `func` would capture the receiver and miss the real param
 # list. So try the method shape first (receiver + name + params, capturing the
@@ -123,7 +123,7 @@ def iter_dot_import_violations(raw_lines: list[str], file_path: str) -> Iterable
     for idx, line in enumerate(raw_lines, start=1):
         if DOT_IMPORT.search(line):
             yield (
-                f"{file_path}:{idx} — dot import banned; "
+                f"{file_path}:{idx} — ST-010: dot import banned; "
                 f"use a qualified import (`import \"fmt\"`)"
             )
 

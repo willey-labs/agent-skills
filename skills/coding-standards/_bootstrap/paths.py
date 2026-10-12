@@ -37,14 +37,17 @@ def _invocation_path() -> Path:
         return path
     physical = Path(os.getcwd()) / raw
     pwd = os.environ.get("PWD")
-    if pwd:
-        logical = Path(pwd) / raw
-        try:
-            if logical.exists() and os.path.realpath(logical) == os.path.realpath(physical):
-                return logical
-        except OSError:
-            pass
+    if pwd and same_real_file(Path(pwd) / raw, physical):
+        return Path(pwd) / raw
     return physical
+
+
+def same_real_file(first: Path, second: Path) -> bool:
+    """True when `first` exists and both paths resolve to the same file; False when either can't be read."""
+    try:
+        return first.exists() and os.path.realpath(first) == os.path.realpath(second)
+    except OSError:
+        return False
 
 
 # The invoked bootstrap.py path, symlink-preserving — the anchor whose parents
@@ -70,15 +73,14 @@ def shell_quote(part: str) -> str:
 def _managed_venv_dir() -> Path:
     """Where the dedicated coding-standards venv lives.
 
-    OUTSIDE the skill dir, deliberately (ISS-006): the venv used to sit at
-    `<skill>/.venv`, but `npx skills add` (the documented update path) re-copies
-    the whole skill tree and WIPES it — after which every hook command's
-    interpreter is missing and the hooks exit 127 silently, never blocking. A
-    stable per-user data dir survives skill re-copies. Resolution order:
+    OUTSIDE the skill dir: `npx skills add` (the documented update path) re-copies
+    the whole skill tree, which would wipe a venv inside it and leave every hook
+    command's interpreter missing — the hooks exit 127 and block nothing. A stable
+    per-user data dir survives skill re-copies. Resolution order:
       1. $CODING_STANDARDS_VENV — explicit override (also used by the test sandbox)
       2. $XDG_DATA_HOME/coding-standards/venv
       3. ~/.local/share/coding-standards/venv
-      4. (last resort, HOME undeterminable) the old in-skill location
+      4. (last resort, HOME undeterminable) `<skill>/.venv`
     """
     override = os.environ.get("CODING_STANDARDS_VENV")
     if override:

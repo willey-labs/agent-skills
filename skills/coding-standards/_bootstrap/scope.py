@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from .paths import SCRIPT_PATH, SKILL_DIR
+from .paths import SCRIPT_PATH, SKILL_DIR, same_real_file
 
 # Seeded at the project root on first bootstrap so users DISCOVER the feature —
 # an absent file is invisible; people assume the skill can't be told to skip
@@ -54,16 +54,9 @@ def detect_scope_and_targets() -> tuple[str, Path, Path]:
     scope is "global" or "project".
     """
     home_claude = Path.home() / ".claude"
-    try:
-        # Use the unresolved path — the skill may be symlinked from the
-        # canonical install location into ~/.claude/skills/<name>/ or
-        # <project>/.claude/skills/<name>/. Both forms still place the
-        # symlink itself under one of those `.claude/skills/` parents,
-        # which is what we use for scope detection.
-        if str(SCRIPT_PATH).startswith(str(home_claude) + os.sep):
-            return "global", home_claude / "settings.json", home_claude / "commands"
-    except Exception:
-        pass
+    # Unresolved on purpose: the install symlink, not its target, sits under `.claude/skills/`.
+    if str(SCRIPT_PATH).startswith(str(home_claude) + os.sep):
+        return "global", home_claude / "settings.json", home_claude / "commands"
 
     # Walk up looking for `.claude/skills/<our-skill>/...` — the `.claude`
     # directory's parent is the project root.
@@ -77,12 +70,8 @@ def detect_scope_and_targets() -> tuple[str, Path, Path]:
     # at where we actually live, it's a global install — wire there. (Project
     # scope can't be recovered this way: a shared real copy may be symlinked from
     # many projects, so the invocation path is the only thing that disambiguates.)
-    home_skill = home_claude / "skills" / SKILL_DIR.name
-    try:
-        if home_skill.exists() and os.path.realpath(home_skill) == os.path.realpath(SKILL_DIR):
-            return "global", home_claude / "settings.json", home_claude / "commands"
-    except OSError:
-        pass
+    if same_real_file(home_claude / "skills" / SKILL_DIR.name, SKILL_DIR):
+        return "global", home_claude / "settings.json", home_claude / "commands"
 
     # No `.claude` ancestor found and no global symlink points back. Refuse to
     # guess — writing to an unexpected location is worse than asking the user to

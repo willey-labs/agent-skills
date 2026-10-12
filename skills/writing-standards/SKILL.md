@@ -46,17 +46,18 @@ absolute-path command, no `cd`/`&&`):
 python3 <skill-dir>/bootstrap.py --verify
 ```
 
-Exit 0 → hooks are wired; go to Step 1. Non-zero → wire them:
+Exit 0 → hooks are wired; go to Step 1. Non-zero → **ask the user before wiring them.** Say what it
+changes: two entries — `SessionStart` and `UserPromptSubmit` — added to this scope's settings file
+(this project's `.claude/settings.json`, or `~/.claude/settings.json` for a global install), each
+printing a short reminder; existing hooks are kept and nothing is installed. On a yes:
 
 ```bash
 python3 <skill-dir>/bootstrap.py
 ```
 
-It auto-detects scope (this project's `.claude/settings.json` vs global `~/.claude/settings.json`)
-from where the skill is installed, and merges two entries — `SessionStart` and `UserPromptSubmit` —
-without disturbing hooks you already have. Tell the user to **restart the session** so the hooks
-activate; until then the reminder isn't injected, but this SKILL.md is still in force for any
-document you write this session.
+Then tell the user to **restart the session** so the hooks activate; until then the reminder isn't
+injected. On a no, don't ask again this session. Either way this SKILL.md is in force for any document
+you write this session.
 
 ---
 

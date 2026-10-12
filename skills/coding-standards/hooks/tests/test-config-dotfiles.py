@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regression test — coding-standards config dotfile gating.
 
-`.coding-standards-ignore` exemptions must each carry a `# reason: ...` (ISS-011);
+`.coding-standards-ignore` exemptions must each carry a `# reason: ...`;
 without one the write blocks (an ungated ignore file is a self-exemption channel).
 `.coding-standards-structure` stays structure-only (no comments / hooks: / toggles).
 
@@ -21,7 +21,7 @@ IGN = "/p/.coding-standards-ignore"
 STR = "/p/.coding-standards-structure"
 
 CASES: list[Case] = [
-    # ISS-011 — ignore-file exemptions.
+    # Ignore-file exemptions.
     Case("ignore pattern without reason blocks", H, IGN, "src/big-file.ts\n", block=True),
     Case("ignore pattern with reason passes", H, IGN,
          "src/big-file.ts  # reason: cohesive dispatch table, accepted in review F012\n", block=False),

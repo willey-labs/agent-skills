@@ -62,6 +62,7 @@ OD_005_BOUNDARY_PARENTS = {
     "Document", "Component", "Controller", "Service", "Module", "Resource",
     "Resolver", "Pipe", "Guard", "Interceptor", "Filter", "Middleware",
     "TypeOrmEntity", "MongooseModel", "PrismaModel",
+    "Observable",
 }
 
 

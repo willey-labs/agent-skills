@@ -44,6 +44,8 @@ python3 <skill-dir>/bootstrap.py
 | `--verify` | Fast read-only check: exit 0 if already wired for this scope and Python is OK (nothing to do), non-zero if a full run is needed. Wires/installs nothing. Step 0 runs this first and only falls through to `--auto-install` when it's non-zero — so an already-set-up machine isn't re-bootstrapped on every skill invocation. |
 | `--check` | Print the full readiness report; do not install or wire anything. |
 | `--auto-install` | Install the required packages without the interactive confirm. Implied in non-TTY agent contexts (the install is mandatory, so it always proceeds there). |
+| `--with-comment-judge` | Wire the comment judge (`PostToolUse` recorder + `Stop` judge): a separate model call reviews the comments each turn adds. Off by default. |
+| `--without-comment-judge` | Remove the comment judge. With neither flag, the judge stays as currently wired, so a repair never turns it on or off. |
 
 There is no opt-out flag: the tree-sitter grammars are required. A host that genuinely can't install them is reported as a blocking issue, not silently downgraded.
 
@@ -64,8 +66,9 @@ There is no opt-out flag: the tree-sitter grammars are required. A host that gen
 
 There is **no rule toggle** — every rule is always enforced, and `block-structure-file-violations.py` blocks any attempt to add one to `.coding-standards-structure`. Disabling is install-scoped, by design:
 
-- **One project, temporarily** — remove the skill's `PreToolUse` block from that scope's `settings.json` (the entry whose commands reference `coding-standards/hooks/block-*.py`); re-run `bootstrap.py` to restore it.
+- **The comment judge** — `bootstrap.py --without-comment-judge`. The health check leaves an unwired judge alone.
+- **One project** — remove every entry the skill added to that scope's `settings.json` (`PreToolUse`, `SessionStart`, `UserPromptSubmit`, and `PostToolUse`/`Stop` if the judge is on). Removing `PreToolUse` alone does not stick: the `SessionStart` health check re-wires it. Re-run `bootstrap.py` to restore.
 - **One path / a legacy file** — add it to `.coding-standards-ignore` with a `# reason:` (skips all checks for that path). An all-paths `**  # reason: ...` exemption silences a whole project, but each pattern still needs its reason — the intent is recorded, never hidden.
-- **Everywhere** — uninstall the skill (remove it from `.claude/skills/`) and drop its `PreToolUse` entry.
+- **Everywhere** — uninstall the skill (remove it from `.claude/skills/`) and remove its entries as above.
 
 A managed venv left behind after an uninstall is inert (nothing references it); delete `$XDG_DATA_HOME/coding-standards/` (or `~/.local/share/coding-standards/`) to remove it.

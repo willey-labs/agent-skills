@@ -3,7 +3,7 @@
 
 Two jobs, one cohesive concern (keeping the skill's own config honest):
 `.coding-standards-structure` stays structure-only, and every `.coding-standards-ignore`
-exemption states a reason (ISS-011) — an ungated ignore file is a self-exemption
+exemption states a reason — an ungated ignore file is a self-exemption
 channel a blocked agent could use to silence the very check that just fired.
 
 `.coding-standards-structure` to structure only.
@@ -50,7 +50,7 @@ _TOGGLE_LINE = re.compile(
     re.IGNORECASE,
 )
 # An exemption in `.coding-standards-ignore` must justify itself: a trailing
-# `# reason: ...` (ISS-011). Without it, the agent could silently self-exempt the
+# `# reason: ...`. Without it, the agent could silently self-exempt the
 # very path a hook just blocked.
 _REASON = re.compile(r"#\s*reason\s*:", re.IGNORECASE)
 
@@ -88,7 +88,7 @@ def find_ignore_violations(text: str) -> tuple[list[str], list[str]]:
 
     Every added pattern line (non-blank, non-comment) is an exemption that skips
     ALL checks for matching paths — so it MUST carry a trailing `# reason: ...`
-    (ISS-011). Patterns without one block; patterns with one are allowed but named
+    Patterns without one block; patterns with one are allowed but named
     in a loud advisory so a human always sees what got exempted.
     """
     blocking: list[str] = []

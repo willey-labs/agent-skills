@@ -114,6 +114,27 @@ def merge_user_prompt_submit_entry(settings: dict, new_entry: dict) -> tuple[dic
     )
 
 
+def remove_comment_judge(settings: dict) -> bool:
+    """Drop our PostToolUse and Stop entries, leaving unrelated ones. True when any was removed."""
+    hooks_section = settings.get("hooks")
+    if not isinstance(hooks_section, dict):
+        return False
+    removed = False
+    for section, is_ours in (("PostToolUse", is_our_post_tool_use_entry), ("Stop", is_our_stop_entry)):
+        entries = hooks_section.get(section)
+        if not isinstance(entries, list):
+            continue
+        kept = [entry for entry in entries if not (isinstance(entry, dict) and is_ours(entry))]
+        if len(kept) == len(entries):
+            continue
+        removed = True
+        if kept:
+            hooks_section[section] = kept
+        else:
+            del hooks_section[section]
+    return removed
+
+
 def write_settings(path: Path, settings: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():

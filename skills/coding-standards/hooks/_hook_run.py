@@ -61,7 +61,7 @@ def read_payload() -> dict | None:
 def extract_new_content(tool_name: str, tool_input: dict) -> str:
     """The proposed new file content carried by a Write/Edit/MultiEdit call.
 
-    ISS-023 / MultiEdit caveat: for MultiEdit we concatenate the edits' new_strings,
+    MultiEdit caveat: for MultiEdit we concatenate the edits' new_strings,
     so any line number a hook reports is a position *within that concatenation*, not
     a file line. We accept this because current Claude Code no longer exposes
     MultiEdit — the matcher is kept only for back-compat with older versions, so this

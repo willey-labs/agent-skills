@@ -58,9 +58,10 @@ from _exclusions import is_excluded_path, has_generation_marker  # noqa: E402
 # Java, Kotlin, PHP). TS/JS/Python get a precise FN-001 block from their AST hooks.
 from _function_length import iter_long_functions  # noqa: E402
 from _hook_run import advise, advisory_message  # noqa: E402
+from _post_edit_content import resolve_content  # noqa: E402
 
 # Source extensions this rule applies to — shared so it can't drift from the
-# other hooks' sets (ISS-010). One canonical set in _languages.py.
+# other hooks' sets. One canonical set in _languages.py.
 from _languages import CONTENT_HOOK_EXTENSIONS, SOURCE_EXTENSIONS as SOURCE_EXTS  # noqa: E402
 
 # Fixed thresholds from ST-008 — the standard, not tunable per project.
@@ -81,7 +82,7 @@ EXEMPT_NAME_PATTERNS = (
 # JVM / C# test classes are PascalCase (FooTest, FooTests, OrderServiceTests).
 # Matched against the ORIGINAL-case name with a capital `T` preceded by start or a
 # lower/digit boundary, so `Contest.java` / `Attest.cs` (lowercase "test") are NOT
-# exempted (ISS-022) while real `FooTest.java` still is.
+# exempted while real `FooTest.java` still is.
 EXEMPT_CLASSFILE_PATTERN = re.compile(r"(?:^|[a-z0-9])Tests?\.(java|kt|cs)$")
 
 # Front-door / entry files (by stem) — a folder's barrel doesn't count toward
@@ -98,7 +99,7 @@ _BEHAVIORAL_DECL = re.compile(
     r"(function|func|fn|def|class|impl|trait|protocol)\b"
 )
 
-# ISS-004 — modern TS/JS declares functions as `const f = () => …` or
+# Modern TS/JS declares functions as `const f = () => …` or
 # `const f = function () {…}`, the dominant style. Count those as behavioral so
 # the god-file block can't be evaded by writing 14 arrow-consts. Precision: the
 # arrow/function-expression must sit IMMEDIATELY after `=`, so a const holding a
@@ -208,76 +209,45 @@ def assess_flat_folder(file_path: str) -> str | None:
     )
 
 
-def _apply_edits(base: str, tool_input: dict[str, object]) -> tuple[str, bool]:
-    """Apply Edit/MultiEdit diffs to `base`; return (post_content, applied_cleanly).
-    applied_cleanly is False when an old_string isn't found — the caller then
-    counts the pre-edit content and says so, instead of guessing."""
-    multi = tool_input.get("edits")
-    edits = multi if isinstance(multi, list) else [tool_input]
-    text = base
-    applied = True
-    for edit in edits:
-        if not isinstance(edit, dict):
-            continue
-        old = edit.get("old_string", "")
-        new = edit.get("new_string", "")
-        if not isinstance(old, str) or not isinstance(new, str) or old == "":
-            applied = False
-            continue
-        if old not in text:
-            applied = False
-            continue
-        text = text.replace(old, new) if edit.get("replace_all") else text.replace(old, new, 1)
-    return text, applied
+def checked_write() -> tuple[str, str, bool] | None:
+    """(file path, post-write content, whether that content is post-edit) for a write this rule governs."""
+    raw = sys.stdin.read()
+    try:
+        payload = json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError:
+        return None
+    if payload.get("tool_name", "") not in {"Write", "Edit", "MultiEdit"}:
+        return None
+    file_path = (payload.get("tool_input") or {}).get("file_path", "")
+    if not file_path or Path(file_path).suffix.lower() not in SOURCE_EXTS:
+        return None
+    if is_exempt_name(file_path) or is_excluded_path(file_path)[0]:
+        return None
+    content, post_edit_computed = resolve_content(payload, file_path)
+    if content is None or has_generation_marker(content):
+        return None
+    return file_path, content, post_edit_computed
 
 
-def resolve_content(payload: dict[str, object], file_path: str) -> tuple[str | None, bool]:
-    """Return (content_to_count, post_edit_computed).
-
-    Write: the full new content (post_edit_computed is trivially True).
-    Edit/MultiEdit: the POST-edit content — apply the diff to the on-disk file so
-    the count reflects the file AFTER the write, not before (ISS-005). Falls back
-    to the on-disk pre-edit content (post_edit_computed=False) when the diff can't
-    be applied (old_string missing / unreadable file)."""
-    tool_input = payload.get("tool_input") or {}
-    content = tool_input.get("content")
-    if isinstance(content, str):  # Write
-        return content, True
-    try:  # Edit / MultiEdit — payload carries only the diff
-        base = Path(file_path).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return None, False
-    return _apply_edits(base, tool_input)
+def refuse(block_msg: str, post_edit_computed: bool) -> int:
+    escape = (
+        "\n    Fix: split this into named sibling units with a full-file Write "
+        "(or new files), one job each — not another Edit."
+    )
+    if not post_edit_computed:
+        escape += (
+            "\n    (Counted the on-disk file: the edit's old_string wasn't found, "
+            "so the post-edit size couldn't be computed.)"
+        )
+    sys.stderr.write("coding-standards (BLOCKED — ST-008):\n  - " + block_msg + escape + "\n")
+    return 2
 
 
 def main() -> int:
-    raw = sys.stdin.read()
-    if not raw.strip():
+    write = checked_write()
+    if write is None:
         return 0
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError:
-        return 0
-
-    if payload.get("tool_name", "") not in {"Write", "Edit", "MultiEdit"}:
-        return 0
-    tool_input = payload.get("tool_input") or {}
-    file_path = tool_input.get("file_path", "")
-    if not file_path or Path(file_path).suffix.lower() not in SOURCE_EXTS:
-        return 0
-    if is_exempt_name(file_path):
-        return 0
-
-    excluded, _ = is_excluded_path(file_path)
-    if excluded:
-        return 0
-
-    content, post_edit_computed = resolve_content(payload, file_path)
-    if content is None:
-        return 0
-    if has_generation_marker(content):
-        return 0
-
+    file_path, content, post_edit_computed = write
     ext = Path(file_path).suffix.lower()
     block_msg = assess_god_file_block(file_path, content)
     advisories = [
@@ -285,10 +255,7 @@ def main() -> int:
     ]
     advisories.extend(iter_long_functions(content, Path(file_path).suffix, file_path))
 
-    # The decl-count BLOCK is hard only for languages with a dedicated content hook.
-    # Ruby / Rust / Swift have none (v5-unsupported), so a hard ST-008 block there is
-    # half-enforcement — demote it to an advisory. The path-based ST-005 check
-    # (block-junk-paths.py) still blocks for every language.
+    # Languages without a content hook (Ruby, Rust, Swift) get the decl-count finding as an advisory.
     if block_msg and ext not in CONTENT_HOOK_EXTENSIONS:
         advisories.insert(
             0,
@@ -298,19 +265,7 @@ def main() -> int:
         block_msg = None
 
     if block_msg:
-        # The way out is a structural split, which is a full-file Write (or new
-        # sibling files) — never another Edit, which would re-trip this block.
-        escape = (
-            "\n    Fix: split this into named sibling units with a full-file Write "
-            "(or new files), one job each — not another Edit."
-        )
-        if not post_edit_computed:
-            escape += (
-                "\n    (Counted the on-disk file: the edit's old_string wasn't found, "
-                "so the post-edit size couldn't be computed.)"
-            )
-        sys.stderr.write("coding-standards (BLOCKED — ST-008):\n  - " + block_msg + escape + "\n")
-        return 2
+        return refuse(block_msg, post_edit_computed)
 
     if advisories:
         return advise(advisory_message(advisories))

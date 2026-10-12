@@ -405,7 +405,7 @@ def read_structure_follows(project_root: Path | None) -> str | None:
 def _has_cocos_layout(project_root: Path) -> bool:
     """Cocos Creator projects carry a committed `assets/` dir at the root next to
     the engine's library/temp/settings dirs. Require that signal before treating
-    those root dirs as engine output (ISS-009) — without it, a plain web/Django/
+    those root dirs as engine output — without it, a plain web/Django/
     etc. project that happens to have a root `settings/` (or `temp/`) would lose
     ALL enforcement under it. One cheap stat call."""
     try:
@@ -421,7 +421,7 @@ def root_anchored_match(file_path: str, project_root: Path | None) -> str | None
     'Root-anchored' means the segment sits directly under `project_root` — a
     same-named folder nested deeper is NOT excluded. Returns None when the root
     is unknown, the path isn't under it, or the project isn't Cocos-shaped (so the
-    library/temp/settings exclusion can't blind a non-Cocos project — ISS-009).
+    library/temp/settings exclusion can't blind a non-Cocos project).
     """
     if project_root is None:
         return None

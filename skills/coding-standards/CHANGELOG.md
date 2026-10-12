@@ -1,5 +1,42 @@
 # Changelog — coding-standards skill
 
+## 5.2.0 — 2026-10-10 — consent, opt-in judge, doc comments
+
+### Install
+- **The agent asks before a first install.** `--verify` reports `not installed` when
+  nothing is wired; SKILL.md Step 0 then lists every change the install makes and
+  waits for a yes. Repairing an existing install still runs without asking.
+- **The comment judge is opt-in.** `--with-comment-judge` wires the `PostToolUse`
+  recorder and `Stop` judge; `--without-comment-judge` removes them. With neither
+  flag the judge stays as wired, and the session health check no longer counts an
+  unwired judge as missing.
+- The `SessionStart` health check re-runs the installer when any required hook is
+  missing, and says so.
+- Every `UserPromptSubmit` command ends with `; exit 0`, so a hook that cannot start
+  never erases the user's prompt. Hook command paths are written in POSIX form, so
+  Git Bash on Windows runs them.
+
+### Rules
+- **CM-007 blocks at write time**: a comment block a write adds may carry one line of
+  prose. File headers and **doc comments directly above a declaration** (`/** */`,
+  `///`, Go doc comments, Python function/class docstrings) are exempt.
+- A per-prompt reminder (`SessionStart` + `UserPromptSubmit`) restates the comment
+  default, CM-007 and the write-through-tools rule each turn.
+
+### Precision
+- Print-style calls in a program entry point (shebang, `__main__` guard, `main`
+  function) no longer draw the FMT-005 advisory.
+- The commented-out-code advisory ignores string literals and docstrings, reads `#`
+  as a comment only in Python and PHP, and treats a closing bracket as a disabled
+  block tail only when it is the whole comment.
+- The filler-preamble advisory needs a colon after `Note`/`Important`/`Reminder`, so
+  a wrapped line that opens on one of those nouns passes.
+
+### Repository
+- MIT `LICENSE` file.
+- CI runs the hook suite on Linux and macOS (Python 3.10 and 3.12) and fails when the
+  skill's own code draws any `review-files.py` finding.
+
 ## 5.1.0 — 2026-07-29 — comments: the default is none
 
 The comment rules state their default explicitly and gain a write-time signal.
@@ -54,14 +91,13 @@ spaced form.
 
 ## 5.0.0 — 2026-06-13 — production-readiness hardening
 
-A full audit (see the repo-root `AUDIT.md`) found gaps that let the enforcement
-layer pass code it should block, block code it should pass, or fail silently. This
-release closes every P0 and P1, lands the P2 polish, and records the P3 scope
+An audit found gaps that let the enforcement layer pass code it should block, block
+code it should pass, or fail silently. This release closes them and records the scope
 decisions. Every fix ships with a regression test; the suite runs with one command
 (`hooks/tests/run-all.py`) and reports DEGRADED rather than green when the
 tree-sitter AST path can't be exercised.
 
-### Enforcement correctness (P0)
+### Enforcement correctness
 - **`any` / `Any` bans now position-agnostic.** TypeScript catches `Record<string, any>`
   and other non-leading generic args, `type X = any` aliases, `satisfies`/`extends any`.
   Python catches PEP 585 lowercase generics (`dict[str, Any]`, `list[Any]`,
@@ -82,7 +118,7 @@ tree-sitter AST path can't be exercised.
 - **Worker dispatch** carries `SKILL_DIR`, so review workers can resolve the reference
   files they're told to load.
 
-### Coverage and precision (P1)
+### Coverage and precision
 - Vue/Svelte `<script>` blocks now run the AST checks (FN-001/FN-005/OD-004), with line
   numbers aligned to the SFC.
 - Cocos root-dir exclusion (`settings/`, `library/`, `temp/`) is gated on a Cocos layout,
@@ -98,7 +134,7 @@ tree-sitter AST path can't be exercised.
 - Framework detection is file-type-aware (a `.php` in a Laravel + Vue repo resolves to
   `laravel`, not `vue-nuxt`).
 
-### Polish (P2) and scope (P3)
+### Polish and scope
 - One shared extension set (`hooks/_languages.py`) — no more drift between hooks.
 - `settings.example.json` matches the wired hook list (asserted by a test); MultiEdit
   line-number limitation documented; ST-005 mega-file ban extended to `app/`.

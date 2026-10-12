@@ -2,9 +2,8 @@
 """Canonical source-file extension sets, shared by every hook.
 
 One home for "which extensions are TS/JS/SFC" and "which extensions are source
-files the rules apply to" — so the sets can't drift between hooks (ISS-010: some
-hooks had `.vue` but not `.svelte`, some had `.swift` but not `.kts`, etc.). Every
-hook imports from here instead of carrying its own literal.
+files the rules apply to" — so the sets can't drift between hooks. Every hook
+imports from here instead of carrying its own literal.
 
 Stdlib only; no imports.
 """
@@ -31,7 +30,7 @@ SOURCE_EXTENSIONS = frozenset(
 
 # Extensions backed by a dedicated content-checking hook (block-<lang>-violations.py).
 # Languages in SOURCE_EXTENSIONS but NOT here — Ruby (.rb), Rust (.rs), Swift
-# (.swift), v5-unsupported — get only the language-agnostic path check (ST-005) and
+# (.swift), without a structure reference — get only the language-agnostic path check (ST-005) and
 # structure check (ST-008). For them ST-008's decl-count is an ADVISORY, not a hard
 # block (block-god-file.py), so "unsupported" means uniformly not-hard-blocked rather
 # than half-enforced. Add a language's extension here when its content hook ships.

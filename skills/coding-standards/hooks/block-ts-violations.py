@@ -34,7 +34,7 @@ from _ts_ast import (  # noqa: E402
     iter_ts_ast_violations,
 )
 
-from _languages import (  # noqa: E402  (shared so extension sets can't drift — ISS-010)
+from _languages import (  # noqa: E402  (shared so extension sets can't drift)
     JS_EXTENSIONS,
     TS_EXTENSIONS,
     VUE_LIKE_EXTENSIONS,
@@ -44,8 +44,7 @@ from _languages import (  # noqa: E402  (shared so extension sets can't drift �
 # off identifiers that merely contain the letters (company, anyhow, manyItems).
 # The generic-argument rule is position-agnostic: it matches `any` led by `<` OR
 # `,` and trailed by `,` OR `>`, so `Record<string, any>`, `Map<K, any>` and
-# `Promise<Map<K, any>>` are caught — not just leading `<any>` (ISS-002). It
-# subsumes the old Array<any>/Promise<any> special cases.
+# `Promise<Map<K, any>>` are caught — not just leading `<any>`.
 ANY_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r":\s*any\b"), "type annotation `: any`"),
     (re.compile(r"\bas\s+any\b"), "type assertion `as any`"),
@@ -72,7 +71,7 @@ HUNGARIAN_PARAM = re.compile(
 # Class fields, interface members, object properties — `private strName: T`,
 # `strHost: string` (interface), `{ strData: x }`. Anchored at line start, after a
 # member modifier, or after `;`/`{`, and requires a trailing `:` so it's a typed
-# member/property (ISS-013). The `[A-Z][a-z]+` after the prefix is the same FP
+# member/property. The `[A-Z][a-z]+` after the prefix is the same FP
 # guard the other shapes use — `strategy`/`strengthScore` never match.
 HUNGARIAN_MEMBER = re.compile(
     rf"(?:^\s*|[;{{]\s*|\b(?:public|private|protected|readonly|static)\s+)"
@@ -183,7 +182,7 @@ def main() -> int:
     # Surface degraded enforcement: FN-001/OD-004 are AST-only, so without
     # tree-sitter they silently no-op while regex checks still run. Fires only on
     # a broken/bypassed bootstrap. Covers .vue/.svelte too — their `<script>`
-    # blocks now run the AST path (ISS-010), so they degrade with everything else.
+    # blocks run the AST path, so they degrade with everything else.
     if not ast_backend_available() and ext in (TS_EXTENSIONS | JS_EXTENSIONS | VUE_LIKE_EXTENSIONS):
         sys.stderr.write(
             "coding-standards: tree-sitter unavailable — FN-001/OD-004 AST checks "

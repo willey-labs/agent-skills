@@ -53,7 +53,11 @@ Be strict, and judge line by line. The bar is not "does this contain something
 true" — it is "does every line carry a fact the next reader cannot get from the
 code". CM-007: a comment that earns its place fits on ONE line. A block running past
 one line of prose is a defect, and the verdict is "shorten" to that single line
-however correct the rest is. A file-header docstring is the one exemption.
+however correct the rest is. Two shapes are exempt from the line count: a file-header
+docstring, and a doc comment (/** */, ///, a Go doc comment, a Python docstring)
+directly above the declaration it documents. Judge each line of a doc comment by
+the other rules: it must state the contract a caller relies on (parameters, return
+value, errors, units), not restate the signature or argue the design.
 
 Two things that look like rationale but are not: explaining the change to a reviewer,
 and arguing that a branch is justified. Keep the fact a reader needs to avoid

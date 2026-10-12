@@ -5,8 +5,8 @@ Pre-approving the skill's file reads and script runs needs machine-absolute path
 (the resolved skill dir). Those are fine in a per-machine `~/.claude/settings.json`
 (global scope) but must NOT land in a committed project `settings.json`: teammates
 check out at different paths, so the rules would be inert for them and every
-teammate's bootstrap would append their own — unbounded churn in a shared file
-(ISS-012). On project scope they go to the git-ignored `settings.local.json`
+teammate's bootstrap would append their own — unbounded churn in a shared file.
+On project scope they go to the git-ignored `settings.local.json`
 instead, and `additionalDirectories` is skipped entirely (the skill lives inside
 the project, already readable).
 
@@ -69,7 +69,7 @@ def ensure_skill_permissions(settings: dict, include_dirs: bool = True) -> bool:
 def _ensure_gitignored(project_root: Path, entry: str) -> None:
     """Append `entry` to the project's `.gitignore` if it isn't already covered.
 
-    settings.local.json carries machine-absolute paths (ISS-012); committing it
+    settings.local.json carries machine-absolute paths; committing it
     would leak them and churn a shared file. Bootstrap can't rely on the user
     having gitignored it, so it ensures the line itself — best-effort, idempotent
     (a missing .gitignore is created)."""
@@ -99,8 +99,7 @@ def wire_skill_permissions(scope: str, settings_path: Path, committed_settings: 
     changed = ensure_skill_permissions(local, include_dirs=False)
     if changed:
         write_settings(local_path, local)
-    # Keep the machine-local perms file out of git (ISS-012) — whether we just
-    # wrote it or a prior run did.
+    # Keep the machine-local perms file out of git, whichever run wrote it.
     if local_path.exists():
         _ensure_gitignored(Path(settings_path).parent.parent, ".claude/settings.local.json")
     return changed

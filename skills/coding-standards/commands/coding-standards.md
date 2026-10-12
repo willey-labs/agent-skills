@@ -18,9 +18,11 @@ the pre-approved permission rule):
 python3 <skill-dir>/bootstrap.py --verify
 ```
 
-Exit 0 → already wired; go to routing. Non-zero → run `python3 <skill-dir>/bootstrap.py --auto-install`,
-then act on its result (`Wired` / `Updated` → ask the user to restart the session; `Blocking issues:` →
-surface verbatim and stop). Detail lives in SKILL.md Step 0 and `references/bootstrap.md`.
+Exit 0 → already wired; go to routing. `not installed` → ask the user before installing, naming what it
+changes (SKILL.md Step 0 lists it) and whether to enable the comment judge. Any other non-zero → run
+`python3 <skill-dir>/bootstrap.py --auto-install` without asking, then act on its result (`Wired` /
+`Updated` → ask the user to restart the session; `Blocking issues:` → surface verbatim and stop). Detail
+lives in SKILL.md Step 0 and `references/bootstrap.md`.
 
 ## 2. Route by `$ARGUMENTS`
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression test — settings.example.json matches the wired hook list (ISS-019).
+"""Regression test — settings.example.json matches the wired hook list.
 
 AGENTS.md mandates keeping the example settings in sync with what bootstrap wires.
 This asserts the example's PreToolUse command basenames equal HOOK_FILES exactly
@@ -36,10 +36,18 @@ def _basenames(entries: list) -> list[str]:
 
 
 def main() -> int:
-    failures: list[str] = []
     example = json.loads((SKILL / "hooks" / "settings.example.json").read_text())
-    hooks = example.get("hooks", {})
+    failures = mismatches(example.get("hooks", {}))
+    if failures:
+        for f in failures:
+            sys.stderr.write(f"FAIL {f}\n")
+        return 1
+    print(f"ok — settings.example in sync ({len(HOOK_FILES)} hooks + SessionStart)")
+    return 0
 
+
+def mismatches(hooks: dict) -> list[str]:
+    failures: list[str] = []
     pre = hooks.get("PreToolUse", [])
     basenames = [_script_name(c["command"]) for c in (pre[0]["hooks"] if pre else [])]
     if basenames != HOOK_FILES:
@@ -68,13 +76,7 @@ def main() -> int:
     prompt = _basenames(prompt_entries)
     if prompt != USER_PROMPT_SUBMIT_FILES:
         failures.append(f"settings.example UserPromptSubmit {prompt} != {USER_PROMPT_SUBMIT_FILES}")
-
-    if failures:
-        for f in failures:
-            sys.stderr.write(f"FAIL {f}\n")
-        return 1
-    print(f"ok — settings.example in sync ({len(HOOK_FILES)} hooks + SessionStart)")
-    return 0
+    return failures
 
 
 if __name__ == "__main__":

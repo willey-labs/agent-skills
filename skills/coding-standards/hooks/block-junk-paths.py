@@ -36,7 +36,7 @@ from _exclusions import (  # noqa: E402
 # *what they do*. Everything ends up there because nothing has to.
 JUNK_DRAWER_STEMS = {"utils", "helpers", "common", "misc", "lib", "util", "helper"}
 # Shared canonical source-extension set, so this universal entry point can't drift
-# from the other hooks (ISS-010). Adding a language updates _languages.py only.
+# from the other hooks. Adding a language updates _languages.py only.
 from _languages import SOURCE_EXTENSIONS as JUNK_DRAWER_EXTS  # noqa: E402
 # ST-005 applies to FOLDERS too ("a file or folder named utils/helpers/common/misc").
 # `lib`/`util`/`helper` singular stems stay file-only — `lib/` is a conventional
@@ -51,7 +51,7 @@ JUNK_DRAWER_FOLDERS = {"utils", "helpers", "common", "misc"}
 # JS/TS project is still a real junk drawer and still blocks.
 LANGUAGE_EXEMPT_FOLDERS: dict[str, frozenset[str]] = {".cs": frozenset({"common"})}
 
-# ISS-001 — some published catalog layouts sanction a specific shared folder that
+# Some published catalog layouts sanction a specific shared folder that
 # would otherwise read as junk (bulletproof-react's `src/utils/` and per-feature
 # `utils/`). When the project records `follows: <variant>`, the folder names that
 # variant publishes are allowed — derived from the adopted standard, not a user
@@ -65,7 +65,7 @@ STRUCTURE_SANCTIONED_FOLDERS: dict[str, frozenset[str]] = {
 
 # ST-005 corollary — generic mega-files directly under a source root: `src/` OR
 # `app/` (src-less Next.js), at any depth (`src/types.ts`, `apps/web/src/constants.ts`,
-# `app/utils.ts` — ISS-024). These collect knowledge that should live next to the
+# `app/utils.ts`). These collect knowledge that should live next to the
 # capability that owns it. Covers JS/TS/Python paths. Not matched (caught by review,
 # not this regex): bare project-root files (`constants.py` with no src/app parent —
 # too many legit single-file roots to hard-block) and Go/C#/Java layouts (not
@@ -109,7 +109,7 @@ def check_path_violations(file_path: str, sanctioned_folders: frozenset[str] = f
     # ST-005 for folders — a source file living under a utils/helpers/common/misc
     # directory. Exact segment match (so `commons/`, `utilities/` don't trip), and
     # only the directory part (the filename is handled above). A folder the recorded
-    # catalog structure publishes (sanctioned_folders) is skipped — see ISS-001.
+    # catalog structure publishes (sanctioned_folders) is skipped.
     if is_source:
         lang_exempt = LANGUAGE_EXEMPT_FOLDERS.get(p.suffix.lower(), frozenset())
         junk_dirs = [

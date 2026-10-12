@@ -47,7 +47,7 @@ STOP_FILES = [
     "judge-comments.py",
 ]
 
-# The health check repairs dead enforcement (ISS-006). `startup` is the verified
+# The health check repairs dead enforcement. `startup` is the verified
 # matcher value for a new session — the case where silently-dead enforcement does the
 # most damage (a whole session of unchecked writes).
 SESSION_HEALTH_SCRIPT = "session-health-check.py"

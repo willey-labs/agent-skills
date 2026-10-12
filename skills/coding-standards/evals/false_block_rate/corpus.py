@@ -40,6 +40,10 @@ _GO = (".go",)
 _CS = (".cs",)
 _PHP = (".php",)
 _JAVA = (".java",)
+_KOTLIN = (".kt",)
+_JS = (".js",)
+_VUE = (".ts", ".vue")
+_SVELTE = (".ts", ".js", ".svelte")
 
 
 CORPUS: tuple[RepoSpec, ...] = (
@@ -115,22 +119,84 @@ CORPUS: tuple[RepoSpec, ...] = (
         extensions=_JAVA,
         note="Canonical Spring Boot sample",
     ),
+    RepoSpec(
+        name="spring-petclinic-kotlin",
+        url="https://github.com/spring-petclinic/spring-petclinic-kotlin.git",
+        ref="c77f77ba5d43c2dbff7fa777c40be1d7ec321e40",
+        framework="spring-boot",
+        language="kotlin",
+        extensions=_KOTLIN,
+        note="Spring Boot sample in its Kotlin flavour",
+    ),
+    RepoSpec(
+        name="vitesse",
+        url="https://github.com/antfu-collective/vitesse.git",
+        ref="a8785264f83c2ebe1b3cf689296775a4949957c8",
+        framework="vue-nuxt",
+        language="ts",
+        extensions=_VUE,
+        note="Widely used Vue 3 + Vite starter",
+    ),
+    RepoSpec(
+        name="sveltekit-realworld",
+        url="https://github.com/sveltejs/realworld.git",
+        ref="df796708040f5200ec572b28ab7f88ecee5794dd",
+        framework="svelte",
+        language="ts",
+        extensions=_SVELTE,
+        note="Official SvelteKit RealWorld app",
+    ),
+    RepoSpec(
+        name="react-native-template-obytes",
+        url="https://github.com/obytes/react-native-template-obytes.git",
+        ref="fd9b358ed11913d2a49fd9ffa6582fe03ba130e7",
+        framework="react-native",
+        language="ts",
+        extensions=_TS,
+        note="Popular Expo + React Native starter",
+    ),
+    RepoSpec(
+        name="nativescript-app-templates",
+        url="https://github.com/NativeScript/nativescript-app-templates.git",
+        ref="32490ed5b526461b174d926c924dc4a86098310c",
+        framework="nativescript",
+        language="ts",
+        extensions=_TS,
+        note="Official NativeScript app templates",
+    ),
+    RepoSpec(
+        name="microblog",
+        url="https://github.com/miguelgrinberg/microblog.git",
+        ref="a975ef64864354867c88e0ed3a17ba7d17dca752",
+        framework="flask",
+        language="py",
+        extensions=_PY,
+        note="The Flask Mega-Tutorial application",
+    ),
+    RepoSpec(
+        name="node-express-boilerplate",
+        url="https://github.com/hagopj13/node-express-boilerplate.git",
+        ref="179ae84efec61b14206d0305d941daed6c6d07f9",
+        framework="node-express",
+        language="js",
+        extensions=_JS,
+        note="Widely used Express REST API boilerplate",
+    ),
+    RepoSpec(
+        name="ky",
+        url="https://github.com/sindresorhus/ky.git",
+        ref="3541888878c4d303a8bc2ad61815f4e048f55a5d",
+        framework="vanilla-js",
+        language="ts",
+        extensions=_TS,
+        note="Framework-free TypeScript HTTP client library",
+    ),
 )
 
 
 # Frameworks the hooks cover that have NO corpus entry yet. The runner prints
 # this so a reader never mistakes the measured rate for full coverage.
-UNCOVERED_FRAMEWORKS: tuple[str, ...] = (
-    "vue-nuxt (.vue SFC <script> extraction)",
-    "svelte (.svelte SFC <script> extraction)",
-    "react-native",
-    "nativescript",
-    "cocos-creator",
-    "kotlin (spring-boot Kotlin flavour)",
-    "flask",
-    "node-express",
-    "vanilla-js",
-)
+UNCOVERED_FRAMEWORKS: tuple[str, ...] = ("cocos-creator",)
 
 
 def is_test_file(name: str) -> bool:

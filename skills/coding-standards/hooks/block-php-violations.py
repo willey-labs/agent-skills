@@ -53,7 +53,7 @@ def strip_strings_and_comments(source: str) -> str:
     def blank(match: re.Match[str]) -> str:
         return "".join(" " if ch != "\n" else "\n" for ch in match.group(0))
 
-    # Heredoc/nowdoc FIRST (ISS-025) — `<<<EOT ... \nEOT;` and `<<<'EOT' ...` (nowdoc).
+    # Heredoc/nowdoc FIRST —`<<<EOT ... \nEOT;` and `<<<'EOT' ...` (nowdoc).
     # Their bodies are string DATA; without blanking them, code-shaped template text
     # (`function f(mixed $strName)` in a SQL/HTML heredoc) false-fires `mixed`/Hungarian.
     # Done before comments so a `#`/`//` inside the body isn't half-processed. The

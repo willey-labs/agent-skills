@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression test — root-anchored exclusion gated on Cocos layout (ISS-009).
+"""Regression test — root-anchored exclusion gated on Cocos layout.
 
 `library/`, `temp/`, `settings/` at the project root are Cocos engine dirs and
 are excluded — but ONLY for a Cocos-shaped project (a committed `assets/` dir at
@@ -52,7 +52,7 @@ def main() -> int:
         for f in failures:
             sys.stderr.write(f"FAIL {f}\n")
         return 1
-    print("ok — cocos-exclusion (ISS-009) cases hold")
+    print("ok — cocos-exclusion cases hold")
     return 0
 
 

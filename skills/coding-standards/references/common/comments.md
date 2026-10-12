@@ -10,8 +10,8 @@ This is where machine-generated code betrays itself: narrating every line, resta
 
 **Enforcement** comes in three layers, because prose can't be regex'd and self-review can't be trusted:
 
-1. **Write time, mechanical** — `hooks/block-added-comments.py` **refuses** (exit 2) any comment block a write *adds* that runs past one line of prose (CM-007); blocks already in the file on disk are never re-judged, so the check governs new prose only. Alongside it, `hooks/advise-comment-slop.py` flags decoration, edit narration, filler preambles, reader address, first-person deliberation and untracked `TODO` as an **advisory** — exit 0, findings delivered alongside the tool result so the writer reads them. It never blocks, because a legitimate rationale comment may contain any word.
-2. **Turn end, judged** — `hooks/judge-comments.py` sends the comments the turn added to a **separate model call** with these rules, and holds the turn open until a delete or shorten verdict is applied. The second reader is the point: the pass that just wrote a paragraph of self-justification is the worst judge of whether it earns its place. Deleting or trimming a comment can't change behaviour, so the fix needs no approval. A finding that is genuinely wrong may be kept, with the reason stated in the reply.
+1. **Write time, mechanical** — `hooks/block-added-comments.py` **refuses** (exit 2) any comment block a write *adds* that runs past one line of prose (CM-007), except a file header or a doc comment on a declaration; blocks already in the file on disk are never re-judged, so the check governs new prose only. Alongside it, `hooks/advise-comment-slop.py` flags decoration, edit narration, filler preambles, reader address, first-person deliberation and untracked `TODO` as an **advisory** — exit 0, findings delivered alongside the tool result so the writer reads them. It never blocks, because a legitimate rationale comment may contain any word.
+2. **Turn end, judged (opt-in)** — when enabled at install, `hooks/judge-comments.py` sends the comments the turn added to a **separate model call** with these rules, and holds the turn open until a delete or shorten verdict is applied. The second reader is the point: the pass that just wrote a paragraph of self-justification is the worst judge of whether it earns its place. Deleting or trimming a comment can't change behaviour, so the fix needs no approval. A finding that is genuinely wrong may be kept, with the reason stated in the reply.
 3. **Review** — Worker 2 owns the full prose judgement (is this narration, does it explain *what* instead of *why*, does the docstring add anything).
 
 Advisory, judge verdict or review finding, every one is a must-fix violation — there is no soft tier. (FMT-005 owns disabled code; CM-* owns prose.)
@@ -178,7 +178,12 @@ $client->retry(3);
 $client->retry(3);
 ```
 
-A file-header docstring is exempt: it describes the whole unit rather than a line, and it is the one place a paragraph is the right shape. Everything below the header answers to the one-line limit.
+Two shapes are exempt from the line count:
+
+- **A file-header docstring** — it describes the whole unit rather than a line.
+- **A doc comment on a declaration** — the language's documentation syntax (`/** */`, `///`, a Go comment above a declaration, a Python function or class docstring) directly above the function, class, type or member it documents. It states the contract a caller relies on — parameters, return value, errors, units — and documentation tools render it. Every line still answers to CM-001..CM-006: a doc comment that restates the signature or argues the author's case is cut like any other.
+
+The same syntax above a statement is a paragraph, not a doc comment, and answers to the one-line limit.
 
 **Test:** cut every line of the block but one. If the code is still safe from the next reader, the lines you cut were argument.
 

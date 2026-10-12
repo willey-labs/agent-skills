@@ -31,3 +31,7 @@ __pycache__/
 
 # Logs
 *.log
+
+# Eval run output (machine paths, transcripts); the cases themselves are committed
+evals/results/
+review.txt

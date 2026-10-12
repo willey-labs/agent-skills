@@ -22,7 +22,7 @@ must-fix violation, just adjudicated rather than refused.
 | `block-debug-artifacts.py` | same language set as swallowed-errors | FMT-005. **Blocks (exit 2)** debugger/halt forms never meant to ship: `debugger` (JS/TS), `breakpoint()`/`pdb.set_trace()`/`import pdb` (Python), `dd()`/`var_dump()` (PHP). **Advises (exit 0)** print-style residue (`console.log`, `print(`, `fmt.Print*`, `Console.WriteLine`, `System.out.print`, Kotlin `println`) and commented-out code — these have legit uses (CLI/logger/explanatory comment), so they're flagged to confirm, not blocked. Residue patterns run on string/comment-stripped text; the commented-code check on raw lines. |
 | `block-god-file.py` | All source languages | ST-008, both directions. **Blocks (exit 2)** when a non-test/non-schema source file has more than 10 *behavioral* top-level declarations (functions/classes/methods) — the least-blunt proxy for "does many jobs" (a data-only file of consts/types/enums has zero, so it never blocks; a 1.7k-line single class is one, so length alone never blocks). Strings/comments are stripped before the count, so a file embedding code samples isn't miscounted. **Advises (exit 0)** on raw size (> 400 lines) and flat-folder promotion (a NEW source file landing in a folder already past 12 flat source units — 3+ themed siblings have earned a sub-feature folder, Rule of Three). Also **advises (exit 0)** on over-long function bodies (FN-001) for the languages with no AST statement-count — Go, C#, Java, Kotlin, PHP (a blunt brace-matched line count, generous threshold, so it warns rather than blocks; TS/JS/Python get the precise AST block instead). Thresholds are fixed by the standard — no per-project tuning. Skips test, schema, fixture, story, and excluded/generated files. |
 | `advise-comment-slop.py` | Every source language (comments + Python docstrings) | CM-004/CM-005/CM-006, **advisory only (exit 0, findings delivered as tool-result context, never exit 2)**. The mechanical comment tells: emoji or an exclaimed comment; edit narration (`// NEW:`, a sentence about what an edit did, a was/now pair); history narration (`used to be`, `no longer needed`); filler preambles (`Note:`, `Basically`, `Here's how this works`); banner/divider comments; reader address (`as requested`, `let me know`); first-person deliberation (`I think`, `I've kept`); deliberation left in place (`we could also`, `not sure if`); `TODO`/`FIXME` with no ticket or link. Prose can't be hard-blocked at the ~1% false-positive bar, so the judgement calls (is this narration? does the docstring add anything?) stay in review. String literals are blanked first, so a `#` in a JS string is never read as a comment; `#` counts as a comment marker only where the language says so; linter pragmas, shebangs and SPDX lines are exempt. Capped at 15 findings per file. |
-| `block-added-comments.py` | Every source language (comments + Python docstrings) | CM-007 one line or none. **Blocks (exit 2)** any comment block the write *adds* that runs past one line of prose — past one line a comment has stopped stating the constraint and started arguing the decision. Only added prose is judged: the file on disk is read first and its existing comment lines subtracted, so re-writing a file or editing beside an old paragraph passes. Judging whole files instead would refuse roughly a third of the comment blocks in a mature codebase, most of them load-bearing — which is why the file-on-disk subtraction is what makes this a hard block rather than an advisory. A block opening the written text (first two lines) is exempt, so file-header docstrings pass; machine pragmas are exempt anywhere. Limit overridable with `CODING_STANDARDS_MAX_COMMENT_LINES`. Capped at 10 findings per file. |
+| `block-added-comments.py` | Every source language (comments + Python docstrings) | CM-007 one line or none. **Blocks (exit 2)** any comment block the write *adds* that runs past one line of prose — past one line a comment has stopped stating the constraint and started arguing the decision. Only added prose is judged: the file on disk is read first and its existing comment lines subtracted, so re-writing a file or editing beside an old paragraph passes. Judging whole files instead would refuse roughly a third of the comment blocks in a mature codebase, most of them load-bearing — which is why the file-on-disk subtraction is what makes this a hard block rather than an advisory. A block opening the written text (first two lines) is exempt, so file-header docstrings pass; a doc comment directly above the declaration it documents (`/** */`, `///`, Go doc comment, Python function/class docstring) is exempt; machine pragmas are exempt anywhere. Limit overridable with `CODING_STANDARDS_MAX_COMMENT_LINES`. Capped at 10 findings per file. |
 | `block-structure-file-violations.py` | `.coding-standards-structure`, `.coding-standards-ignore` | Guards the config dotfiles. Structure file: **blocks (exit 2)** a comment line, a `hooks:` block, or any legacy rule toggle; allows `follows:` / `layout:`. Ignore file: **blocks** any exemption pattern lacking a trailing `# reason: …`, and emits a loud advisory naming every added exemption (no silent self-exemption). |
 
 ## The comment judge — two more events
@@ -37,8 +37,9 @@ PreToolUse:
 | `record-touched-files.py` | `PostToolUse` on `Write|Edit|MultiEdit` | Notes each source file a turn wrote in a per-session ledger under the user's data dir (never in the repo). Excluded, generated and non-source files are skipped, so no model call is ever spent on code the standard doesn't govern. |
 | `judge-comments.py` | `Stop` (no matcher) | Collects the comments on lines the turn changed, sends them with the CM rules to a **separate** `claude -p` call (one turn, no tools, no MCP, no hooks), and on a delete or shorten verdict exits 2 — which the hook contract turns into "prevents Claude from stopping", with the findings fed back as the fix to apply. Trimming a comment can't change behaviour, so the fix needs no approval; a verdict that is genuinely wrong may be kept with the reason stated. |
 
-Cost and bounds: one short model call per turn that wrote source files, and none when
-those files gained no comments. The judge model defaults to `sonnet`, overridable with
+The recorder and the judge are opt-in: `bootstrap.py --with-comment-judge` wires them,
+`--without-comment-judge` removes them. Cost and bounds: one short model call per turn
+that wrote source files, and none when those files gained no comments. The judge model defaults to `sonnet`, overridable with
 `CODING_STANDARDS_JUDGE_MODEL`. A session is held open at most twice; after that
 findings are reported and the turn ends. Every failure path — no CLI on PATH, a failing
 call, a timeout, an answer that isn't JSON, an already-active Stop hook, our own nested
@@ -109,25 +110,25 @@ npx skills add willey-labs/agent-skills
 npx skills add willey-labs/agent-skills -g -a claude-code
 ```
 
-### Step 2 — Hooks auto-install on first skill activation
+### Step 2 — Hooks install on first skill activation, after the user agrees
 
-The skill's `SKILL.md` declares a Step 0 directive that runs
-`bootstrap.py` the first time the skill activates in a session. That
-script wires every hook in this directory into the correct
-`settings.json` — `~/.claude/settings.json` for global installs,
+The skill's `SKILL.md` Step 0 checks the wiring the first time the skill
+activates in a session. When nothing is installed, the agent lists what the
+install changes and asks first; on a yes it runs `bootstrap.py`, which wires
+every hook in this directory into the correct `settings.json` —
+`~/.claude/settings.json` for global installs,
 `<project>/.claude/settings.json` for project installs — detected
-deterministically from the SKILL.md's own path. **You do not need to
-paste anything into settings.json by hand.**
+deterministically from the SKILL.md's own path.
 
-After the first activation you'll see:
+After the install you'll see:
 
 ```
-coding-standards: Wired 12 PreToolUse hooks into <path>/settings.json (<scope>).
+coding-standards: Wired 13 PreToolUse hooks into <path>/settings.json (<scope>).
 ```
 
 (12 of the 13 can block on exit 2. `block-god-file.py` and `block-debug-artifacts.py` additionally exit 0 with an advisory — god-file on raw size / flat folders, debug-artifacts on print-style residue / commented-out code; `block-structure-file-violations.py` only fires on the `.coding-standards-structure` / `.coding-standards-ignore` config files, and additionally exits 0 with an advisory naming added ignore-file exemptions. `advise-comment-slop.py` never blocks — comment prose can't be hard-blocked at the precision bar, so it only ever advises.)
 
-plus a `PostToolUse` recorder and a `Stop` comment judge (see above).
+The `PostToolUse` recorder and the `Stop` comment judge (see above) are wired only with `--with-comment-judge`.
 
 Restart the agent session once for Claude Code to pick up the hooks; from
 the next session on, blocking is automatic on every Write/Edit/MultiEdit.
@@ -301,7 +302,7 @@ language parsers (`@typescript-eslint/parser`, `ast`, `go/parser`, Roslyn,
 | Cocos Creator | TS | `block-ts-violations.py` | + path checks |
 | Vanilla JS/TS | TS/JS | `block-ts-violations.py` | + path checks |
 | Node Express/Fastify | TS/JS | `block-ts-violations.py` | + path checks |
-| Vue / Nuxt / Svelte | `.vue` / `.svelte` SFC | `block-ts-violations.py` | regex AND AST checks run on extracted `<script>` blocks (ISS-010) |
+| Vue / Nuxt / Svelte | `.vue` / `.svelte` SFC | `block-ts-violations.py` | regex AND AST checks run on extracted `<script>` blocks |
 | Django | Python | `block-py-violations.py` | + path checks |
 | FastAPI | Python | `block-py-violations.py` | + path checks |
 | Flask | Python | `block-py-violations.py` | + path checks |

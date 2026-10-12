@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression test — AST checks on Vue/Svelte `<script>` blocks (ISS-010).
+"""Regression test — AST checks on Vue/Svelte `<script>` blocks.
 
 The hook extracts `<script>` / `<script setup>` from .vue/.svelte SFCs and runs
 the tree-sitter AST checks on them, with line numbers aligned to the SFC. This

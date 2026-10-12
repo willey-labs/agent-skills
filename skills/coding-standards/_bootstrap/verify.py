@@ -68,7 +68,7 @@ def _wired_hook_scripts(pre_tool_use: list) -> list[str]:
 
 
 def _all_wired_scripts_exist(scripts: list[str]) -> bool:
-    """True unless a resolvable wired script path is missing from disk (ISS-015)."""
+    """True unless a resolvable wired script path is missing from disk."""
     for script in scripts:
         expanded = os.path.expandvars(script)
         if "${" in expanded:
@@ -103,14 +103,15 @@ def already_set_up() -> int:
     pre_tool_use = hooks_section.get("PreToolUse") if isinstance(hooks_section, dict) else None
     pre_tool_use = pre_tool_use if isinstance(pre_tool_use, list) else []
 
+    interpreter = _wired_hook_interpreter(pre_tool_use)
+    if interpreter is None:
+        return not_ready(f"not installed — no enforcement hooks wired ({scope})")
+
     absent = missing_wired_scripts(settings)
     if absent:
         listed = "".join(f"    - {name}\n" for name in absent).rstrip("\n")
         return not_ready(f"{len(absent)} registered hook(s) not wired ({scope}):\n{listed}")
 
-    interpreter = _wired_hook_interpreter(pre_tool_use)
-    if interpreter is None:
-        return not_ready(f"no enforcement hooks wired ({scope})")
     if not interpreter_has_packages(interpreter):
         return not_ready(
             f"the wired hooks run under `{interpreter}`, which cannot load the required "

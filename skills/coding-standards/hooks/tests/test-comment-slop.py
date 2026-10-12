@@ -59,6 +59,13 @@ FLAGGED = [
         "CM-005",
     ),
     Case("filler", "/tmp/cs/src/g.py", "# Note: run this before init\nx = 1\n", "CM-005"),
+    Case("filler adverb", "/tmp/cs/src/g2.py", "# Basically this sums the rows\nx = 1\n", "CM-005"),
+    Case(
+        "wrapped line opening on a noun",
+        "/tmp/cs/src/g3.py",
+        '"""Prints the session\nreminder and exits 0."""\nx = 1\n',
+        None,
+    ),
     Case("banner", "/tmp/cs/src/h.py", "# ===== helpers =====\nx = 1\n", "CM-004"),
     Case(
         "reader address",

@@ -55,7 +55,7 @@ def _managed_venv_dirs() -> list[Path]:
 
     Mirror of `_bootstrap/paths.py:_managed_venv_dir` — kept in sync by
     `hooks/tests/test-review-files-venv.py`. The managed venv lives OUTSIDE the
-    skill dir (ISS-006: `npx skills add` re-copies the skill tree and would wipe
+    skill dir (`npx skills add` re-copies the skill tree and would wipe
     an in-skill venv), so the in-skill `.venv` is only the last-resort fallback.
     We can't import `_bootstrap` here (it anchors on the bootstrap entry script's
     path, which a hook invocation doesn't provide), so the logic is mirrored.
@@ -93,7 +93,7 @@ def resolve_interpreter() -> tuple[str, bool]:
 
     The write-time hooks are wired to the interpreter tree-sitter was installed
     into. On a PEP-668 host that is the dedicated managed venv, which lives
-    OUTSIDE the skill dir (ISS-006) — at `$CODING_STANDARDS_VENV`,
+    OUTSIDE the skill dir — at `$CODING_STANDARDS_VENV`,
     `$XDG_DATA_HOME/coding-standards/venv`, or `~/.local/share/coding-standards/
     venv`. A review launched with a bare `python3` that lacks the grammars must
     look THERE, not only beside the skill, or it would silently skip FN-001 /

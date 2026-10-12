@@ -4,7 +4,7 @@
 The PreToolUse hooks are the enforcement, and it can be absent without a symptom:
 scripts the wiring never picked up, an interpreter that cannot load the required
 packages, a moved skill dir leaving every hook to exit 127. Nothing blocks, and the
-user keeps writing unchecked code believing they are covered (ISS-006).
+user keeps writing unchecked code believing they are covered.
 
 So this hook repairs rather than reports. It asks whether enforcement is live, and on
 a failure runs the installer itself. That rewrites settings.json without being asked,

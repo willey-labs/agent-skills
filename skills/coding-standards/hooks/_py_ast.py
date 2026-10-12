@@ -62,8 +62,7 @@ def _is_fastapi_marker(node: ast.expr | None) -> bool:
 def _annotation_is_fastapi(annotation: ast.expr | None) -> bool:
     """True when a param annotation is `Annotated[T, <marker>(...)]` carrying a
     FastAPI binding in its metadata — the no-default style FastAPI now recommends
-    (`db: Annotated[Session, Depends(get_db)]`), which has no default to inspect
-    (ISS-017)."""
+    (`db: Annotated[Session, Depends(get_db)]`), which has no default to inspect."""
     if not isinstance(annotation, ast.Subscript):
         return False
     base = annotation.value
@@ -204,7 +203,7 @@ def iter_ast_violations(source: str, file_path: str) -> tuple[Iterable[str], boo
     for func in _iter_functions(tree):
         # Test functions and pytest fixtures take their parameters from the test
         # framework (the fixture system, not a caller, supplies them) — exempt from
-        # FN-005, same spirit as the FastAPI carve-out (ISS-017). Covers pytest/
+        # FN-005, same spirit as the FastAPI carve-out. Covers pytest/
         # unittest names (`test_foo`, `testFoo`) and any `@fixture`/`@pytest.fixture`.
         name = func.name
         is_test = name.startswith("test_") or (

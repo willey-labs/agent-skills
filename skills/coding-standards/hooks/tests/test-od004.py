@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression test — OD-004 hybrid-class detector requires >=2 accessors (P2).
+"""Regression test — OD-004 hybrid-class detector requires >=2 accessors.
 
 The detector once fired on ONE accessor + ONE business method, over-firing on
 ordinary classes (a single computed @property / getter next to a real method — the
@@ -70,9 +70,22 @@ TS_ORDINARY = (
     "}\n"
 )
 
+TS_VIEW_MODEL = (
+    "import { Observable } from '@nativescript/core'\n"
+    "export class CartViewModel extends Observable {\n"
+    "  get total() { return this._total }\n"
+    "  set total(value: number) { this._total = value }\n"
+    "  onClear() {\n"
+    "    this._total = 0\n"
+    "    this.notifyPropertyChange('total', 0)\n"
+    "  }\n"
+    "}\n"
+)
+
 TS_CASES = [
     Case("ts 2 getters + business method blocks", TS, "/t/order.ts", TS_HYBRID, block=True, rule="OD-004"),
     Case("ts 1 getter + business method passes (over-fire fix)", TS, "/t/order2.ts", TS_ORDINARY, block=False),
+    Case("NativeScript Observable view model passes", TS, "/t/cart-view-model.ts", TS_VIEW_MODEL, block=False),
 ]
 
 

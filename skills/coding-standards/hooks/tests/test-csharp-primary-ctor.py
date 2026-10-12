@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression test — FN-005 C# 12 primary-constructor carve-out (ISS-008).
+"""Regression test — FN-005 C# 12 primary-constructor carve-out.
 
 A primary constructor on a class/struct (`class Foo(dep1, …, dep5)`) carries DI
 dependencies, not hot-path arguments — exempt like a classic constructor and like

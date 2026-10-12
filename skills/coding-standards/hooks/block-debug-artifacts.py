@@ -11,12 +11,15 @@ blocks):
 - **ADVISORY (exit 0, emitted as tool-result context)** — print-style residue (`console.log`, `print(`,
   `fmt.Println`, `Console.WriteLine`, `System.out.print`, Kotlin `println`) and
   commented-out code. These have legitimate uses (a CLI prints; a comment explains),
-  so the blunt signal warns rather than blocks. Under the review model every
+  so the blunt signal warns rather than blocks. Print-style calls are skipped in a
+  program entry point (shebang, `__main__` guard, `main` function), where they are
+  the program's output. Under the review model every
   finding — advisory included — is a violation to confirm or `accept` with a reason.
 
 Debug-residue patterns run on text with strings AND comments stripped (so a string
 `"console.log"` or a commented `// console.log(x)` isn't double-counted). The
-commented-out-code check runs on RAW lines (it needs the comment text), kept
+commented-out-code check runs on text with only strings and docstrings blanked (it
+needs the comment text), reads `#` as a comment only in Python and PHP, and is kept
 conservative to limit noise even as an advisory.
 
 Stdlib only. Exit 2 hard-block (stderr); exit 0 advisory (stdout context); exit 0 silent clean.
@@ -29,6 +32,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from _comment_scan import HASH_COMMENT_EXTS, blank_strings  # noqa: E402
 from _hook_run import advise, advisory_message, read_payload, resolve_target  # noqa: E402
 
 JS_EXTS = {".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"}
@@ -69,18 +73,38 @@ ADVISORY_PATTERNS: list[tuple[set[str], re.Pattern[str], str]] = [
 # `recognizes (and replaces)` is an English parenthetical, which prose uses
 # constantly. An assignment keeps the optional space (`x = 1` is code either way).
 # Shebangs and tool-directive comments are exempt.
-_COMMENT_CODE = re.compile(
-    r"""(?://|\#)\s*
+_CODE_START = r"""\s*
         (?:
             (?:return|const|let|var|func|def|class|import|export|public|private|protected|fn|val|throw|await|yield)\b
           | (?:if|for|while|switch|catch|foreach)\s*\(
-          | [}\])]
+          | [}\])]+[;,]?\s*$
           | [\w$.]+(?:\(|\s*=)
         )
-    """,
-    re.VERBOSE,
-)
+    """
+_SLASH_COMMENT_CODE = re.compile(r"//" + _CODE_START, re.VERBOSE)
+_SLASH_OR_HASH_COMMENT_CODE = re.compile(r"(?://|\#)" + _CODE_START, re.VERBOSE)
 _COMMENT_EXEMPT = re.compile(r"^\s*(?:#!|#\s*-\*-|//\s*(?:eslint|@ts-|prettier|biome|noqa|type:))")
+
+_PROGRAM_ENTRY = re.compile(
+    r"\A#!"
+    r"|^if\s+__name__\s*==\s*['\"]__main__['\"]"
+    r"|^func\s+main\s*\(\s*\)"
+    r"|^fun\s+main\s*\("
+    r"|\bstatic\s+void\s+main\s*\(\s*String"
+    r"|\bstatic\s+(?:async\s+)?(?:void|int|Task(?:<int>)?)\s+Main\s*\(",
+    re.MULTILINE,
+)
+
+
+def is_program_entry(file_path: str, new_content: str) -> bool:
+    """True when the file is a program entry point, where print-style calls are the output."""
+    if _PROGRAM_ENTRY.search(new_content):
+        return True
+    try:
+        on_disk = Path(file_path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    return bool(_PROGRAM_ENTRY.search(on_disk))
 
 
 def strip_strings_and_comments(source: str) -> str:
@@ -101,7 +125,6 @@ def strip_strings_and_comments(source: str) -> str:
 def collect(new_content: str, file_path: str, ext: str) -> tuple[list[str], list[str]]:
     """Return (hard_block_messages, advisory_messages) for one file."""
     clean_lines = strip_strings_and_comments(new_content).splitlines()
-    raw_lines = new_content.splitlines()
     hard: list[str] = []
     advisory: list[str] = []
 
@@ -112,17 +135,19 @@ def collect(new_content: str, file_path: str, ext: str) -> tuple[list[str], list
             if pattern.search(line):
                 hard.append(f"{file_path}:{idx} — FMT-005: {label} (debug residue — never ship)")
 
+    prints_are_output = is_program_entry(file_path, new_content)
     for ext_set, pattern, label in ADVISORY_PATTERNS:
-        if ext not in ext_set:
+        if ext not in ext_set or prints_are_output:
             continue
         for idx, line in enumerate(clean_lines, start=1):
             if pattern.search(line):
                 advisory.append(f"{file_path}:{idx} — FMT-005: {label} (likely debug residue — confirm)")
 
-    for idx, line in enumerate(raw_lines, start=1):
+    comment_code = _SLASH_OR_HASH_COMMENT_CODE if ext in HASH_COMMENT_EXTS else _SLASH_COMMENT_CODE
+    for idx, line in enumerate(blank_strings(new_content).splitlines(), start=1):
         if _COMMENT_EXEMPT.search(line):
             continue
-        if _COMMENT_CODE.search(line):
+        if comment_code.search(line):
             advisory.append(f"{file_path}:{idx} — FMT-005: commented-out code; delete it (git remembers)")
 
     return hard, advisory

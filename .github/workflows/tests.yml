@@ -1,0 +1,34 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  hooks:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install the hook dependencies into a venv
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install tree-sitter tree-sitter-typescript tree-sitter-javascript
+
+      - name: Run the hook regression suite
+        run: .venv/bin/python skills/coding-standards/hooks/tests/run-all.py
+
+      - name: Check the skill's own code against its rules
+        run: |
+          git ls-files '*.py' | .venv/bin/python skills/coding-standards/hooks/review-files.py --stdin | tee review.txt
+          grep -q "Total hook-level violations: 0" review.txt

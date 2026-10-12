@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Regression test — review-files.py finds the managed venv (P0).
+"""Regression test — review-files.py finds the managed venv.
 
-review-files.py:resolve_interpreter once looked only at `<skill>/.venv`, but the
-managed venv lives OUTSIDE the skill dir (ISS-006) at $CODING_STANDARDS_VENV /
-$XDG_DATA_HOME/coding-standards/venv / ~/.local/share/coding-standards/venv. On a
-PEP-668 host a review launched with a bare `python3` would then miss the grammars
-and silently skip the TS/JS AST checks (FN-001 / OD-004 / precise FN-005),
-reporting a file CLEAN. This pins that review-files.py's candidate venv dirs
-include whatever `_bootstrap/paths.py:_managed_venv_dir` resolves to, so the two
-can't drift apart again.
+The managed venv lives OUTSIDE the skill dir, at $CODING_STANDARDS_VENV /
+$XDG_DATA_HOME/coding-standards/venv / ~/.local/share/coding-standards/venv. A
+review that missed it would run under a bare `python3` without the grammars and
+silently skip the TS/JS AST checks (FN-001 / OD-004 / precise FN-005), reporting a
+file CLEAN. This pins that review-files.py's candidate venv dirs include whatever
+`_bootstrap/paths.py:_managed_venv_dir` resolves to, so the two can't drift apart.
 
     python3 hooks/tests/test-review-files-venv.py
 """
@@ -69,7 +67,7 @@ def main() -> int:
         for failure in failures:
             sys.stderr.write(f"FAIL {failure}\n")
         return 1
-    print("ok — review-files managed-venv discovery (P0) cases hold")
+    print("ok — review-files managed-venv discovery cases hold")
     return 0
 
 

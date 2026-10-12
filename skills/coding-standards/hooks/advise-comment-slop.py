@@ -97,9 +97,9 @@ SLOP_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
     ),
     (
         re.compile(
-            r"^(?:note|important|caution|fyi|heads[ -]up|reminder|basically|obviously"
-            r"|clearly|essentially|tl;?dr|here'?s (?:how|what|the)|here is (?:how|what)"
-            r"|as you can see|in other words|simply put|to be clear)\b[:,]?",
+            r"^(?:(?:note|important|caution|fyi|heads[ -]up|reminder|tl;?dr)\s*[:!]"
+            r"|(?:basically|obviously|clearly|essentially|here'?s (?:how|what|the)"
+            r"|here is (?:how|what)|as you can see|in other words|simply put|to be clear)\b)",
             re.IGNORECASE,
         ),
         "CM-005",

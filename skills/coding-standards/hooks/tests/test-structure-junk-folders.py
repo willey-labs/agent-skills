@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression test — ST-005 structure-derived folder allowance (ISS-001).
+"""Regression test — ST-005 structure-derived folder allowance.
 
 A published catalog layout (bulletproof-react via `follows: feature-first` /
 `route-colocated`) sanctions a `utils/` folder. The skill's own picker offers
@@ -73,7 +73,7 @@ def main() -> int:
         for f in failures:
             sys.stderr.write(f"FAIL {f}\n")
         return 1
-    print("ok — structure-junk-folder (ISS-001) cases hold")
+    print("ok — structure-junk-folder cases hold")
     return 0
 
 

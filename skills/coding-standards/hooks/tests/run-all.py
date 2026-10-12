@@ -4,7 +4,7 @@
     python3 hooks/tests/run-all.py
 
 Discovers every `test-*.py` sibling, runs each with the SAME interpreter, and
-aggregates. Two distinct failure exits so green never hides a hole (ISS-028):
+aggregates. Two distinct failure exits so green never hides a hole:
 
   exit 0  — all tests pass AND the tree-sitter AST path was exercisable.
   exit 1  — at least one test failed.

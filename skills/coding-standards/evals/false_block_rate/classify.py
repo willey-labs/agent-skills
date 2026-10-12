@@ -72,6 +72,46 @@ _VERDICTS: dict[tuple[str, str], tuple[str, str, str]] = {
         "fp", "stance",
         "`utils.go` — deliberate ST-005 ban on a name common in Go",
     ),
+    ("ky", "EH-002"): (
+        "fp", "stance",
+        "empty `catch {}` around a TextDecoder fallback; the fallback is correct, EH-002 wants a one-line reason",
+    ),
+    ("ky", "FN-001"): ("tp", "", "the `Ky` constructor runs 23 statements"),
+    ("ky", "FN-005"): ("tp", "", "`timeout` takes 4 positional parameters"),
+    ("ky", "OD-006"): ("tp", "", "`as any` / `: any` escape hatches in library source"),
+    ("ky", "ST-005"): (
+        "fp", "stance",
+        "`utils/` folder and `types/common.ts` — deliberate ST-005 ban on names common in TS libraries",
+    ),
+    ("microblog", "FN-001"): (
+        "fp", "stance",
+        "Flask `create_app` registers extensions and blueprints in one function — the documented factory shape",
+    ),
+    ("microblog", "FN-005"): ("tp", "", "`send_email` takes 7 positional arguments"),
+    ("nativescript-app-templates", "OD-006"): ("tp", "", "`: any` / `as any` across the official templates"),
+    ("nativescript-app-templates", "ST-005"): ("fp", "stance", "`shared/utils.ts` — deliberate ST-005 ban"),
+    ("node-express-boilerplate", "FN-005"): (
+        "tp", "", "4–5 positional parameters on callbacks and the ApiError constructor",
+    ),
+    ("node-express-boilerplate", "ST-005"): ("fp", "stance", "`utils/` folder — deliberate ST-005 ban"),
+    ("react-native-template-obytes", "OD-006"): ("tp", "", "`: any`, `as any` and `any[]`"),
+    ("react-native-template-obytes", "ST-003"): (
+        "fp", "stance",
+        "imports reach past the `components/ui` and `lib/hooks` index barrels — the template's own convention",
+    ),
+    ("react-native-template-obytes", "ST-005"): ("fp", "stance", "`utils.tsx` files — deliberate ST-005 ban"),
+    ("spring-petclinic-kotlin", "OD-006"): (
+        "fp", "stance",
+        "`Any` in an override of Spring's `Validator.validate` and a Spring MVC `Map<String, Any>` model — "
+        "signatures the framework dictates",
+    ),
+    ("spring-petclinic-kotlin", "ST-010"): (
+        "fp", "stance",
+        "Kotlin star imports, common in Spring Kotlin samples; ST-010 bans them deliberately",
+    ),
+    ("vitesse", "EH-002"): ("tp", "", "`.catch(() => {})` drops a PWA registration failure with no log"),
+    ("vitesse", "OD-006"): ("tp", "", "`as any` and `Record<string, any>`"),
+    ("vitesse", "ST-005"): ("fp", "stance", "top-level `src/types.ts` — deliberate ST-005 mega-file ban"),
 }
 
 # ST-008 is judged by declaration count, not a flat cluster verdict: a genuinely

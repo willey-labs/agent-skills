@@ -277,6 +277,22 @@ out. (Structural companion to DP-007: a nested peer is usually also a parallel-f
 
 ---
 
+## ST-010 — Import names, not whole namespaces
+
+Import each name you use. A star or dot import pours a module's entire namespace into the file.
+
+```
+# Good
+from billing.invoice import Invoice, issue_invoice
+# Bad
+from billing.invoice import *
+```
+
+Same rule for Java/Kotlin `import com.acme.billing.*` and Go `import . "fmt"`. A reader can no longer
+tell where a name comes from, and a new export upstream can silently shadow a local name.
+
+---
+
 ## How framework files build on this
 
 Each `references/<framework>/structure.md` adds only what's specific to that framework: what the front door
@@ -304,6 +320,7 @@ File scope (ST-008)
   □ Themed 3+ clusters promoted regardless of total folder size (ST-008 promotion by cohesion)
 
 Boundaries & sharing
+  □ Imports name what they bring in — no star or dot imports (ST-010)
   □ Each multi-file folder has one front door
   □ No import reaches past a folder's front door
   □ Nothing shared before its third user; shared code sits at the lowest covering level

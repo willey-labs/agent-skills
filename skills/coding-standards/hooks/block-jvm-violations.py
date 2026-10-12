@@ -27,7 +27,7 @@ JVM_EXTENSIONS = {".java", ".kt", ".kts"}
 # Star imports — bring entire package into scope, hide where a type came from.
 STAR_IMPORT = re.compile(r"^\s*import\s+(?:static\s+)?[\w.]+\.\*\s*;?\s*$")
 
-# NM-006 — Hungarian notation (ISS-018). Same multi-char prefix policy as C#/TS;
+# NM-006 — Hungarian notation. Same multi-char prefix policy as C#/TS;
 # the `[A-Z][a-z]+` after the prefix guards legit names (`strategy`, `name`).
 # Three shapes cover both languages: Java `Type strName` (decl/field/param),
 # Kotlin `val/var strName`, and Kotlin param/property `strName: Type`.
@@ -98,7 +98,7 @@ def iter_star_import_violations(raw_lines: list[str], file_path: str) -> Iterabl
     for idx, line in enumerate(raw_lines, start=1):
         if STAR_IMPORT.search(line):
             yield (
-                f"{file_path}:{idx} — star import banned; "
+                f"{file_path}:{idx} — ST-010: star import banned; "
                 f"name each type you import"
             )
 

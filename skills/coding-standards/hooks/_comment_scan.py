@@ -79,6 +79,11 @@ def _spans(
     return lines, pattern.sub(_blank, text)
 
 
+def blank_strings(source: str) -> str:
+    """`source` with string literals and docstrings blanked; comments and line numbers kept."""
+    return _QUOTED.sub(_blank, _TRIPLE_QUOTED.sub(_blank, source))
+
+
 def commented_lines(source: str, ext: str) -> list[tuple[int, str]]:
     """(line number, comment prose) for every comment and docstring line in a file."""
     found: list[tuple[int, str]] = []

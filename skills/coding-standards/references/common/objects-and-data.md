@@ -133,7 +133,7 @@ These look like hybrids because they expose data shape *and* attach behavior (va
 
 **The rule:**
 
-1. **Framework-boundary classes** (DTOs, Form Requests, EF/TypeORM/JPA entities, Pydantic models, Cocos components) are *allowed* to look like hybrids. They exist to bridge a framework contract; that's the framework's design.
+1. **Framework-boundary classes** (DTOs, Form Requests, EF/TypeORM/JPA entities, Pydantic models, Cocos components, NativeScript `Observable` view models) are *allowed* to look like hybrids. They exist to bridge a framework contract; that's the framework's design.
 2. **Business rules still don't live on those classes.** An Order entity may carry `@Entity` decorators and `IsCancellable()` (about its own data). It must not carry `ChargeCustomer()` or `SendOrderConfirmation()` — those are orchestration, and they belong in services or domain objects.
 3. **The framework boundary is a *thin* layer.** When the boundary class starts to grow business methods, you've crossed the line — extract them out.
 

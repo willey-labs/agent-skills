@@ -37,6 +37,9 @@ CLEAN = [
     ("prose parenthetical", "// It names the entry (and replaces it) on a re-run.\nexport const x = 1\n"),
     ("prose parenthetical mid-sentence", "// Retries twice (the gateway drops the first call).\nexport const x = 1\n"),
     ("plain prose", "// The gateway rounds half-to-even; invoices round half-up.\nexport const x = 1\n"),
+    ("comment marker inside a string", 'export const hint = "use // load(x) here";\n'),
+    ("JS private field", "export class Counter {\n  #count = 0;\n}\n"),
+    ("bracket after a code span", "// `utils/`) folders get an exemption here.\nexport const x = 1\n"),
 ]
 
 

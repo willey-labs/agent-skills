@@ -76,7 +76,7 @@ def _pick_ts_language(ext: str):
     return None  # plain-file extensions only; SFCs go through _extract_sfc_scripts
 
 
-# .vue / .svelte `<script>` / `<script setup lang="ts">` blocks (ISS-010).
+# .vue / .svelte `<script>` / `<script setup lang="ts">` blocks.
 _SCRIPT_RE = re.compile(r"<script\b([^>]*)>(.*?)</script>", re.DOTALL | re.IGNORECASE)
 
 

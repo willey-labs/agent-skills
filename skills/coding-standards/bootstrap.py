@@ -50,6 +50,9 @@ Flags:
                    if the skill is already wired for this scope AND the hooks'
                    interpreter can import the required packages; non-zero if a
                    full --auto-install run is needed. Wires/installs nothing.
+  --with-comment-judge / --without-comment-judge
+                   Wire or remove the comment judge (a model call per turn that
+                   adds comments). With neither, it stays as currently wired.
 """
 
 from __future__ import annotations
@@ -72,24 +75,9 @@ from _bootstrap.paths import HOOKS_DIR
 from _bootstrap.permissions import wire_skill_permissions
 from _bootstrap.readiness import find_compatible_python, print_readiness, readiness_report
 from _bootstrap.scope import IGNORE_FILENAME, detect_scope_and_targets, seed_ignore_template
-from _bootstrap.hook_entries import (
-    build_hook_entry,
-    build_post_tool_use_entry,
-    build_session_start_entry,
-    build_stop_entry,
-    build_user_prompt_submit_entry,
-)
+from _bootstrap.settings import HOOK_FILES, load_settings, write_settings
 from _bootstrap.verify import already_set_up as verify_already_set_up
-from _bootstrap.settings import (
-    HOOK_FILES,
-    load_settings,
-    merge_hook_entry,
-    merge_post_tool_use_entry,
-    merge_session_start_entry,
-    merge_stop_entry,
-    merge_user_prompt_submit_entry,
-    write_settings,
-)
+from _bootstrap.wiring import SettingsActions, WiringRequest, wire_settings
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -114,6 +102,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
              "this scope and Python is OK (nothing to do); non-zero if a full "
              "--auto-install run is needed. Wires/installs nothing.",
     )
+    judge = parser.add_mutually_exclusive_group()
+    judge.add_argument(
+        "--with-comment-judge", dest="judge_choice", action="store_const", const=True,
+        help="Wire the comment judge: one model call per turn that adds comments.",
+    )
+    judge.add_argument(
+        "--without-comment-judge", dest="judge_choice", action="store_const", const=False,
+        help="Remove the comment judge. With neither flag it stays as currently wired.",
+    )
     return parser.parse_args(argv)
 
 
@@ -123,9 +120,7 @@ class WiringResult:
     scope: str
     settings_path: Path
     commands_dir: Path
-    hooks_action: str
-    session_action: str
-    judge_action: str
+    actions: SettingsActions
     cmd_action: str
     perms_changed: bool
     hook_python: str
@@ -134,12 +129,17 @@ class WiringResult:
     ignore_path: Path | None
 
 
+def _judge_line(actions: SettingsActions) -> str:
+    if not actions.judge_enabled:
+        removed = " (removed)" if actions.judge == "removed" else ""
+        return f"off{removed} — enable with --with-comment-judge (one model call per turn that adds comments)"
+    return "on — a separate model call reviews the comments each turn adds; disable with --without-comment-judge"
+
+
 def report_install_result(result: WiringResult) -> int:
     """Print the post-wiring summary and return the process exit code."""
     if (
-        result.hooks_action == "noop"
-        and result.session_action == "noop"
-        and result.judge_action == "noop"
+        not result.actions.changed
         and result.cmd_action == "noop"
         and not result.perms_changed
         and result.ignore_action != "created"
@@ -150,7 +150,7 @@ def report_install_result(result: WiringResult) -> int:
         )
         return 0
 
-    verb = {"added": "Wired", "updated": "Updated", "noop": "Unchanged"}[result.hooks_action]
+    verb = {"added": "Wired", "updated": "Updated", "noop": "Unchanged"}[result.actions.hooks]
     cmd_verb = {"created": "linked", "refreshed": "refreshed", "noop": "unchanged"}[result.cmd_action]
     print(
         f"\ncoding-standards: {verb} {len(HOOK_FILES)} PreToolUse hooks into "
@@ -160,10 +160,9 @@ def report_install_result(result: WiringResult) -> int:
         f"  Hook commands use: {result.hook_python}\n"
         f"    ({interpreter_note(result.scope, result.venv_python)}).\n"
         f"  Hooks dir: {HOOKS_DIR}\n"
-        f"  SessionStart health check: {result.session_action} (re-wires enforcement if "
+        f"  SessionStart health check: {result.actions.session} (re-wires enforcement if "
         f"it ever goes dead, and says so; reports when it can't).\n"
-        f"  Comment judge: {result.judge_action} (PostToolUse records what a turn wrote; "
-        f"Stop has a separate model judge the comments in it).\n"
+        f"  Comment judge: {_judge_line(result.actions)}.\n"
         f"  Restart your agent if hooks or commands don't activate on the next tool call."
     )
     if result.perms_changed:
@@ -229,89 +228,64 @@ def reexec_under_compatible_python() -> None:
         pass  # fall through; readiness will report the block as usual
 
 
+def _block_on_readiness(report: dict) -> int:
+    print("\n  Blocking issues:")
+    for issue in report["blocking_issues"]:
+        print(f"    - {issue}")
+    print("\n  Resolve the blocking issues above and re-run bootstrap.")
+    return 1
+
+
+def apply_wiring(targets: tuple[str, Path, Path], request: WiringRequest, venv_python: Path | None) -> WiringResult:
+    """Write the hook entries, permissions, slash command and ignore template for one scope."""
+    scope, settings_path, commands_dir = targets
+    settings = load_settings(settings_path)
+    actions = wire_settings(settings, request)
+    # Project scope puts permissions in the git-ignored settings.local.json, keeping absolute paths out of commits.
+    perms_changed = wire_skill_permissions(scope, settings_path, settings)
+    if actions.changed or (scope == "global" and perms_changed):
+        write_settings(settings_path, settings)
+    ignore_action, ignore_path = seed_ignore_template(scope, settings_path)
+    return WiringResult(
+        scope=scope,
+        settings_path=settings_path,
+        commands_dir=commands_dir,
+        actions=actions,
+        cmd_action=install_slash_command(commands_dir),
+        perms_changed=perms_changed,
+        hook_python=request.hook_python,
+        venv_python=venv_python,
+        ignore_action=ignore_action,
+        ignore_path=ignore_path,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
-
-    # Recover from an old launcher Python by re-running under a compatible one
-    # already on the machine (does not return if it re-execs).
     reexec_under_compatible_python()
-
     if args.verify:
         return verify_already_set_up()
 
-    # ── Step 1: Readiness check ────────────────────────────────────────────
     report = readiness_report()
     print_readiness(report)
     if report["blocking_issues"]:
-        print("\n  Blocking issues:")
-        for issue in report["blocking_issues"]:
-            print(f"    - {issue}")
-        print("\n  Resolve the blocking issues above and re-run bootstrap.")
-        return 1
+        return _block_on_readiness(report)
     if args.check:
         return 0
 
-    # ── Step 2: Detect scope (needed to choose the install strategy) ─────────
-    scope, settings_path, commands_dir = detect_scope_and_targets()
-
-    # ── Step 3: Install the required packages (may create a venv) ────────────
-    # Global installs own a dedicated venv (stable, independent of whatever
-    # python3 is first on PATH); project installs keep the portable `python3`
-    # so the committed settings.json works across teammates' machines.
-    if scope == "global":
-        report, venv_python = ensure_global_venv(report, args)
-    else:
-        report, venv_python = ensure_required_packages(report, args)
+    targets = detect_scope_and_targets()
+    scope = targets[0]
+    # Global installs own a venv; project installs keep the portable `python3` teammates share.
+    install_packages = ensure_global_venv if scope == "global" else ensure_required_packages
+    report, venv_python = install_packages(report, args)
     if not required_packages_available(report, venv_python):
         _block_on_missing_packages(report)
         return 1
 
-    # ── Step 4: Wire hooks + slash command ──────────────────────────────────
     warn_project_interpreter_mismatch(scope, report, venv_python)
     hook_python = hook_interpreter(scope, report["python_command"], venv_python)
-    entry = build_hook_entry(scope, hook_python)
-    settings = load_settings(settings_path)
-    updated, hooks_action = merge_hook_entry(settings, entry)
-    # SessionStart health check (ISS-006) — makes silently-dead enforcement loud.
-    _, session_action = merge_session_start_entry(updated, build_session_start_entry(scope))
-    # PostToolUse + Stop: the comment judge. The recorder notes which files a turn
-    # wrote; the judge reads them when the turn tries to end.
-    _, post_action = merge_post_tool_use_entry(updated, build_post_tool_use_entry(scope))
-    _, stop_action = merge_stop_entry(updated, build_stop_entry(scope))
-    # UserPromptSubmit: re-inject the rule reminder each turn, so a rule read once at
-    # session start is still in context by the time code gets written.
-    _, prompt_action = merge_user_prompt_submit_entry(
-        updated, build_user_prompt_submit_entry(scope)
-    )
-    # Permissions: global → into the committed `updated`; project → into the
-    # git-ignored settings.local.json so machine-absolute paths never get committed
-    # (ISS-012). perms_changed reflects whichever file was touched.
-    perms_changed = wire_skill_permissions(scope, settings_path, updated)
-    committed_changed = (
-        hooks_action != "noop" or session_action != "noop"
-        or post_action != "noop" or stop_action != "noop"
-        or prompt_action != "noop"
-        or (scope == "global" and perms_changed)
-    )
-    if committed_changed:
-        write_settings(settings_path, updated)
-    cmd_action = install_slash_command(commands_dir)
-    ignore_action, ignore_path = seed_ignore_template(scope, settings_path)
-
-    return report_install_result(WiringResult(
-        scope=scope,
-        settings_path=settings_path,
-        commands_dir=commands_dir,
-        hooks_action=hooks_action,
-        session_action=session_action,
-        judge_action=("noop" if post_action == "noop" and stop_action == "noop" else "wired"),
-        cmd_action=cmd_action,
-        perms_changed=perms_changed,
-        hook_python=hook_python,
-        venv_python=venv_python,
-        ignore_action=ignore_action,
-        ignore_path=ignore_path,
-    ))
+    request = WiringRequest(scope=scope, hook_python=hook_python, judge_choice=args.judge_choice)
+    return report_install_result(apply_wiring(targets, request, venv_python))
 
 
 if __name__ == "__main__":

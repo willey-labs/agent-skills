@@ -41,7 +41,7 @@ PY_EXTENSIONS = {".py", ".pyi"}
 # The subscript rule is position- AND container-agnostic: `Any` led by `[` or `,`
 # and trailed by `]` or `,` catches PEP 585 lowercase builtins (`dict[str, Any]`,
 # `list[Any]`, `tuple[Any, ...]`, `set[Any]`) as well as the capitalized typing
-# forms — so it subsumes the old List/Dict/Optional/Tuple/Union specials (ISS-003).
+# forms (List/Dict/Optional/Tuple/Union).
 # The two pipe rules catch PEP 604 unions (`int | Any`, `Any | None`).
 ANY_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r":\s*Any\b"), "type annotation `: Any`"),
@@ -217,7 +217,7 @@ def iter_star_import_violations(raw_lines: list[str], file_path: str) -> Iterabl
     for idx, line in enumerate(raw_lines, start=1):
         if STAR_IMPORT.search(line):
             yield (
-                f"{file_path}:{idx} — star import (`from x import *`) banned; "
+                f"{file_path}:{idx} — ST-010: star import (`from x import *`) banned; "
                 f"name what you import"
             )
 
